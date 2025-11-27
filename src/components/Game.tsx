@@ -1801,7 +1801,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         progress: Math.random() * 0.8,
         speed: (0.35 + Math.random() * 0.35) * 0.7,
         age: 0,
-        maxAge: 360 + Math.random() * 540,
+        maxAge: 1800 + Math.random() * 2700,
         color: CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)],
         laneOffset: (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 3),
       });
