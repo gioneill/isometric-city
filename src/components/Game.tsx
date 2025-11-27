@@ -10,6 +10,7 @@ import {
   FastForwardIcon,
   CloseIcon,
   RoadIcon,
+  SubwayIcon,
   TreeIcon,
   FireIcon,
   PowerIcon,
@@ -329,6 +330,7 @@ const EVENT_ICON_MAP: Record<string, React.ReactNode> = {
   power: <PowerIcon size={16} />,
   water: <WaterIcon size={16} />,
   road: <RoadIcon size={16} />,
+  subway: <SubwayIcon size={16} />,
   balance: <ChartIcon size={16} />,
   cash: <MoneyIcon size={16} />,
   profit: <MoneyIcon size={16} />,
@@ -363,11 +365,11 @@ const Sidebar = React.memo(function Sidebar() {
   const { selectedTool, stats, activePanel } = state;
   
   const toolCategories = useMemo(() => ({
-    'TOOLS': ['select', 'bulldoze', 'road'] as Tool[],
+    'TOOLS': ['select', 'bulldoze', 'road', 'subway'] as Tool[],
     'ZONES': ['zone_residential', 'zone_commercial', 'zone_industrial', 'zone_dezone'] as Tool[],
     'SERVICES': ['police_station', 'fire_station', 'hospital', 'school', 'university'] as Tool[],
     'PARKS': ['park', 'park_large', 'tennis'] as Tool[],
-    'UTILITIES': ['power_plant', 'water_tower'] as Tool[],
+    'UTILITIES': ['power_plant', 'water_tower', 'subway_station'] as Tool[],
     'SPECIAL': ['stadium', 'museum', 'airport', 'space_program'] as Tool[],
   }), []);
   
@@ -1589,7 +1591,7 @@ function AdvisorsPanel() {
   );
 }
 
-type OverlayMode = 'none' | 'power' | 'water' | 'fire' | 'police' | 'health' | 'education';
+type OverlayMode = 'none' | 'power' | 'water' | 'fire' | 'police' | 'health' | 'education' | 'subway';
 
 // Image cache for building sprites
 const imageCache = new Map<string, HTMLImageElement>();
@@ -1957,6 +1959,17 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       vehicle.flashTimer += delta * 8;
       
       if (vehicle.state === 'responding') {
+        // Check if vehicle is still on a valid road (road might have been bulldozed)
+        if (!isRoadTile(currentGrid, currentGridSize, vehicle.tileX, vehicle.tileY)) {
+          const targetKey = `${vehicle.targetX},${vehicle.targetY}`;
+          if (vehicle.type === 'fire_truck') {
+            activeFiresRef.current.delete(targetKey);
+          } else {
+            activeCrimesRef.current.delete(targetKey);
+          }
+          continue; // Remove vehicle
+        }
+        
         // At the scene - spend some time responding
         vehicle.respondTime += delta * speedMultiplier;
         const respondDuration = vehicle.type === 'fire_truck' ? 8 : 5; // Fire trucks stay longer
@@ -1978,6 +1991,15 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
             const nextTile = returnPath[1];
             const dir = getDirectionToTile(vehicle.tileX, vehicle.tileY, nextTile.x, nextTile.y);
             if (dir) vehicle.direction = dir;
+          } else if (returnPath && returnPath.length === 1) {
+            // Already at station's road - remove vehicle
+            const targetKey = `${vehicle.targetX},${vehicle.targetY}`;
+            if (vehicle.type === 'fire_truck') {
+              activeFiresRef.current.delete(targetKey);
+            } else {
+              activeCrimesRef.current.delete(targetKey);
+            }
+            continue;
           } else {
             // Can't find return path - remove vehicle and clear tracking
             const targetKey = `${vehicle.targetX},${vehicle.targetY}`;
@@ -2021,6 +2043,16 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       vehicle.progress += vehicle.speed * delta * speedMultiplier;
       
       let shouldRemove = false;
+      
+      // Handle edge case: path has only 1 tile (already at destination)
+      if (vehicle.path.length === 1 && vehicle.state === 'dispatching') {
+        vehicle.state = 'responding';
+        vehicle.respondTime = 0;
+        vehicle.progress = 0;
+        updatedVehicles.push(vehicle);
+        continue;
+      }
+      
       while (vehicle.progress >= 1 && vehicle.pathIndex < vehicle.path.length - 1) {
         vehicle.pathIndex++;
         vehicle.progress -= 1;
@@ -2043,6 +2075,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
             // Arrived at emergency scene
             vehicle.state = 'responding';
             vehicle.respondTime = 0;
+            vehicle.progress = 0; // Reset progress to keep vehicle centered on road tile
           } else if (vehicle.state === 'returning') {
             // Arrived back at station - remove vehicle
             shouldRemove = true;
@@ -2634,11 +2667,15 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           }
         }
         
+        // For subway overlay, show ALL non-water tiles (valid placement areas + existing subway)
+        // For other overlays, show buildings only
         const showOverlay =
           overlayMode !== 'none' &&
-          tile.building.type !== 'grass' &&
-          tile.building.type !== 'water' &&
-          tile.building.type !== 'road';
+          (overlayMode === 'subway' 
+            ? tile.building.type !== 'water'  // For subway mode, show all non-water tiles
+            : (tile.building.type !== 'grass' &&
+               tile.building.type !== 'water' &&
+               tile.building.type !== 'road'));
         if (showOverlay) {
           overlayQueue.push({ screenX, screenY, tile });
         }
@@ -2672,6 +2709,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       .forEach(({ tile, screenX, screenY }) => {
         drawBeach(ctx, screenX, screenY, tile.x, tile.y);
       });
+    
     
     // Draw buildings sorted by depth so multi-tile sprites sit above adjacent tiles
     buildingQueue
@@ -2708,6 +2746,13 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         // Purple gradient: darker purple = better coverage, lighter purple = poor coverage
         const intensity = coverage / 100;
         fillStyle = `rgba(${147 + Math.floor(intensity * 50)}, ${51 + Math.floor(intensity * 100)}, ${234 - Math.floor(intensity * 50)}, ${0.3 + intensity * 0.4})`;
+      } else if (overlayMode === 'subway') {
+        // Underground view overlay - darker tint to simulate underground, bright amber for subway lines
+        if (tile.hasSubway) {
+          fillStyle = 'rgba(245, 158, 11, 0.7)'; // Bright amber for existing subway
+        } else {
+          fillStyle = 'rgba(40, 30, 20, 0.4)'; // Dark brown tint for "underground" view
+        }
       } else {
         fillStyle = 'rgba(128, 128, 128, 0.4)';
       }
@@ -3204,6 +3249,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) return false;
     return grid[gridY][gridX].building.type === 'road';
   }
+  
   
   // Draw road with proper adjacency, markings, and sidewalks
   function drawRoad(ctx: CanvasRenderingContext2D, x: number, y: number, gridX: number, gridY: number) {
@@ -3982,6 +4028,16 @@ const OverlayModeToggle = React.memo(function OverlayModeToggle({
         >
           <EducationIcon size={14} />
         </Button>
+
+        <Button
+          variant={overlayMode === 'subway' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setOverlayMode('subway')}
+          className={`h-8 px-3 ${overlayMode === 'subway' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+          title="Subway Network"
+        >
+          <SubwayIcon size={14} />
+        </Button>
       </div>
     </Card>
   );
@@ -4018,6 +4074,13 @@ export default function Game() {
   
   // Auto-set overlay when selecting utility tools (but not on initial page load)
   useEffect(() => {
+    // Subway tool always sets overlay immediately (no restrictions)
+    if (state.selectedTool === 'subway' || state.selectedTool === 'subway_station') {
+      setOverlayMode('subway');
+      previousSelectedToolRef.current = state.selectedTool;
+      return;
+    }
+    
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;

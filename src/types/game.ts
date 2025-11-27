@@ -35,6 +35,8 @@ export type BuildingType =
   // Utilities
   | 'power_plant'
   | 'water_tower'
+  // Transportation
+  | 'subway_station'
   // Special
   | 'stadium'
   | 'museum'
@@ -47,6 +49,7 @@ export type Tool =
   | 'select'
   | 'bulldoze'
   | 'road'
+  | 'subway'
   | 'tree'
   | 'zone_residential'
   | 'zone_commercial'
@@ -62,6 +65,7 @@ export type Tool =
   | 'tennis'
   | 'power_plant'
   | 'water_tower'
+  | 'subway_station'
   | 'stadium'
   | 'museum'
   | 'airport'
@@ -78,6 +82,7 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   select: { name: 'Select', cost: 0, description: 'Click to view tile info' },
   bulldoze: { name: 'Bulldoze', cost: 10, description: 'Remove buildings and zones' },
   road: { name: 'Road', cost: 25, description: 'Connect your city' },
+  subway: { name: 'Subway', cost: 50, description: 'Underground transit (boosts commerce)' },
   tree: { name: 'Tree', cost: 15, description: 'Plant trees to improve environment' },
   zone_residential: { name: 'Residential', cost: 50, description: 'Zone for housing' },
   zone_commercial: { name: 'Commercial', cost: 50, description: 'Zone for shops and offices' },
@@ -93,6 +98,7 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   tennis: { name: 'Tennis Court', cost: 200, description: 'Recreation facility', size: 1 },
   power_plant: { name: 'Power Plant', cost: 3000, description: 'Generate electricity (2x2)', size: 2 },
   water_tower: { name: 'Water Tower', cost: 1000, description: 'Provide water', size: 1 },
+  subway_station: { name: 'Subway Station', cost: 750, description: 'Access to subway network', size: 1 },
   stadium: { name: 'Stadium', cost: 5000, description: 'Major entertainment (3x3)', size: 3 },
   museum: { name: 'Museum', cost: 4000, description: 'Cultural attraction (3x3)', size: 3 },
   airport: { name: 'Airport', cost: 10000, description: 'Connect to the world (4x4)', size: 4 },
@@ -120,6 +126,7 @@ export interface Tile {
   pollution: number;
   crime: number;
   traffic: number;
+  hasSubway: boolean;
 }
 
 export interface Stats {
@@ -260,4 +267,5 @@ export const BUILDING_STATS: Record<BuildingType, { maxPop: number; maxJobs: num
   museum: { maxPop: 0, maxJobs: 40, pollution: 0, landValue: 45 },
   airport: { maxPop: 0, maxJobs: 200, pollution: 20, landValue: 50 },
   space_program: { maxPop: 0, maxJobs: 150, pollution: 5, landValue: 80 },
+  subway_station: { maxPop: 0, maxJobs: 15, pollution: 0, landValue: 25 },
 };

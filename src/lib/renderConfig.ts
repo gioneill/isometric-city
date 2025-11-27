@@ -76,7 +76,7 @@ const SPRITE_PACK_RED: SpritePack = {
     // Row 5 (indices 25-29)
     'airport',
     'water',
-    '',
+    'subway_station',
     '',
     'museum',
     
@@ -94,6 +94,7 @@ const SPRITE_PACK_RED: SpritePack = {
   },
   horizontalOffsets: {
     university: 0.3,
+    police_station: -0.2,
   },
   buildingToSprite: {
     // Residential buildings
@@ -133,6 +134,8 @@ const SPRITE_PACK_RED: SpritePack = {
     // Nature
     tree: 'tree',
     water: 'water',
+    // Transportation
+    subway_station: 'subway_station',
   },
 };
 
@@ -180,7 +183,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     // Row 5 (indices 25-29)
     'airport',
     'water',
-    '',
+    'subway_station',
     '',
     'museum',
   ] as const,
@@ -197,6 +200,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   },
   horizontalOffsets: {
     university: -0.6,
+    police_station: -0.2,
   },
   buildingToSprite: {
     house_small: 'house_small',
@@ -229,6 +233,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     space_program: 'space_program',
     tree: 'tree',
     water: 'water',
+    subway_station: 'subway_station',
   },
 };
 
@@ -276,7 +281,7 @@ const SPRITE_PACK_SPRITES4_BG: SpritePack = {
     // Row 5 (indices 25-29)
     'airport',
     'water',
-    '',
+    'subway_station',
     '',
     'museum',
   ] as const,
@@ -293,6 +298,7 @@ const SPRITE_PACK_SPRITES4_BG: SpritePack = {
   },
   horizontalOffsets: {
     university: 0.3,
+    police_station: -0.2,
   },
   buildingToSprite: {
     house_small: 'house_small',
@@ -325,6 +331,7 @@ const SPRITE_PACK_SPRITES4_BG: SpritePack = {
     space_program: 'space_program',
     tree: 'tree',
     water: 'water',
+    subway_station: 'subway_station',
   },
 };
 

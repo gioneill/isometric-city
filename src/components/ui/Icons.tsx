@@ -286,6 +286,37 @@ export function MuseumIcon({ size = 18, className }: IconProps) {
   );
 }
 
+export function SubwayIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      {/* Train car body */}
+      <rect {...baseStroke} x="4" y="8" width="16" height="10" rx="3" />
+      {/* Windows */}
+      <rect {...baseStroke} x="6" y="10" width="4" height="4" rx="1" />
+      <rect {...baseStroke} x="14" y="10" width="4" height="4" rx="1" />
+      {/* Wheels */}
+      <circle {...baseStroke} cx="8" cy="19" r="1.5" />
+      <circle {...baseStroke} cx="16" cy="19" r="1.5" />
+      {/* Pantograph/top */}
+      <path {...baseStroke} d="M10 8V5M14 8V5M10 5h4" />
+    </svg>
+  );
+}
+
+export function SubwayStationIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      {/* Station entrance */}
+      <path {...baseStroke} d="M4 19h16" />
+      <path {...baseStroke} d="M6 19V9l6-4 6 4v10" />
+      {/* Stairs going down */}
+      <path {...baseStroke} d="M9 19v-3h2v-2h2v-2h2v7" />
+      {/* "M" for Metro */}
+      <path {...baseStroke} d="M8 10l2 2 2-2" />
+    </svg>
+  );
+}
+
 function ZoneIcon({ color, size = 18, className }: IconProps & { color: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
@@ -299,6 +330,7 @@ export const ToolIcons: Partial<Record<Tool, React.FC<IconProps>>> = {
   select: SelectIcon,
   bulldoze: BulldozeIcon,
   road: RoadIcon,
+  subway: SubwayIcon,
   tree: TreeIcon,
   zone_residential: (props) => <ZoneIcon {...props} color="#22c55e" />, 
   zone_commercial: (props) => <ZoneIcon {...props} color="#38bdf8" />, 
@@ -312,6 +344,7 @@ export const ToolIcons: Partial<Record<Tool, React.FC<IconProps>>> = {
   park: TreeIcon,
   power_plant: PowerIcon,
   water_tower: WaterIcon,
+  subway_station: SubwayStationIcon,
   stadium: TrophyIcon,
   museum: MuseumIcon,
   airport: PlaneIcon,

@@ -14,6 +14,7 @@ import {
   bulldozeTile,
   createInitialGameState,
   placeBuilding,
+  placeSubway,
   simulateTick,
 } from '@/lib/simulation';
 import {
@@ -66,6 +67,7 @@ const toolBuildingMap: Partial<Record<Tool, BuildingType>> = {
   tennis: 'tennis',
   power_plant: 'power_plant',
   water_tower: 'water_tower',
+  subway_station: 'subway_station',
   stadium: 'stadium',
   museum: 'museum',
   airport: 'airport',
@@ -370,6 +372,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
       if (zone && tile.zone === zone) return prev;
       if (building && tile.building.type === building) return prev;
+      
+      // Handle subway tool separately (underground placement)
+      if (tool === 'subway') {
+        // Can't place subway under water
+        if (tile.building.type === 'water') return prev;
+        // Already has subway
+        if (tile.hasSubway) return prev;
+        
+        const nextState = placeSubway(prev, x, y);
+        if (nextState === prev) return prev;
+        
+        return {
+          ...nextState,
+          stats: { ...nextState.stats, money: nextState.stats.money - cost },
+        };
+      }
 
       let nextState: GameState;
 

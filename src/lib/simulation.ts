@@ -274,6 +274,7 @@ function createTile(x: number, y: number, buildingType: BuildingType = 'grass'):
     pollution: 0,
     crime: 0,
     traffic: 0,
+    hasSubway: false,
   };
 }
 
@@ -649,6 +650,8 @@ function calculateStats(grid: Tile[][], size: number, budget: Budget, taxRate: n
   let treeCount = 0;
   let waterCount = 0;
   let parkCount = 0;
+  let subwayTiles = 0;
+  let subwayStations = 0;
 
   // Count everything
   for (let y = 0; y < size; y++) {
@@ -656,8 +659,14 @@ function calculateStats(grid: Tile[][], size: number, budget: Budget, taxRate: n
       const tile = grid[y][x];
       const building = tile.building;
 
+      // Apply subway commercial boost to jobs (tiles with subway get 15% boost to commercial jobs)
+      let jobsFromTile = building.jobs;
+      if (tile.hasSubway && tile.zone === 'commercial') {
+        jobsFromTile = Math.floor(jobsFromTile * 1.15);
+      }
+      
       population += building.population;
-      jobs += building.jobs;
+      jobs += jobsFromTile;
       totalPollution += tile.pollution;
       totalLandValue += tile.landValue;
 
@@ -676,13 +685,15 @@ function calculateStats(grid: Tile[][], size: number, budget: Budget, taxRate: n
       if (building.type === 'water') waterCount++;
       if (building.type === 'park' || building.type === 'park_large') parkCount++;
       if (building.type === 'tennis') parkCount++; // Tennis courts count as parks
+      if (tile.hasSubway) subwayTiles++;
+      if (building.type === 'subway_station') subwayStations++;
     }
   }
 
-  // Calculate demand
-  const jobsRatio = jobs > 0 ? population / jobs : 2;
+  // Calculate demand - subway network boosts commercial demand
+  const subwayBonus = Math.min(20, subwayTiles * 0.5 + subwayStations * 3);
   const residentialDemand = Math.min(100, Math.max(-100, (jobs - population * 0.7) / 18));
-  const commercialDemand = Math.min(100, Math.max(-100, (population * 0.3 - jobs * 0.3) / 4));
+  const commercialDemand = Math.min(100, Math.max(-100, (population * 0.3 - jobs * 0.3) / 4 + subwayBonus));
   const industrialDemand = Math.min(100, Math.max(-100, (population * 0.35 - jobs * 0.3) / 2.0));
 
   // Calculate income and expenses
@@ -785,11 +796,21 @@ function updateBudgetCosts(grid: Tile[][], budget: Budget): Budget {
     }
   }
 
+  // Count subway tiles and stations
+  let subwayTileCount = 0;
+  let subwayStationCount = 0;
+  for (const row of grid) {
+    for (const tile of row) {
+      if (tile.hasSubway) subwayTileCount++;
+      if (tile.building.type === 'subway_station') subwayStationCount++;
+    }
+  }
+
   newBudget.police.cost = policeCount * 50;
   newBudget.fire.cost = fireCount * 50;
   newBudget.health.cost = hospitalCount * 100;
   newBudget.education.cost = schoolCount * 30 + universityCount * 100;
-  newBudget.transportation.cost = roadCount * 2;
+  newBudget.transportation.cost = roadCount * 2 + subwayTileCount * 3 + subwayStationCount * 25;
   newBudget.parks.cost = parkCount * 10;
   newBudget.power.cost = powerCount * 150;
   newBudget.water.cost = waterCount * 75;
@@ -1493,6 +1514,7 @@ export function bulldozeTile(state: GameState, x: number, y: number): GameState 
         if (clearX < state.gridSize && clearY < state.gridSize) {
           newGrid[clearY][clearX].building = createBuilding('grass');
           newGrid[clearY][clearX].zone = 'none';
+          // Don't remove subway when bulldozing surface buildings
         }
       }
     }
@@ -1500,7 +1522,39 @@ export function bulldozeTile(state: GameState, x: number, y: number): GameState 
     // Single tile bulldoze
     newGrid[y][x].building = createBuilding('grass');
     newGrid[y][x].zone = 'none';
+    // Don't remove subway when bulldozing surface buildings
   }
+
+  return { ...state, grid: newGrid };
+}
+
+// Place a subway line underground (doesn't affect surface buildings)
+export function placeSubway(state: GameState, x: number, y: number): GameState {
+  const tile = state.grid[y]?.[x];
+  if (!tile) return state;
+  
+  // Can't place subway under water
+  if (tile.building.type === 'water') return state;
+  
+  // Already has subway
+  if (tile.hasSubway) return state;
+
+  const newGrid = state.grid.map(row => row.map(t => ({ ...t, building: { ...t.building } })));
+  newGrid[y][x].hasSubway = true;
+
+  return { ...state, grid: newGrid };
+}
+
+// Remove subway from a tile
+export function removeSubway(state: GameState, x: number, y: number): GameState {
+  const tile = state.grid[y]?.[x];
+  if (!tile) return state;
+  
+  // No subway to remove
+  if (!tile.hasSubway) return state;
+
+  const newGrid = state.grid.map(row => row.map(t => ({ ...t, building: { ...t.building } })));
+  newGrid[y][x].hasSubway = false;
 
   return { ...state, grid: newGrid };
 }
