@@ -212,14 +212,15 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     park: -0.15, // Perfect position
     park_large: -0.85, // Shift up significantly (almost an entire tile)
     tennis: -0.2, // Shift up a bit
-    city_hall: -0.4, // Shift up for proper positioning on 2x2 footprint
-    amusement_park: -0.5, // Shift up for proper positioning on 4x4 footprint
+    city_hall: -0.6, // Shift up about 0.2 tiles
+    amusement_park: -1.5, // Shift up about 1 tile
     space_program: -0.6, // Shift down a bit
     university: -0.55, // Shift up a tiny bit
     stadium: -1.2, // Shift up a ton
   },
   horizontalOffsets: {
     university: 0.0, // Shift right a tiny tiny bit more
+    city_hall: 0.1, // Shift right about 0.2 tiles
   },
   buildingToSprite: {
     house_small: 'house_small',
@@ -253,6 +254,8 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     tree: 'tree',
     water: 'water',
     subway_station: 'subway_station',
+    city_hall: 'city_hall',
+    amusement_park: 'amusement_park',
   },
 };
 

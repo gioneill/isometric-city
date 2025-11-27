@@ -4355,7 +4355,9 @@ export default function Game() {
     
     // Subway tool sets overlay when actively selected (not on page load)
     if (state.selectedTool === 'subway' || state.selectedTool === 'subway_station') {
-      setOverlayMode('subway');
+      setTimeout(() => {
+        setOverlayMode('subway');
+      }, 0);
       previousSelectedToolRef.current = state.selectedTool;
       return;
     }
