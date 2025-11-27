@@ -244,35 +244,39 @@ const SPRITE_PACK_RED: SpritePack = {
   },
   parksVerticalOffsets: {
     basketball_courts: -0.15,
-    playground_small: -0.15,
-    playground_large: -0.15,
+    playground_small: -0.25,  // shifted up 0.1
+    playground_large: -1.05,  // shifted up 0.2, now 2x2
     baseball_field_small: -0.85,
     soccer_field_small: -0.15,
     football_field: -0.85,
-    baseball_stadium: -1.2,
+    baseball_stadium: -1.5,  // adjusted for scale down
     community_center: -0.2,
     office_building_small: -0.3,
     swimming_pool: -0.15,
     skate_park: -0.15,
     mini_golf_course: -0.85,
     bleachers_field: -0.2,
-    go_kart_track: -0.85,
+    go_kart_track: -0.35,  // shifted down 0.5
     amphitheater: -0.85,
-    greenhouse_garden: -0.85,
+    greenhouse_garden: -0.55,  // shifted down 0.3
     animal_pens_farm: -0.15,
     cabin_house: -0.2,
     campground: -0.15,
     marina_docks_small: -0.15,
     pier_large: -0.85,
-    roller_coaster_small: -0.85,
+    roller_coaster_small: -0.35,  // shifted down 0.5
     community_garden: -0.15,
     pond_park: -0.15,
     park_gate: -0.15,
     mountain_lodge: -0.85,
-    mountain_trailhead: -0.15,
+    mountain_trailhead: -1.5,  // now 3x3
   },
   parksHorizontalOffsets: {},
-  parksScales: {},
+  parksScales: {
+    baseball_stadium: 0.65,  // scaled down 35%
+    swimming_pool: 0.95,  // scaled down 5%
+    soccer_field_small: 0.95,  // scaled down 5%
+  },
 };
 
 // ============================================================================
@@ -476,41 +480,41 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   },
   parksVerticalOffsets: {
     // Same approach as denseVerticalOffsets - adjust as needed for proper positioning
-    // Starting with baseline offsets similar to park/tennis
     basketball_courts: -0.15,
-    playground_small: -0.15,
-    playground_large: -0.15,
+    playground_small: -0.25,  // shifted up 0.1
+    playground_large: -1.05,  // shifted up 0.2, now 2x2
     baseball_field_small: -0.85,
     soccer_field_small: -0.15,
     football_field: -0.85,
-    baseball_stadium: -1.2,
+    baseball_stadium: -1.5,  // adjusted for scale down
     community_center: -0.2,
     office_building_small: -0.3,
     swimming_pool: -0.15,
     skate_park: -0.15,
     mini_golf_course: -0.85,
     bleachers_field: -0.2,
-    go_kart_track: -0.85,
+    go_kart_track: -0.35,  // shifted down 0.5
     amphitheater: -0.85,
-    greenhouse_garden: -0.85,
+    greenhouse_garden: -0.55,  // shifted down 0.3
     animal_pens_farm: -0.15,
     cabin_house: -0.2,
     campground: -0.15,
     marina_docks_small: -0.15,
     pier_large: -0.85,
-    roller_coaster_small: -0.85,
+    roller_coaster_small: -0.35,  // shifted down 0.5
     community_garden: -0.15,
     pond_park: -0.15,
     park_gate: -0.15,
     mountain_lodge: -0.85,
-    mountain_trailhead: -0.15,
+    mountain_trailhead: -1.5,  // now 3x3
   },
   parksHorizontalOffsets: {
     // Horizontal offset adjustments if needed
   },
   parksScales: {
-    // Same approach as denseScales
-    apartment_high: 0.95,
+    baseball_stadium: 0.65,  // scaled down 35%
+    swimming_pool: 0.95,  // scaled down 5%
+    soccer_field_small: 0.95,  // scaled down 5%
   },
   buildingToSprite: {
     house_small: 'house_small',

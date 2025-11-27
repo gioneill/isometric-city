@@ -168,7 +168,7 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   // Parks (new sprite sheet)
   basketball_courts: { name: 'Basketball Courts', cost: 250, description: 'Outdoor basketball facility', size: 1 },
   playground_small: { name: 'Small Playground', cost: 200, description: 'Children\'s playground', size: 1 },
-  playground_large: { name: 'Large Playground', cost: 350, description: 'Large playground with more equipment', size: 1 },
+  playground_large: { name: 'Large Playground', cost: 350, description: 'Large playground with more equipment (2x2)', size: 2 },
   baseball_field_small: { name: 'Baseball Field', cost: 800, description: 'Local baseball diamond (2x2)', size: 2 },
   soccer_field_small: { name: 'Soccer Field', cost: 400, description: 'Soccer/football pitch', size: 1 },
   football_field: { name: 'Football Field', cost: 1200, description: 'Football stadium (2x2)', size: 2 },
@@ -192,7 +192,7 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   pond_park: { name: 'Pond Park', cost: 350, description: 'Park with scenic pond', size: 1 },
   park_gate: { name: 'Park Gate', cost: 150, description: 'Decorative park entrance', size: 1 },
   mountain_lodge: { name: 'Mountain Lodge', cost: 1500, description: 'Nature retreat lodge (2x2)', size: 2 },
-  mountain_trailhead: { name: 'Trailhead', cost: 250, description: 'Hiking trail entrance', size: 1 },
+  mountain_trailhead: { name: 'Trailhead', cost: 400, description: 'Hiking trail entrance (3x3)', size: 3 },
 };
 
 export interface Building {

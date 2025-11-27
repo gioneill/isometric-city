@@ -4351,13 +4351,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       let leftColor = '#3d6634';
       let rightColor = '#5a8f4f';
       let strokeColor = '#2d4a26';
-      
-      const allParkTypes = ['park', 'park_large', 'tennis', 'basketball_courts', 'playground_small', 
-        'playground_large', 'baseball_field_small', 'soccer_field_small', 'football_field', 
-        'baseball_stadium', 'community_center', 'swimming_pool', 'skate_park', 'mini_golf_course', 
-        'bleachers_field', 'go_kart_track', 'amphitheater', 'greenhouse_garden', 'animal_pens_farm', 
-        'cabin_house', 'campground', 'marina_docks_small', 'pier_large', 'roller_coaster_small', 
-        'community_garden', 'pond_park', 'park_gate', 'mountain_lodge', 'mountain_trailhead'];
+
+      // These get grey bases: baseball_stadium, community_center, swimming_pool, office_building_small
+      const allParkTypes = ['park', 'park_large', 'tennis', 'basketball_courts', 'playground_small',
+        'playground_large', 'baseball_field_small', 'soccer_field_small', 'football_field',
+        'skate_park', 'mini_golf_course', 'bleachers_field', 'go_kart_track', 'amphitheater', 
+        'greenhouse_garden', 'animal_pens_farm', 'cabin_house', 'campground', 'marina_docks_small', 
+        'pier_large', 'roller_coaster_small', 'community_garden', 'pond_park', 'park_gate', 
+        'mountain_lodge', 'mountain_trailhead'];
       const isPark = allParkTypes.includes(tile.building.type) ||
                      (tile.building.type === 'empty' && isPartOfParkBuilding(tile.x, tile.y));
       // Check if this is a building (not grass, empty, water, road, tree, or parks)
@@ -5139,14 +5140,15 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
           x <= Math.max(dragStartTile.x, dragEndTile.x) &&
           y >= Math.min(dragStartTile.y, dragEndTile.y) &&
           y <= Math.max(dragStartTile.y, dragEndTile.y);
-        
+
         // Check if this tile needs a gray base tile (buildings except parks)
-        const allParkTypesCheck = ['park', 'park_large', 'tennis', 'basketball_courts', 'playground_small', 
-          'playground_large', 'baseball_field_small', 'soccer_field_small', 'football_field', 
-          'baseball_stadium', 'community_center', 'swimming_pool', 'skate_park', 'mini_golf_course', 
-          'bleachers_field', 'go_kart_track', 'amphitheater', 'greenhouse_garden', 'animal_pens_farm', 
-          'cabin_house', 'campground', 'marina_docks_small', 'pier_large', 'roller_coaster_small', 
-          'community_garden', 'pond_park', 'park_gate', 'mountain_lodge', 'mountain_trailhead'];
+        // These get grey bases: baseball_stadium, community_center, swimming_pool, office_building_small
+        const allParkTypesCheck = ['park', 'park_large', 'tennis', 'basketball_courts', 'playground_small',
+          'playground_large', 'baseball_field_small', 'soccer_field_small', 'football_field',
+          'skate_park', 'mini_golf_course', 'bleachers_field', 'go_kart_track', 'amphitheater', 
+          'greenhouse_garden', 'animal_pens_farm', 'cabin_house', 'campground', 'marina_docks_small', 
+          'pier_large', 'roller_coaster_small', 'community_garden', 'pond_park', 'park_gate', 
+          'mountain_lodge', 'mountain_trailhead'];
         const isPark = allParkTypesCheck.includes(tile.building.type) ||
                        (tile.building.type === 'empty' && isPartOfParkBuilding(x, y));
         const isDirectBuilding = !isPark &&
@@ -6470,6 +6472,7 @@ export default function Game() {
       warehouse: { width: 2, height: 2 },
       city_hall: { width: 2, height: 2 },
       // Parks (new sprite sheet)
+      playground_large: { width: 2, height: 2 },
       baseball_field_small: { width: 2, height: 2 },
       football_field: { width: 2, height: 2 },
       baseball_stadium: { width: 3, height: 3 },
@@ -6480,6 +6483,7 @@ export default function Game() {
       pier_large: { width: 2, height: 2 },
       roller_coaster_small: { width: 2, height: 2 },
       mountain_lodge: { width: 2, height: 2 },
+      mountain_trailhead: { width: 3, height: 3 },
     };
     
     const getBuildingSize = (type: string) => BUILDING_SIZES[type] || { width: 1, height: 1 };
