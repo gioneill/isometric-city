@@ -259,7 +259,7 @@ const SPRITE_PACK_RED: SpritePack = {
     go_kart_track: -0.35,  // shifted down 0.5
     amphitheater: -0.85,
     greenhouse_garden: -0.55,  // shifted down 0.3
-    animal_pens_farm: -0.15,
+    animal_pens_farm: -0.25,  // shifted up 0.1 tiles
     cabin_house: -0.2,
     campground: -0.15,
     marina_docks_small: -0.15,
@@ -498,7 +498,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     go_kart_track: -0.35,  // shifted down 0.5
     amphitheater: -0.85,
     greenhouse_garden: -0.55,  // shifted down 0.3
-    animal_pens_farm: -0.15,
+    animal_pens_farm: -0.25,  // shifted up 0.1 tiles
     cabin_house: -0.2,
     campground: -0.15,
     marina_docks_small: -0.15,
