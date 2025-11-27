@@ -1374,6 +1374,8 @@ const BUILDING_SIZES: Partial<Record<BuildingType, { width: number; height: numb
   factory_medium: { width: 2, height: 2 },
   factory_large: { width: 3, height: 3 },
   warehouse: { width: 2, height: 2 },
+  city_hall: { width: 2, height: 2 },
+  amusement_park: { width: 4, height: 4 },
 };
 
 // Get the size of a building (how many tiles it spans)
@@ -1528,7 +1530,7 @@ function applyBuildingFootprint(
   services?: ServiceCoverage
 ): Building {
   const size = getBuildingSize(buildingType);
-  const stats = BUILDING_STATS[buildingType];
+  const stats = BUILDING_STATS[buildingType] || { maxPop: 0, maxJobs: 0, pollution: 0, landValue: 0 };
 
   for (let dy = 0; dy < size.height; dy++) {
     for (let dx = 0; dx < size.width; dx++) {

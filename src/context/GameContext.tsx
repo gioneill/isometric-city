@@ -73,6 +73,8 @@ const toolBuildingMap: Partial<Record<Tool, BuildingType>> = {
   museum: 'museum',
   airport: 'airport',
   space_program: 'space_program',
+  city_hall: 'city_hall',
+  amusement_park: 'amusement_park',
 };
 
 const toolZoneMap: Partial<Record<Tool, ZoneType>> = {

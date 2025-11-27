@@ -69,7 +69,9 @@ export type Tool =
   | 'stadium'
   | 'museum'
   | 'airport'
-  | 'space_program';
+  | 'space_program'
+  | 'city_hall'
+  | 'amusement_park';
 
 export interface ToolInfo {
   name: string;
@@ -103,6 +105,8 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   museum: { name: 'Museum', cost: 4000, description: 'Cultural attraction (3x3)', size: 3 },
   airport: { name: 'Airport', cost: 10000, description: 'Connect to the world (4x4)', size: 4 },
   space_program: { name: 'Space Program', cost: 15000, description: 'Reach for the stars (3x3)', size: 3 },
+  city_hall: { name: 'City Hall', cost: 6000, description: 'City administration (2x2)', size: 2 },
+  amusement_park: { name: 'Amusement Park', cost: 12000, description: 'Major attraction (4x4)', size: 4 },
 };
 
 export interface Building {
@@ -286,4 +290,6 @@ export const BUILDING_STATS: Record<BuildingType, { maxPop: number; maxJobs: num
   airport: { maxPop: 0, maxJobs: 200, pollution: 20, landValue: 50 },
   space_program: { maxPop: 0, maxJobs: 150, pollution: 5, landValue: 80 },
   subway_station: { maxPop: 0, maxJobs: 15, pollution: 0, landValue: 25 },
+  city_hall: { maxPop: 0, maxJobs: 60, pollution: 0, landValue: 50 },
+  amusement_park: { maxPop: 0, maxJobs: 100, pollution: 8, landValue: 60 },
 };

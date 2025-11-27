@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useGame } from '@/context/GameContext';
 import { Tool, TOOL_INFO, Tile, BuildingType, AdjacentCity } from '@/types/game';
 import { getBuildingSize } from '@/lib/simulation';
@@ -370,7 +371,7 @@ const Sidebar = React.memo(function Sidebar() {
     'SERVICES': ['police_station', 'fire_station', 'hospital', 'school', 'university'] as Tool[],
     'PARKS': ['park', 'park_large', 'tennis'] as Tool[],
     'UTILITIES': ['power_plant', 'water_tower', 'subway_station'] as Tool[],
-    'SPECIAL': ['stadium', 'museum', 'airport', 'space_program'] as Tool[],
+    'SPECIAL': ['stadium', 'museum', 'airport', 'space_program', 'city_hall', 'amusement_park'] as Tool[],
   }), []);
   
   return (
@@ -390,6 +391,7 @@ const Sidebar = React.memo(function Sidebar() {
             <div className="px-2 flex flex-col gap-0.5">
               {tools.map(tool => {
                 const info = TOOL_INFO[tool];
+                if (!info) return null; // Skip if tool info not found
                 const isSelected = selectedTool === tool;
                 const canAfford = stats.money >= info.cost;
                 
@@ -1036,13 +1038,53 @@ function StatisticsPanel() {
 function SettingsPanel() {
   const { state, setActivePanel, setDisastersEnabled, newGame, loadState, exportState, currentSpritePack, availableSpritePacks, setSpritePack } = useGame();
   const { disastersEnabled, cityName, gridSize } = state;
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [newCityName, setNewCityName] = useState(cityName);
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
   const [importValue, setImportValue] = useState('');
   const [exportCopied, setExportCopied] = useState(false);
   const [importError, setImportError] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
-  const [showSpriteTest, setShowSpriteTest] = useState(false);
+  
+  // Initialize showSpriteTest from query parameter
+  const spriteTestFromUrl = searchParams.get('spriteTest') === 'true';
+  const [showSpriteTest, setShowSpriteTest] = useState(spriteTestFromUrl);
+  const lastUrlValueRef = useRef(spriteTestFromUrl);
+  const isUpdatingFromStateRef = useRef(false);
+  
+  // Sync state with query parameter when URL changes externally
+  useEffect(() => {
+    const spriteTestParam = searchParams.get('spriteTest') === 'true';
+    // Only update if URL value actually changed and we're not updating from state
+    if (spriteTestParam !== lastUrlValueRef.current && !isUpdatingFromStateRef.current) {
+      lastUrlValueRef.current = spriteTestParam;
+      setShowSpriteTest(spriteTestParam);
+    }
+  }, [searchParams]);
+  
+  // Sync query parameter when showSpriteTest changes (but avoid loops)
+  useEffect(() => {
+    const currentParam = searchParams.get('spriteTest') === 'true';
+    if (currentParam === showSpriteTest) return; // Already in sync
+    
+    isUpdatingFromStateRef.current = true;
+    lastUrlValueRef.current = showSpriteTest;
+    
+    const params = new URLSearchParams(searchParams.toString());
+    if (showSpriteTest) {
+      params.set('spriteTest', 'true');
+    } else {
+      params.delete('spriteTest');
+    }
+    const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+    router.replace(newUrl, { scroll: false });
+    
+    // Reset flag after URL update
+    setTimeout(() => {
+      isUpdatingFromStateRef.current = false;
+    }, 0);
+  }, [showSpriteTest, searchParams, router]);
   
   const handleCopyExport = async () => {
     const exported = exportState();
@@ -1249,7 +1291,10 @@ function SettingsPanel() {
       </DialogContent>
       
       {showSpriteTest && (
-        <SpriteTestPanel onClose={() => setShowSpriteTest(false)} />
+        <SpriteTestPanel onClose={() => {
+          setShowSpriteTest(false);
+          // Query param will be cleared by useEffect above
+        }} />
       )}
     </Dialog>
   );
@@ -1258,7 +1303,7 @@ function SettingsPanel() {
 // Background color to filter
 const BACKGROUND_COLOR = { r: 255, g: 0, b: 0 };
 // Color distance threshold - pixels within this distance will be made transparent
-const COLOR_THRESHOLD = 180; // Adjust this value to be more/less aggressive (increased from 10 for better filtering)
+const COLOR_THRESHOLD = 160; // Adjust this value to be more/less aggressive (increased from 10 for better filtering)
 
 /**
  * Filters colors close to the background color from an image, making them transparent
@@ -2436,7 +2481,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
   useEffect(() => {
     // Load the sprite sheet with background color filtering
     setImagesLoaded(false);
-    loadSpriteImage(currentSpritePack.src, true)
+    Promise.all([
+      loadSpriteImage(currentSpritePack.src, true),
+      loadImage('/assets/water.png') // Preload water.png
+    ])
       .then(() => setImagesLoaded(true))
       .catch(console.error);
   }, [currentSpritePack]);
@@ -2638,14 +2686,18 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         const isGrassOrEmpty = tile.building.type === 'grass' || tile.building.type === 'empty';
         const needsGreenBaseOverWater = isGrassOrEmpty && isAdjacentToWater(x, y);
         
-        // Draw base tile for all tiles (including water), but skip gray bases for buildings and green bases for grass/empty adjacent to water
-        drawIsometricTile(ctx, screenX, screenY, tile, !!(isHovered || isSelected || isInDragRect), zoom, true, needsGreenBaseOverWater);
+        // Check if this is a park that needs a green base tile
+        const needsGreenBaseForPark = (tile.building.type === 'park' || tile.building.type === 'park_large') ||
+                                      (tile.building.type === 'empty' && isPartOfParkBuilding(x, y));
+        
+        // Draw base tile for all tiles (including water), but skip gray bases for buildings and green bases for grass/empty adjacent to water or parks
+        drawIsometricTile(ctx, screenX, screenY, tile, !!(isHovered || isSelected || isInDragRect), zoom, true, needsGreenBaseOverWater || needsGreenBaseForPark);
         
         if (needsGreyBase) {
           baseTileQueue.push({ screenX, screenY, tile, depth: x + y });
         }
         
-        if (needsGreenBaseOverWater) {
+        if (needsGreenBaseOverWater || needsGreenBaseForPark) {
           greenBaseTileQueue.push({ screenX, screenY, tile, depth: x + y });
         }
         
@@ -2686,11 +2738,39 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     }
     
     // Draw water sprites (after base tiles, below other buildings)
+    // Add clipping to prevent water from overflowing map boundaries
+    ctx.save();
+    // Create clipping path for map boundaries - form a diamond shape around the map
+    // Get the four corner tiles of the map
+    const topLeft = gridToScreen(0, 0, 0, 0);
+    const topRight = gridToScreen(gridSize - 1, 0, 0, 0);
+    const bottomRight = gridToScreen(gridSize - 1, gridSize - 1, 0, 0);
+    const bottomLeft = gridToScreen(0, gridSize - 1, 0, 0);
+    const w = TILE_WIDTH;
+    const h = TILE_HEIGHT;
+    
+    // Create clipping path following the outer edges of the map
+    // The path goes around the perimeter: top -> right -> bottom -> left -> back to top
+    ctx.beginPath();
+    // Start at top point (top-left tile's top corner)
+    ctx.moveTo(topLeft.screenX + w / 2, topLeft.screenY);
+    // Go to right point (top-right tile's right corner)
+    ctx.lineTo(topRight.screenX + w, topRight.screenY + h / 2);
+    // Go to bottom point (bottom-right tile's bottom corner)
+    ctx.lineTo(bottomRight.screenX + w / 2, bottomRight.screenY + h);
+    // Go to left point (bottom-left tile's left corner)
+    ctx.lineTo(bottomLeft.screenX, bottomLeft.screenY + h / 2);
+    // Close the path back to top
+    ctx.closePath();
+    ctx.clip();
+    
     waterQueue
       .sort((a, b) => a.depth - b.depth)
       .forEach(({ tile, screenX, screenY }) => {
         drawBuilding(ctx, screenX, screenY, tile);
       });
+    
+    ctx.restore(); // Remove clipping after drawing water
     
     // Draw green base tiles for grass/empty tiles adjacent to water (after water, before gray bases)
     greenBaseTileQueue
@@ -3696,105 +3776,127 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     const hasTileSprite = BUILDING_TO_SPRITE[buildingType];
     
     if (hasTileSprite) {
-      // ===== TILE RENDERER PATH =====
-      // Handles both single-tile and multi-tile buildings
-      // Get the filtered sprite sheet from cache (or fallback to unfiltered if not available)
-      // Use the active sprite pack's source for cache lookup
-      const activePack = getActiveSpritePack();
-      const filteredSpriteSheet = imageCache.get(`${activePack.src}_filtered`) || imageCache.get(activePack.src);
-      
-      if (filteredSpriteSheet) {
-        // Use naturalWidth/naturalHeight for accurate source dimensions
-        const sheetWidth = filteredSpriteSheet.naturalWidth || filteredSpriteSheet.width;
-        const sheetHeight = filteredSpriteSheet.naturalHeight || filteredSpriteSheet.height;
-        
-        // getSpriteCoords handles building type to sprite key mapping
-        const coords = getSpriteCoords(buildingType, sheetWidth, sheetHeight);
-        
-        if (coords) {
-          // Get building size to handle multi-tile buildings
-          const buildingSize = getBuildingSize(buildingType);
-          const isMultiTile = buildingSize.width > 1 || buildingSize.height > 1;
+      // Special handling for water: use separate water.png image
+      if (buildingType === 'water') {
+        const waterImage = imageCache.get('/assets/water.png');
+        if (waterImage) {
+          // Center the water sprite on the tile
+          const tileCenterX = x + w / 2;
+          const tileCenterY = y + h / 2;
           
-          // Calculate draw position for multi-tile buildings
-          // Multi-tile buildings need to be positioned at the front-most corner
-          let drawPosX = x;
-          let drawPosY = y;
-          
-          if (isMultiTile) {
-            // Calculate offset to position sprite at the front-most visible corner
-            // In isometric view, the front-most corner is at (originX + width - 1, originY + height - 1)
-            const frontmostOffsetX = buildingSize.width - 1;
-            const frontmostOffsetY = buildingSize.height - 1;
-            const screenOffsetX = (frontmostOffsetX - frontmostOffsetY) * (w / 2);
-            const screenOffsetY = (frontmostOffsetX + frontmostOffsetY) * (h / 2);
-            drawPosX = x + screenOffsetX;
-            drawPosY = y + screenOffsetY;
-          }
-          
-          // Calculate destination size preserving aspect ratio of source sprite
-          // Scale factor: 1.2 base (reduced from 1.5 for ~20% smaller)
-          // Multi-tile buildings scale with their footprint
-          let scaleMultiplier = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
-          // Special scale adjustment for airport (scaled up 15% from previous)
-          if (buildingType === 'airport') {
-            scaleMultiplier *= 0.8625; // 0.75 * 1.15 = 0.8625 (15% larger than before)
-          }
-          // Special scale adjustment for space_program (scaled up 25%)
-          if (buildingType === 'space_program') {
-            scaleMultiplier *= 1.25;
-          }
-          // Special scale adjustment for stadium (scaled down 30%)
-          if (buildingType === 'stadium') {
-            scaleMultiplier *= 0.7; // Scale down by 30%
-          }
-          const destWidth = w * 1.2 * scaleMultiplier;
-          const aspectRatio = coords.sh / coords.sw;  // height/width ratio of source
+          // Scale to 71.5% of tile size (65% * 1.1 = 10% expansion)
+          const destWidth = w * 1.2 * 0.715;
+          const aspectRatio = (waterImage.naturalHeight || waterImage.height) / (waterImage.naturalWidth || waterImage.width);
           const destHeight = destWidth * aspectRatio;
           
-          // Position: center horizontally on tile/footprint, anchor bottom of sprite at tile bottom
-          let drawX = drawPosX + w / 2 - destWidth / 2;
+          // Draw the water image centered on tile (can overflow/clip at map edges)
+          ctx.drawImage(
+            waterImage,
+            0, 0, waterImage.naturalWidth || waterImage.width, waterImage.naturalHeight || waterImage.height,
+            Math.round(tileCenterX - destWidth / 2), Math.round(tileCenterY - destHeight / 2),
+            Math.round(destWidth), Math.round(destHeight)
+          );
+        }
+      } else {
+        // ===== TILE RENDERER PATH =====
+        // Handles both single-tile and multi-tile buildings
+        // Get the filtered sprite sheet from cache (or fallback to unfiltered if not available)
+        // Use the active sprite pack's source for cache lookup
+        const activePack = getActiveSpritePack();
+        const filteredSpriteSheet = imageCache.get(`${activePack.src}_filtered`) || imageCache.get(activePack.src);
+        
+        if (filteredSpriteSheet) {
+          // Use naturalWidth/naturalHeight for accurate source dimensions
+          const sheetWidth = filteredSpriteSheet.naturalWidth || filteredSpriteSheet.width;
+          const sheetHeight = filteredSpriteSheet.naturalHeight || filteredSpriteSheet.height;
           
-          // Apply per-sprite horizontal offset adjustments
-          const spriteKey = BUILDING_TO_SPRITE[buildingType];
-          const horizontalOffset = (spriteKey && SPRITE_HORIZONTAL_OFFSETS[spriteKey]) ? SPRITE_HORIZONTAL_OFFSETS[spriteKey] * w : 0;
-          drawX += horizontalOffset;
+          // getSpriteCoords handles building type to sprite key mapping
+          const coords = getSpriteCoords(buildingType, sheetWidth, sheetHeight);
           
-          // Simple positioning: sprite bottom aligns with tile/footprint bottom
-          // Add vertical push to compensate for transparent space at bottom of sprites
-          let drawY: number;
-          let verticalPush: number;
-          if (isMultiTile) {
-            // Multi-tile sprites need larger push to sit on their footprint
-            const footprintDepth = buildingSize.width + buildingSize.height - 2;
-            verticalPush = footprintDepth * h * 0.25;
-          } else {
-            // Single-tile sprites also need push (sprites have transparent bottom padding)
-            verticalPush = destHeight * 0.15;
-          }
-          const extraOffset = (spriteKey && SPRITE_VERTICAL_OFFSETS[spriteKey]) ? SPRITE_VERTICAL_OFFSETS[spriteKey] * h : 0;
-          verticalPush += extraOffset;
-          
-          drawY = drawPosY + h - destHeight + verticalPush;
-          
-          // Special handling for water sprites: scale to ~65% (30% bigger than 50%) and center on tile
-          if (buildingType === 'water') {
-            // Center the water sprite on the tile (not at bottom like buildings)
-            const tileCenterX = drawPosX + w / 2;
-            const tileCenterY = drawPosY + h / 2;
+          if (coords) {
+            // Get building size to handle multi-tile buildings
+            const buildingSize = getBuildingSize(buildingType);
+            const isMultiTile = buildingSize.width > 1 || buildingSize.height > 1;
             
-            // Scale to 65% (30% bigger than the previous 50%)
-            const scaledWidth = destWidth * 0.65;
-            const scaledHeight = destHeight * 0.65;
+            // Calculate draw position for multi-tile buildings
+            // Multi-tile buildings need to be positioned at the front-most corner
+            let drawPosX = x;
+            let drawPosY = y;
             
-            // Draw the sprite scaled down and centered on tile (no rotation to maintain tiling)
-            ctx.drawImage(
-              filteredSpriteSheet,
-              coords.sx, coords.sy, coords.sw, coords.sh,  // Source: exact tile from sprite sheet
-              Math.round(tileCenterX - scaledWidth / 2), Math.round(tileCenterY - scaledHeight / 2),  // Centered position
-              Math.round(scaledWidth), Math.round(scaledHeight) // Scaled size
-            );
-          } else {
+            if (isMultiTile) {
+              // Calculate offset to position sprite at the front-most visible corner
+              // In isometric view, the front-most corner is at (originX + width - 1, originY + height - 1)
+              const frontmostOffsetX = buildingSize.width - 1;
+              const frontmostOffsetY = buildingSize.height - 1;
+              const screenOffsetX = (frontmostOffsetX - frontmostOffsetY) * (w / 2);
+              const screenOffsetY = (frontmostOffsetX + frontmostOffsetY) * (h / 2);
+              drawPosX = x + screenOffsetX;
+              drawPosY = y + screenOffsetY;
+            }
+            
+            // Calculate destination size preserving aspect ratio of source sprite
+            // Scale factor: 1.2 base (reduced from 1.5 for ~20% smaller)
+            // Multi-tile buildings scale with their footprint
+            let scaleMultiplier = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
+            // Special scale adjustment for airport (scaled up 5%)
+            if (buildingType === 'airport') {
+              scaleMultiplier *= 1.05; // Scale up by 5%
+            }
+            // Special scale adjustment for school (scaled up 5%)
+            if (buildingType === 'school') {
+              scaleMultiplier *= 1.05; // Scale up by 5%
+            }
+            // Special scale adjustment for university (scaled down 5%)
+            if (buildingType === 'university') {
+              scaleMultiplier *= 0.95; // Scale down by 5%
+            }
+            // Special scale adjustment for space_program (scaled up 10%)
+            if (buildingType === 'space_program') {
+              scaleMultiplier *= 1.1; // Scale up by 10%
+            }
+            // Special scale adjustment for stadium (scaled down 30%)
+            if (buildingType === 'stadium') {
+              scaleMultiplier *= 0.7; // Scale down by 30%
+            }
+            // Special scale adjustment for water_tower (scaled down 10%)
+            if (buildingType === 'water_tower') {
+              scaleMultiplier *= 0.9; // Scale down by 10%
+            }
+            // Special scale adjustment for house_small (scaled up 8%)
+            if (buildingType === 'house_small') {
+              scaleMultiplier *= 1.08; // Scale up by 8%
+            }
+            // Apply global scale from sprite pack if available
+            const globalScale = activePack.globalScale ?? 1;
+            const destWidth = w * 1.2 * scaleMultiplier * globalScale;
+            const aspectRatio = coords.sh / coords.sw;  // height/width ratio of source
+            const destHeight = destWidth * aspectRatio;
+            
+            // Position: center horizontally on tile/footprint, anchor bottom of sprite at tile bottom
+            let drawX = drawPosX + w / 2 - destWidth / 2;
+            
+            // Apply per-sprite horizontal offset adjustments
+            const spriteKey = BUILDING_TO_SPRITE[buildingType];
+            const horizontalOffset = (spriteKey && SPRITE_HORIZONTAL_OFFSETS[spriteKey]) ? SPRITE_HORIZONTAL_OFFSETS[spriteKey] * w : 0;
+            drawX += horizontalOffset;
+            
+            // Simple positioning: sprite bottom aligns with tile/footprint bottom
+            // Add vertical push to compensate for transparent space at bottom of sprites
+            let drawY: number;
+            let verticalPush: number;
+            if (isMultiTile) {
+              // Multi-tile sprites need larger push to sit on their footprint
+              const footprintDepth = buildingSize.width + buildingSize.height - 2;
+              verticalPush = footprintDepth * h * 0.25;
+            } else {
+              // Single-tile sprites also need push (sprites have transparent bottom padding)
+              verticalPush = destHeight * 0.15;
+            }
+            const extraOffset = (spriteKey && SPRITE_VERTICAL_OFFSETS[spriteKey]) ? SPRITE_VERTICAL_OFFSETS[spriteKey] * h : 0;
+            verticalPush += extraOffset;
+            
+            drawY = drawPosY + h - destHeight + verticalPush;
+            
             // Draw the sprite with correct aspect ratio (normal buildings)
             ctx.drawImage(
               filteredSpriteSheet,
@@ -4056,7 +4158,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
               <DialogHeader>
                 <DialogTitle>Connect to City</DialogTitle>
                 <DialogDescription>
-                  You've dragged a road to the {cityConnectionDialog.direction} edge of the map. Connect to a nearby city to enable trade.
+                  You&apos;ve dragged a road to the {cityConnectionDialog.direction} edge of the map. Connect to a nearby city to enable trade.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-4 mt-4">

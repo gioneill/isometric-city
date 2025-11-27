@@ -286,6 +286,37 @@ export function MuseumIcon({ size = 18, className }: IconProps) {
   );
 }
 
+export function CityHallIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      {/* Building base */}
+      <path {...baseStroke} d="M4 20h16v-8H4z" />
+      {/* Columns */}
+      <path {...baseStroke} d="M6 12V8M10 12V8M14 12V8M18 12V8" />
+      {/* Dome/roof */}
+      <path {...baseStroke} d="M4 8l8-4 8 4" />
+      {/* Flag */}
+      <path {...baseStroke} d="M12 4v2M12 4l2 1-2 1" />
+    </svg>
+  );
+}
+
+export function AmusementParkIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      {/* Ferris wheel circle */}
+      <circle {...baseStroke} cx="12" cy="12" r="7" />
+      {/* Center hub */}
+      <circle {...baseStroke} cx="12" cy="12" r="1.5" />
+      {/* Spokes */}
+      <path {...baseStroke} d="M12 5l0 7M19 12l-7 0M12 19l0-7M5 12l7 0" />
+      {/* Base/platform */}
+      <path {...baseStroke} d="M6 20h12" />
+      <path {...baseStroke} d="M8 20v-1M16 20v-1" />
+    </svg>
+  );
+}
+
 export function SubwayIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
@@ -348,5 +379,7 @@ export const ToolIcons: Partial<Record<Tool, React.FC<IconProps>>> = {
   stadium: TrophyIcon,
   museum: MuseumIcon,
   airport: PlaneIcon,
+  city_hall: CityHallIcon,
+  amusement_park: AmusementParkIcon,
 };
 
