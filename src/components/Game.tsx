@@ -445,6 +445,7 @@ const ADVISOR_ICON_MAP: Record<string, React.ReactNode> = {
 };
 
 // Hover Submenu Component for collapsible tool categories
+// Implements triangle-rule safe zone for forgiving cursor navigation
 const HoverSubmenu = React.memo(function HoverSubmenu({
   label,
   icon,
@@ -461,33 +462,82 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
   onSelectTool: (tool: Tool) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, buttonHeight: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastMousePos = useRef<{ x: number; y: number } | null>(null);
   
   const hasSelectedTool = tools.includes(selectedTool);
+  const SUBMENU_GAP = 12; // Gap between sidebar and submenu
   
-  const handleMouseEnter = useCallback(() => {
+  const clearCloseTimeout = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+  }, []);
+  
+  const handleMouseEnter = useCallback(() => {
+    clearCloseTimeout();
     // Calculate position based on button location
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setMenuPosition({
         top: rect.top,
-        left: rect.right + 4, // 4px gap from sidebar
+        left: rect.right + SUBMENU_GAP,
+        buttonHeight: rect.height,
       });
     }
     setIsOpen(true);
+  }, [clearCloseTimeout]);
+  
+  // Triangle rule: Check if cursor is moving toward the submenu
+  const isMovingTowardSubmenu = useCallback((e: React.MouseEvent) => {
+    if (!lastMousePos.current || !submenuRef.current) return false;
+    
+    const submenuRect = submenuRef.current.getBoundingClientRect();
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    const lastX = lastMousePos.current.x;
+    const lastY = lastMousePos.current.y;
+    
+    // Check if moving rightward (toward submenu)
+    const movingRight = currentX > lastX;
+    
+    // Check if cursor is within vertical bounds of submenu (with generous padding)
+    const padding = 50;
+    const withinVerticalBounds = 
+      currentY >= submenuRect.top - padding && 
+      currentY <= submenuRect.bottom + padding;
+    
+    return movingRight && withinVerticalBounds;
   }, []);
   
-  const handleMouseLeave = useCallback(() => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+  }, []);
+  
+  const handleMouseLeave = useCallback((e: React.MouseEvent) => {
+    // If moving toward submenu, use a longer delay
+    const delay = isMovingTowardSubmenu(e) ? 300 : 100;
+    
+    clearCloseTimeout();
     timeoutRef.current = setTimeout(() => {
       setIsOpen(false);
-    }, 150);
-  }, []);
+    }, delay);
+  }, [clearCloseTimeout, isMovingTowardSubmenu]);
+  
+  const handleSubmenuEnter = useCallback(() => {
+    clearCloseTimeout();
+  }, [clearCloseTimeout]);
+  
+  const handleSubmenuLeave = useCallback(() => {
+    clearCloseTimeout();
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 100);
+  }, [clearCloseTimeout]);
   
   // Clean up timeout on unmount
   useEffect(() => {
@@ -502,6 +552,7 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
     <div 
       className="relative"
       onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
       {/* Category Header Button */}
@@ -526,9 +577,26 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
         </svg>
       </Button>
       
+      {/* Invisible bridge/safe-zone between button and submenu for triangle rule */}
+      {isOpen && (
+        <div
+          className="fixed"
+          style={{
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left - SUBMENU_GAP}px`,
+            width: `${SUBMENU_GAP + 8}px`, // Overlap slightly with submenu
+            height: `${Math.max(menuPosition.buttonHeight, 200)}px`, // Tall enough to cover path
+            zIndex: 9998,
+          }}
+          onMouseEnter={handleSubmenuEnter}
+          onMouseLeave={handleSubmenuLeave}
+        />
+      )}
+      
       {/* Flyout Submenu - uses fixed positioning to escape all parent containers */}
       {isOpen && (
         <div 
+          ref={submenuRef}
           className="fixed w-52 bg-sidebar backdrop-blur-sm border border-sidebar-border rounded-md shadow-xl overflow-hidden animate-submenu-in"
           style={{ 
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(96, 165, 250, 0.1)',
@@ -536,6 +604,8 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
             top: `${menuPosition.top}px`,
             left: `${menuPosition.left}px`,
           }}
+          onMouseEnter={handleSubmenuEnter}
+          onMouseLeave={handleSubmenuLeave}
         >
           <div className="px-3 py-2 border-b border-sidebar-border/50 bg-muted/30">
             <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">{label}</span>
