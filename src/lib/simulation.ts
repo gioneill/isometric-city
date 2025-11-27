@@ -560,6 +560,7 @@ export function createInitialGameState(size: number = 60, cityName: string = 'Ne
     year: 2024,
     month: 1,
     day: 1,
+    hour: 12, // Start at noon
     tick: 0,
     speed: 1,
     selectedTool: 'select',
@@ -1311,6 +1312,13 @@ export function simulateTick(state: GameState): GameState {
   let newMonth = state.month;
   let newDay = state.day;
   let newTick = state.tick + 1;
+  
+  // Calculate visual hour for day/night cycle (much slower than game time)
+  // One full day/night cycle = 15 game days (450 ticks)
+  // This makes the cycle atmospheric rather than jarring
+  const totalTicks = ((state.year - 2024) * 12 * 30 * 30) + ((state.month - 1) * 30 * 30) + ((state.day - 1) * 30) + newTick;
+  const cycleLength = 450; // ticks per visual day (15 game days)
+  const newHour = Math.floor((totalTicks % cycleLength) / cycleLength * 24);
 
   if (newTick >= 30) {
     newTick = 0;
@@ -1374,6 +1382,7 @@ export function simulateTick(state: GameState): GameState {
     year: newYear,
     month: newMonth,
     day: newDay,
+    hour: newHour,
     tick: newTick,
     stats: newStats,
     budget: newBudget,

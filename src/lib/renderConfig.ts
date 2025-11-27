@@ -91,6 +91,8 @@ const SPRITE_PACK_RED: SpritePack = {
     airport: -0.8,
     university: -0.3,
     space_program: -0.15,
+    industrial: 0.5, // Shift factories down about half a tile
+    factory_large: -0.25, // Shift factory_large up 0.75 tiles (0.5 - 0.75 = -0.25)
   },
   horizontalOffsets: {
     university: 0.3,
@@ -112,7 +114,7 @@ const SPRITE_PACK_RED: SpritePack = {
     // Industrial buildings
     factory_small: 'industrial',
     factory_medium: 'industrial',
-    factory_large: 'industrial',
+    factory_large: 'factory_large',
     warehouse: 'warehouse',
     // Service buildings
     police_station: 'police_station',
@@ -193,7 +195,8 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     // Values are multiplied by tile height
     residential: -0.4,
     commercial: -0.4,
-    industrial: -1.0, // Shift factories up about a full tile
+    industrial: -0.5, // Shift factories down about half a tile from previous
+    factory_large: -0.75, // Shift factory_large up slightly
     water_tower: -0.5,
     house_medium: -0.3,
     mansion: -0.35,
@@ -235,7 +238,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     mall: 'commercial',
     factory_small: 'industrial',
     factory_medium: 'industrial',
-    factory_large: 'industrial',
+    factory_large: 'factory_large',
     warehouse: 'warehouse',
     police_station: 'police_station',
     fire_station: 'fire_station',

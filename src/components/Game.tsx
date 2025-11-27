@@ -444,12 +444,49 @@ const Sidebar = React.memo(function Sidebar() {
   );
 });
 
+// Sun/Moon icon for time of day
+const TimeOfDayIcon = ({ hour }: { hour: number }) => {
+  const isNight = hour < 6 || hour >= 20;
+  const isDawn = hour >= 6 && hour < 8;
+  const isDusk = hour >= 18 && hour < 20;
+  
+  if (isNight) {
+    // Moon icon
+    return (
+      <svg className="w-4 h-4 text-blue-300" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+      </svg>
+    );
+  } else if (isDawn || isDusk) {
+    // Sunrise/sunset icon
+    return (
+      <svg className="w-4 h-4 text-orange-400" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
+      </svg>
+    );
+  } else {
+    // Sun icon
+    return (
+      <svg className="w-4 h-4 text-yellow-400" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
+      </svg>
+    );
+  }
+};
+
 // Memoized TopBar Component
 const TopBar = React.memo(function TopBar() {
   const { state, setSpeed, setTaxRate, isSaving } = useGame();
-  const { stats, year, month, speed, taxRate, cityName } = state;
+  const { stats, year, month, hour, speed, taxRate, cityName } = state;
   
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  // Format hour as 12-hour time
+  const formatTime = (h: number) => {
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${displayHour}:00 ${period}`;
+  };
   
   return (
     <div className="h-14 bg-card border-b border-border flex items-center justify-between px-4">
@@ -461,7 +498,14 @@ const TopBar = React.memo(function TopBar() {
               <span className="text-muted-foreground text-xs italic animate-pulse">Saving...</span>
             )}
           </div>
-          <div className="text-muted-foreground text-xs">{monthNames[month - 1]} {year}</div>
+          <div className="flex items-center gap-2 text-muted-foreground text-xs">
+            <span>{monthNames[month - 1]} {year}</span>
+            <span className="text-muted-foreground/50">•</span>
+            <span className="flex items-center gap-1">
+              <TimeOfDayIcon hour={hour} />
+              {formatTime(hour)}
+            </span>
+          </div>
         </div>
         
         <div className="flex items-center gap-1 bg-secondary rounded-md p-1">
@@ -1664,9 +1708,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
   setSelectedTile: (tile: { x: number; y: number } | null) => void;
 }) {
   const { state, placeAtTile, connectToCity, currentSpritePack } = useGame();
-  const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies } = state;
+  const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, hour } = state;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const carsCanvasRef = useRef<HTMLCanvasElement>(null);
+  const lightingCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState({ x: 620, y: 160 });
   const [isDragging, setIsDragging] = useState(false);
@@ -1682,6 +1727,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
   const emergencyDispatchTimerRef = useRef(0);
   const activeFiresRef = useRef<Set<string>>(new Set()); // Track fires that already have a truck dispatched
   const activeCrimesRef = useRef<Set<string>>(new Set()); // Track crimes that already have a car dispatched
+  const activeCrimeIncidentsRef = useRef<Map<string, { x: number; y: number; type: 'robbery' | 'burglary' | 'disturbance' | 'traffic'; timeRemaining: number }>>(new Map()); // Persistent crime incidents
+  const crimeSpawnTimerRef = useRef(0); // Timer for spawning new crime incidents
   const worldStateRef = useRef<WorldRenderState>({
     grid,
     gridSize,
@@ -1843,34 +1890,120 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     return fires;
   }, []);
 
-  // Find tiles with high crime (simulated based on low police coverage)
-  const findCrimeIncidents = useCallback((): { x: number; y: number }[] => {
-    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
-    if (!currentGrid || currentGridSize <= 0) return [];
+  // Spawn new crime incidents periodically (persistent like fires)
+  const spawnCrimeIncidents = useCallback((delta: number) => {
+    const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed } = worldStateRef.current;
+    if (!currentGrid || currentGridSize <= 0 || currentSpeed === 0) return;
     
-    const crimes: { x: number; y: number }[] = [];
-    // Look for buildings with low police coverage - simulate crime incidents there
+    const speedMultiplier = currentSpeed === 1 ? 1 : currentSpeed === 2 ? 2 : 3;
+    crimeSpawnTimerRef.current -= delta * speedMultiplier;
+    
+    // Spawn new crimes every 3-5 seconds (game time adjusted)
+    if (crimeSpawnTimerRef.current > 0) return;
+    crimeSpawnTimerRef.current = 3 + Math.random() * 2;
+    
+    // Collect eligible tiles for crime (buildings with activity)
+    const eligibleTiles: { x: number; y: number; policeCoverage: number }[] = [];
+    
     for (let y = 0; y < currentGridSize; y++) {
       for (let x = 0; x < currentGridSize; x++) {
         const tile = currentGrid[y][x];
-        // Only consider populated buildings (residential/commercial)
-        if (tile.building.type !== 'grass' && 
+        // Only consider populated buildings (residential/commercial/industrial)
+        // FIX: Proper parentheses for operator precedence
+        const isBuilding = tile.building.type !== 'grass' && 
             tile.building.type !== 'water' && 
             tile.building.type !== 'road' && 
             tile.building.type !== 'tree' &&
-            tile.building.type !== 'empty' &&
-            tile.building.population > 0 || tile.building.jobs > 0) {
-          // Simulate crime incidents in areas with some activity
-          // Higher chance in areas with low police coverage
+            tile.building.type !== 'empty';
+        const hasActivity = tile.building.population > 0 || tile.building.jobs > 0;
+        
+        if (isBuilding && hasActivity) {
           const policeCoverage = state.services.police[y]?.[x] || 0;
-          if (policeCoverage < 30 && Math.random() < 0.001) {
-            crimes.push({ x, y });
-          }
+          // Crime can happen anywhere, but more likely in low-coverage areas
+          eligibleTiles.push({ x, y, policeCoverage });
         }
       }
     }
-    return crimes;
-  }, [state.services.police]);
+    
+    if (eligibleTiles.length === 0) return;
+    
+    // Determine how many new crimes to spawn (based on city size and coverage)
+    const avgCoverage = eligibleTiles.reduce((sum, t) => sum + t.policeCoverage, 0) / eligibleTiles.length;
+    const baseChance = avgCoverage < 20 ? 0.4 : avgCoverage < 40 ? 0.25 : avgCoverage < 60 ? 0.15 : 0.08;
+    
+    // Max active crimes based on population (more people = more potential crime)
+    const population = state.stats.population;
+    const maxActiveCrimes = Math.max(2, Math.floor(population / 500));
+    
+    if (activeCrimeIncidentsRef.current.size >= maxActiveCrimes) return;
+    
+    // Try to spawn 1-2 crimes
+    const crimesToSpawn = Math.random() < 0.3 ? 2 : 1;
+    
+    for (let i = 0; i < crimesToSpawn; i++) {
+      if (activeCrimeIncidentsRef.current.size >= maxActiveCrimes) break;
+      if (Math.random() > baseChance) continue;
+      
+      // Weight selection toward low-coverage areas
+      const weightedTiles = eligibleTiles.filter(t => {
+        const key = `${t.x},${t.y}`;
+        if (activeCrimeIncidentsRef.current.has(key)) return false;
+        // Higher weight for lower coverage
+        const weight = Math.max(0.1, 1 - t.policeCoverage / 100);
+        return Math.random() < weight;
+      });
+      
+      if (weightedTiles.length === 0) continue;
+      
+      const target = weightedTiles[Math.floor(Math.random() * weightedTiles.length)];
+      const key = `${target.x},${target.y}`;
+      
+      // Different crime types with different durations
+      const crimeTypes: Array<'robbery' | 'burglary' | 'disturbance' | 'traffic'> = ['robbery', 'burglary', 'disturbance', 'traffic'];
+      const crimeType = crimeTypes[Math.floor(Math.random() * crimeTypes.length)];
+      const duration = crimeType === 'traffic' ? 15 : crimeType === 'disturbance' ? 20 : 30; // Seconds to resolve if no police
+      
+      activeCrimeIncidentsRef.current.set(key, {
+        x: target.x,
+        y: target.y,
+        type: crimeType,
+        timeRemaining: duration,
+      });
+    }
+  }, [state.services.police, state.stats.population]);
+  
+  // Update crime incidents (decay over time if not responded to)
+  const updateCrimeIncidents = useCallback((delta: number) => {
+    const { speed: currentSpeed } = worldStateRef.current;
+    if (currentSpeed === 0) return;
+    
+    const speedMultiplier = currentSpeed === 1 ? 1 : currentSpeed === 2 ? 2 : 3;
+    const keysToDelete: string[] = [];
+    
+    // Iterate and track which crimes to delete
+    activeCrimeIncidentsRef.current.forEach((crime, key) => {
+      // If police car is responding, don't decay
+      if (activeCrimesRef.current.has(key)) return;
+      
+      // Update time remaining by creating a new crime object
+      const newTimeRemaining = crime.timeRemaining - delta * speedMultiplier;
+      if (newTimeRemaining <= 0) {
+        // Crime "resolved" without police (criminal escaped, situation de-escalated)
+        keysToDelete.push(key);
+      } else {
+        // Update the crime's time remaining
+        activeCrimeIncidentsRef.current.set(key, { ...crime, timeRemaining: newTimeRemaining });
+      }
+    });
+    
+    // Delete expired crimes
+    keysToDelete.forEach(key => activeCrimeIncidentsRef.current.delete(key));
+  }, []);
+  
+  // Find active crime incidents that need police response
+  const findCrimeIncidents = useCallback((): { x: number; y: number }[] => {
+    return Array.from(activeCrimeIncidentsRef.current.values()).map(c => ({ x: c.x, y: c.y }));
+  }, []);
 
   // Dispatch emergency vehicle
   const dispatchEmergencyVehicle = useCallback((
@@ -1954,10 +2087,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     const crimes = findCrimeIncidents();
     const policeStations = findStations('police_station');
     
-    // Limit police dispatches per update to avoid too many at once
+    // Limit police dispatches per update (increased for more action)
     let dispatched = 0;
+    const maxDispatchPerCheck = Math.max(3, Math.min(6, policeStations.length * 2)); // Scale with stations
     for (const crime of crimes) {
-      if (dispatched >= 2) break; // Max 2 new police cars per check
+      if (dispatched >= maxDispatchPerCheck) break;
       
       const crimeKey = `${crime.x},${crime.y}`;
       if (activeCrimesRef.current.has(crimeKey)) continue;
@@ -2014,6 +2148,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
             activeFiresRef.current.delete(targetKey);
           } else {
             activeCrimesRef.current.delete(targetKey);
+            activeCrimeIncidentsRef.current.delete(targetKey); // Also clear the crime incident
           }
           continue; // Remove vehicle
         }
@@ -2023,7 +2158,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         const respondDuration = vehicle.type === 'fire_truck' ? 8 : 5; // Fire trucks stay longer
         
         if (vehicle.respondTime >= respondDuration) {
-          // Done responding - calculate return path
+          // Done responding - crime is resolved, calculate return path
+          const targetKey = `${vehicle.targetX},${vehicle.targetY}`;
+          
+          // Clear the crime incident when police finish responding
+          if (vehicle.type === 'police_car') {
+            activeCrimeIncidentsRef.current.delete(targetKey);
+          }
+          
           const returnPath = findPathOnRoads(
             currentGrid, currentGridSize,
             vehicle.tileX, vehicle.tileY,
@@ -2041,7 +2183,6 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
             if (dir) vehicle.direction = dir;
           } else if (returnPath && returnPath.length === 1) {
             // Already at station's road - remove vehicle
-            const targetKey = `${vehicle.targetX},${vehicle.targetY}`;
             if (vehicle.type === 'fire_truck') {
               activeFiresRef.current.delete(targetKey);
             } else {
@@ -2050,7 +2191,6 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
             continue;
           } else {
             // Can't find return path - remove vehicle and clear tracking
-            const targetKey = `${vehicle.targetX},${vehicle.targetY}`;
             if (vehicle.type === 'fire_truck') {
               activeFiresRef.current.delete(targetKey);
             } else {
@@ -2071,6 +2211,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           activeFiresRef.current.delete(targetKey);
         } else {
           activeCrimesRef.current.delete(targetKey);
+          activeCrimeIncidentsRef.current.delete(targetKey); // Also clear the crime incident
         }
         continue;
       }
@@ -2083,6 +2224,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           activeFiresRef.current.delete(targetKey);
         } else {
           activeCrimesRef.current.delete(targetKey);
+          activeCrimeIncidentsRef.current.delete(targetKey); // Also clear the crime incident
         }
         continue; // Remove vehicle
       }
@@ -2145,6 +2287,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           activeFiresRef.current.delete(targetKey);
         } else {
           activeCrimesRef.current.delete(targetKey);
+          activeCrimeIncidentsRef.current.delete(targetKey); // Also clear the crime incident
         }
         continue; // Don't add to updated list
       }
@@ -2615,6 +2758,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         if (carsCanvasRef.current) {
           carsCanvasRef.current.style.width = `${rect.width}px`;
           carsCanvasRef.current.style.height = `${rect.height}px`;
+        }
+        if (lightingCanvasRef.current) {
+          lightingCanvasRef.current.style.width = `${rect.width}px`;
+          lightingCanvasRef.current.style.height = `${rect.height}px`;
         }
         
         // Set actual size in memory (scaled for DPI)
@@ -4022,6 +4169,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       lastTime = time;
       if (delta > 0) {
         updateCars(delta);
+        spawnCrimeIncidents(delta); // Spawn new crime incidents
+        updateCrimeIncidents(delta); // Update/decay crime incidents
         updateEmergencyVehicles(delta); // Update emergency vehicles!
       }
       drawCars(ctx);
@@ -4030,7 +4179,274 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, updateEmergencyVehicles, drawEmergencyVehicles]);
+  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles]);
+  
+  // Day/Night cycle lighting rendering
+  useEffect(() => {
+    const canvas = lightingCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Calculate darkness based on hour (0-23)
+    // Dawn: 5-7, Day: 7-18, Dusk: 18-20, Night: 20-5
+    const getDarkness = (h: number): number => {
+      if (h >= 7 && h < 18) return 0; // Full daylight
+      if (h >= 5 && h < 7) return 1 - (h - 5) / 2; // Dawn transition
+      if (h >= 18 && h < 20) return (h - 18) / 2; // Dusk transition
+      return 1; // Night
+    };
+    
+    // Get ambient color based on time
+    const getAmbientColor = (h: number): { r: number; g: number; b: number } => {
+      if (h >= 7 && h < 18) return { r: 255, g: 255, b: 255 }; // Daylight
+      if (h >= 5 && h < 7) { // Dawn - warm orange tint
+        const t = (h - 5) / 2;
+        return { 
+          r: Math.round(60 + 40 * t),
+          g: Math.round(40 + 30 * t),
+          b: Math.round(70 + 20 * t)
+        };
+      }
+      if (h >= 18 && h < 20) { // Dusk - warm purple tint  
+        const t = (h - 18) / 2;
+        return { 
+          r: Math.round(100 - 40 * t),
+          g: Math.round(70 - 30 * t),
+          b: Math.round(90 - 20 * t)
+        };
+      }
+      // Night - deep blue tint
+      return { r: 20, g: 30, b: 60 };
+    };
+    
+    const darkness = getDarkness(hour);
+    const ambient = getAmbientColor(hour);
+    
+    // Clear canvas
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // If it's full daylight, just clear and return
+    if (darkness <= 0.01) return;
+    
+    // Apply darkness overlay (semi-transparent dark layer)
+    const alpha = darkness * 0.55; // Maximum 55% darkening at night
+    ctx.fillStyle = `rgba(${ambient.r}, ${ambient.g}, ${ambient.b}, ${alpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Now use destination-out to "cut holes" in the darkness where lights are
+    // This creates the effect of lights illuminating through the darkness
+    ctx.globalCompositeOperation = 'destination-out';
+    
+    // Apply zoom and offset transformation
+    ctx.save();
+    ctx.scale(dpr * zoom, dpr * zoom);
+    ctx.translate(offset.x / zoom, offset.y / zoom);
+    
+    // Calculate viewport bounds
+    const viewWidth = canvas.width / (dpr * zoom);
+    const viewHeight = canvas.height / (dpr * zoom);
+    const viewLeft = -offset.x / zoom - TILE_WIDTH * 2;
+    const viewTop = -offset.y / zoom - TILE_HEIGHT * 4;
+    const viewRight = viewWidth - offset.x / zoom + TILE_WIDTH * 2;
+    const viewBottom = viewHeight - offset.y / zoom + TILE_HEIGHT * 4;
+    
+    const gridToScreen = (gx: number, gy: number) => ({
+      screenX: (gx - gy) * TILE_WIDTH / 2,
+      screenY: (gx + gy) * TILE_HEIGHT / 2,
+    });
+    
+    // Light intensity scales with darkness - lights punch through more at full night
+    const lightIntensity = Math.min(1, darkness * 1.2);
+    
+    // Draw light cutouts for each tile
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const { screenX, screenY } = gridToScreen(x, y);
+        
+        // Skip tiles outside viewport
+        if (screenX + TILE_WIDTH < viewLeft || screenX > viewRight ||
+            screenY + TILE_HEIGHT * 3 < viewTop || screenY > viewBottom) {
+          continue;
+        }
+        
+        const tile = grid[y][x];
+        const buildingType = tile.building.type;
+        const tileCenterX = screenX + TILE_WIDTH / 2;
+        const tileCenterY = screenY + TILE_HEIGHT / 2;
+        
+        // Street lights on roads - cut circles of light through darkness
+        if (buildingType === 'road') {
+          const lightRadius = 28;
+          const gradient = ctx.createRadialGradient(
+            tileCenterX, tileCenterY, 0,
+            tileCenterX, tileCenterY, lightRadius
+          );
+          gradient.addColorStop(0, `rgba(255, 255, 255, ${0.7 * lightIntensity})`);
+          gradient.addColorStop(0.4, `rgba(255, 255, 255, ${0.35 * lightIntensity})`);
+          gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(tileCenterX, tileCenterY, lightRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        
+        // Building windows glow at night - cut through darkness
+        const isBuilding = 
+          buildingType !== 'grass' && 
+          buildingType !== 'empty' && 
+          buildingType !== 'water' && 
+          buildingType !== 'road' && 
+          buildingType !== 'tree' &&
+          buildingType !== 'park' &&
+          buildingType !== 'park_large' &&
+          buildingType !== 'tennis';
+        
+        if (isBuilding && tile.building.powered) {
+          // Different buildings get different light intensities
+          const isResidential = ['house_small', 'house_medium', 'mansion', 'apartment_low', 'apartment_high'].includes(buildingType);
+          const isCommercial = ['shop_small', 'shop_medium', 'office_low', 'office_high', 'mall'].includes(buildingType);
+          
+          // Stronger glow for commercial (they stay lit), dimmer for residential
+          const glowStrength = isCommercial ? 0.85 : isResidential ? 0.6 : 0.7;
+          
+          // Number of window lights based on building size
+          let numWindows = 2;
+          if (buildingType.includes('medium') || buildingType.includes('low')) numWindows = 3;
+          if (buildingType.includes('high') || buildingType === 'mall') numWindows = 5;
+          if (buildingType === 'mansion' || buildingType === 'office_high') numWindows = 4;
+          
+          // Draw window light cutouts
+          const windowSize = 5;
+          const buildingHeight = -18;
+          
+          // Use deterministic pseudo-random based on tile position
+          const seed = x * 1000 + y;
+          const pseudoRandom = (n: number) => {
+            const s = Math.sin(seed + n * 12.9898) * 43758.5453;
+            return s - Math.floor(s);
+          };
+          
+          for (let i = 0; i < numWindows; i++) {
+            // Some windows are lit, some aren't
+            const isLit = pseudoRandom(i) < (isResidential ? 0.55 : 0.75);
+            if (!isLit) continue;
+            
+            const wx = tileCenterX + (pseudoRandom(i + 10) - 0.5) * 22;
+            const wy = tileCenterY + buildingHeight + (pseudoRandom(i + 20) - 0.5) * 16;
+            
+            // Radial gradient to cut through darkness
+            const gradient = ctx.createRadialGradient(wx, wy, 0, wx, wy, windowSize * 2.5);
+            gradient.addColorStop(0, `rgba(255, 255, 255, ${glowStrength * lightIntensity})`);
+            gradient.addColorStop(0.5, `rgba(255, 255, 255, ${glowStrength * 0.4 * lightIntensity})`);
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(wx, wy, windowSize * 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          
+          // Building casts light on the ground
+          const groundGlow = ctx.createRadialGradient(
+            tileCenterX, tileCenterY + TILE_HEIGHT / 4, 0,
+            tileCenterX, tileCenterY + TILE_HEIGHT / 4, TILE_WIDTH * 0.6
+          );
+          groundGlow.addColorStop(0, `rgba(255, 255, 255, ${0.25 * lightIntensity})`);
+          groundGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          
+          ctx.fillStyle = groundGlow;
+          ctx.beginPath();
+          ctx.ellipse(tileCenterX, tileCenterY + TILE_HEIGHT / 4, TILE_WIDTH * 0.6, TILE_HEIGHT / 2.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    
+    ctx.restore();
+    
+    // Now add colored light glows on TOP using source-over
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.save();
+    ctx.scale(dpr * zoom, dpr * zoom);
+    ctx.translate(offset.x / zoom, offset.y / zoom);
+    
+    // Add colored glow for special buildings (emergency services, etc.)
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const { screenX, screenY } = gridToScreen(x, y);
+        
+        if (screenX + TILE_WIDTH < viewLeft || screenX > viewRight ||
+            screenY + TILE_HEIGHT * 3 < viewTop || screenY > viewBottom) {
+          continue;
+        }
+        
+        const tile = grid[y][x];
+        const buildingType = tile.building.type;
+        const tileCenterX = screenX + TILE_WIDTH / 2;
+        const tileCenterY = screenY + TILE_HEIGHT / 2;
+        
+        // Special colored glows for emergency services
+        if (tile.building.powered) {
+          let glowColor: { r: number; g: number; b: number } | null = null;
+          let glowRadius = 20;
+          
+          if (buildingType === 'hospital') {
+            glowColor = { r: 255, g: 80, b: 80 }; // Red cross glow
+            glowRadius = 25;
+          } else if (buildingType === 'fire_station') {
+            glowColor = { r: 255, g: 100, b: 50 }; // Orange-red glow
+            glowRadius = 22;
+          } else if (buildingType === 'police_station') {
+            glowColor = { r: 60, g: 140, b: 255 }; // Blue glow
+            glowRadius = 22;
+          } else if (buildingType === 'power_plant') {
+            glowColor = { r: 255, g: 200, b: 50 }; // Yellow industrial glow
+            glowRadius = 30;
+          }
+          
+          if (glowColor) {
+            const gradient = ctx.createRadialGradient(
+              tileCenterX, tileCenterY - 15, 0,
+              tileCenterX, tileCenterY - 15, glowRadius
+            );
+            gradient.addColorStop(0, `rgba(${glowColor.r}, ${glowColor.g}, ${glowColor.b}, ${0.5 * lightIntensity})`);
+            gradient.addColorStop(0.5, `rgba(${glowColor.r}, ${glowColor.g}, ${glowColor.b}, ${0.2 * lightIntensity})`);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(tileCenterX, tileCenterY - 15, glowRadius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        
+        // Street light warm glow overlay
+        if (buildingType === 'road') {
+          const gradient = ctx.createRadialGradient(
+            tileCenterX, tileCenterY, 0,
+            tileCenterX, tileCenterY, 20
+          );
+          gradient.addColorStop(0, `rgba(255, 210, 130, ${0.25 * lightIntensity})`);
+          gradient.addColorStop(0.5, `rgba(255, 190, 100, ${0.1 * lightIntensity})`);
+          gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(tileCenterX, tileCenterY, 20, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    
+    ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+    
+  }, [grid, gridSize, hour, offset, zoom, canvasSize.width, canvasSize.height]);
   
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
@@ -4071,8 +4487,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
             placedRoadTilesRef.current.clear();
             // Place immediately on first click
             placeAtTile(gridX, gridY);
-            // Track initial tile for roads
-            if (selectedTool === 'road') {
+            // Track initial tile for roads and subways
+            if (selectedTool === 'road' || selectedTool === 'subway') {
               placedRoadTilesRef.current.add(`${gridX},${gridY}`);
             }
           }
@@ -4103,8 +4519,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         if (isDragging && showsDragGrid && dragStartTile) {
           setDragEndTile({ x: gridX, y: gridY });
         }
-        // For roads, use straight-line snapping
-        else if (isDragging && selectedTool === 'road' && dragStartTile) {
+        // For roads and subways, use straight-line snapping
+        else if (isDragging && (selectedTool === 'road' || selectedTool === 'subway') && dragStartTile) {
           const dx = Math.abs(gridX - dragStartTile.x);
           const dy = Math.abs(gridY - dragStartTile.y);
           
@@ -4235,6 +4651,13 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         width={canvasSize.width}
         height={canvasSize.height}
         className="absolute top-0 left-0 pointer-events-none"
+      />
+      <canvas
+        ref={lightingCanvasRef}
+        width={canvasSize.width}
+        height={canvasSize.height}
+        className="absolute top-0 left-0 pointer-events-none"
+        style={{ mixBlendMode: 'multiply' }}
       />
       
       {selectedTile && selectedTool === 'select' && (

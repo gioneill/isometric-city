@@ -121,6 +121,10 @@ function loadGameState(): GameState | null {
         if (!parsed.waterBodies) {
           parsed.waterBodies = [];
         }
+        // Ensure hour exists for day/night cycle
+        if (parsed.hour === undefined) {
+          parsed.hour = 12; // Default to noon
+        }
         return parsed as GameState;
       } else {
         localStorage.removeItem(STORAGE_KEY);
