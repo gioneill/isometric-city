@@ -444,19 +444,158 @@ const ADVISOR_ICON_MAP: Record<string, React.ReactNode> = {
   jobs: <JobsIcon size={18} />,
 };
 
+// Hover Submenu Component for collapsible tool categories
+const HoverSubmenu = React.memo(function HoverSubmenu({
+  label,
+  icon,
+  tools,
+  selectedTool,
+  money,
+  onSelectTool,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  tools: Tool[];
+  selectedTool: Tool;
+  money: number;
+  onSelectTool: (tool: Tool) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const hasSelectedTool = tools.includes(selectedTool);
+  
+  const handleMouseEnter = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setIsOpen(true);
+  }, []);
+  
+  const handleMouseLeave = useCallback(() => {
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  }, []);
+  
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+  
+  return (
+    <div 
+      className="relative"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Category Header Button */}
+      <Button
+        variant={hasSelectedTool ? 'default' : 'ghost'}
+        className={`w-full justify-between gap-2 px-3 py-2.5 h-auto text-sm group transition-all duration-200 ${
+          hasSelectedTool ? 'bg-primary text-primary-foreground' : ''
+        } ${isOpen ? 'bg-muted/80' : ''}`}
+      >
+        <span className="flex items-center gap-2">
+          {icon}
+          <span className="font-medium">{label}</span>
+        </span>
+        <svg 
+          className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+          fill="none" 
+          viewBox="0 0 24 24" 
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </Button>
+      
+      {/* Flyout Submenu */}
+      {isOpen && (
+        <div 
+          className="absolute left-full top-0 ml-1 w-52 bg-sidebar/98 backdrop-blur-sm border border-sidebar-border rounded-md shadow-xl z-50 overflow-hidden animate-submenu-in"
+          style={{ 
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(96, 165, 250, 0.1)' 
+          }}
+        >
+          <div className="px-3 py-2 border-b border-sidebar-border/50 bg-muted/30">
+            <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">{label}</span>
+          </div>
+          <div className="p-1.5 flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+            {tools.map(tool => {
+              const info = TOOL_INFO[tool];
+              if (!info) return null;
+              const isSelected = selectedTool === tool;
+              const canAfford = money >= info.cost;
+              
+              return (
+                <Button
+                  key={tool}
+                  onClick={() => onSelectTool(tool)}
+                  disabled={!canAfford && info.cost > 0}
+                  variant={isSelected ? 'default' : 'ghost'}
+                  className={`w-full justify-start gap-2 px-3 py-2 h-auto text-sm transition-all duration-150 ${
+                    isSelected ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted/60'
+                  }`}
+                  title={`${info.description}${info.cost > 0 ? ` - Cost: $${info.cost}` : ''}`}
+                >
+                  <span className="flex-1 text-left truncate">{info.name}</span>
+                  {info.cost > 0 && (
+                    <span className={`text-xs ${isSelected ? 'opacity-80' : 'opacity-50'}`}>${info.cost.toLocaleString()}</span>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // Memoized Sidebar Component
 const Sidebar = React.memo(function Sidebar() {
   const { state, setTool, setActivePanel } = useGame();
   const { selectedTool, stats, activePanel } = state;
   
-  const toolCategories = useMemo(() => ({
+  // Direct tool categories (shown inline)
+  const directCategories = useMemo(() => ({
     'TOOLS': ['select', 'bulldoze', 'road', 'subway'] as Tool[],
     'ZONES': ['zone_residential', 'zone_commercial', 'zone_industrial', 'zone_dezone'] as Tool[],
-    'SERVICES': ['police_station', 'fire_station', 'hospital', 'school', 'university'] as Tool[],
-    'PARKS': ['park', 'park_large', 'tennis'] as Tool[],
-    'UTILITIES': ['power_plant', 'water_tower', 'subway_station'] as Tool[],
-    'SPECIAL': ['stadium', 'museum', 'airport', 'space_program', 'city_hall', 'amusement_park'] as Tool[],
   }), []);
+  
+  // Submenu categories (hover to expand)
+  const submenuCategories = useMemo(() => [
+    { 
+      key: 'services', 
+      label: 'Services', 
+      icon: <SafetyIcon size={16} />,
+      tools: ['police_station', 'fire_station', 'hospital', 'school', 'university'] as Tool[]
+    },
+    { 
+      key: 'parks', 
+      label: 'Parks', 
+      icon: <TreeIcon size={16} />,
+      tools: ['park', 'park_large', 'tennis'] as Tool[]
+    },
+    { 
+      key: 'utilities', 
+      label: 'Utilities', 
+      icon: <PowerIcon size={16} />,
+      tools: ['power_plant', 'water_tower', 'subway_station'] as Tool[]
+    },
+    { 
+      key: 'special', 
+      label: 'Special', 
+      icon: <TrophyIcon size={16} />,
+      tools: ['stadium', 'museum', 'airport', 'space_program', 'city_hall', 'amusement_park'] as Tool[]
+    },
+  ], []);
   
   return (
     <div className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col h-full">
@@ -467,7 +606,8 @@ const Sidebar = React.memo(function Sidebar() {
       </div>
       
       <ScrollArea className="flex-1 py-2">
-        {Object.entries(toolCategories).map(([category, tools]) => (
+        {/* Direct categories (TOOLS, ZONES) */}
+        {Object.entries(directCategories).map(([category, tools]) => (
           <div key={category} className="mb-1">
             <div className="px-4 py-2 text-[10px] font-bold tracking-widest text-muted-foreground">
               {category}
@@ -475,7 +615,7 @@ const Sidebar = React.memo(function Sidebar() {
             <div className="px-2 flex flex-col gap-0.5">
               {tools.map(tool => {
                 const info = TOOL_INFO[tool];
-                if (!info) return null; // Skip if tool info not found
+                if (!info) return null;
                 const isSelected = selectedTool === tool;
                 const canAfford = stats.money >= info.cost;
                 
@@ -500,6 +640,29 @@ const Sidebar = React.memo(function Sidebar() {
             </div>
           </div>
         ))}
+        
+        {/* Separator */}
+        <div className="mx-4 my-2 h-px bg-sidebar-border/50" />
+        
+        {/* Buildings header */}
+        <div className="px-4 py-2 text-[10px] font-bold tracking-widest text-muted-foreground">
+          BUILDINGS
+        </div>
+        
+        {/* Submenu categories */}
+        <div className="px-2 flex flex-col gap-0.5">
+          {submenuCategories.map(({ key, label, icon, tools }) => (
+            <HoverSubmenu
+              key={key}
+              label={label}
+              icon={icon}
+              tools={tools}
+              selectedTool={selectedTool}
+              money={stats.money}
+              onSelectTool={setTool}
+            />
+          ))}
+        </div>
       </ScrollArea>
       
       <div className="border-t border-sidebar-border p-2">
