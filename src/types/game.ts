@@ -235,7 +235,6 @@ export interface GameState {
   year: number;
   month: number;
   day: number;
-  hour: number; // 0-23, used for day/night cycle
   tick: number;
   speed: 0 | 1 | 2 | 3;
   selectedTool: Tool;
