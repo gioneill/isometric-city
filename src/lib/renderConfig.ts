@@ -28,6 +28,9 @@ export interface SpritePack {
   // Per-sprite horizontal offset adjustments (positive = right, negative = left)
   // Values are multiplied by tile width for consistent scaling
   horizontalOffsets: Record<string, number>;
+  // Per-building-type vertical offset overrides (takes precedence over sprite-key offsets)
+  // Use this when multiple building types share a sprite but need different positioning
+  buildingVerticalOffsets?: Record<string, number>;
   // Per-sprite vertical offset adjustments for CONSTRUCTION sprites only
   // These override verticalOffsets when rendering buildings under construction
   constructionVerticalOffsets?: Record<string, number>;
@@ -105,6 +108,16 @@ const SPRITE_PACK_RED: SpritePack = {
   horizontalOffsets: {
     university: 0.3,
     police_station: -0.2,
+  },
+  buildingVerticalOffsets: {
+    // 2x2 commercial buildings need to shift up ~1 tile
+    office_low: -1.0,
+    office_high: -1.0,
+    // 3x3 mall needs to shift up ~1 tile
+    mall: -1.0,
+    // 2x2 residential apartments need shifting up
+    apartment_low: -1.0,
+    apartment_high: -1.0,
   },
   buildingToSprite: {
     // Residential buildings
@@ -235,6 +248,16 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   horizontalOffsets: {
     university: 0.0, // Shift right a tiny tiny bit more
     city_hall: 0.1, // Shift right about 0.2 tiles
+  },
+  buildingVerticalOffsets: {
+    // 2x2 commercial buildings need to shift up ~1 tile
+    office_low: -1.0,
+    office_high: -1.0,
+    // 3x3 mall needs to shift up ~1 tile
+    mall: -1.0,
+    // 2x2 residential apartments need shifting up
+    apartment_low: -1.0,
+    apartment_high: -1.0,
   },
   constructionVerticalOffsets: {
     water_tower: 0.0, // Construction water tower shifted down 0.5 tiles from normal (-0.5 + 0.5 = 0.0)

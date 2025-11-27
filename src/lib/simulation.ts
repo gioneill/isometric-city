@@ -808,7 +808,7 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
     zone === 'commercial' ? COMMERCIAL_BUILDINGS :
     zone === 'industrial' ? INDUSTRIAL_BUILDINGS : [];
 
-  // Calculate level based on land value and services
+  // Calculate level based on land value, services, and demand
   const serviceCoverage = (
     services.police[y][x] +
     services.fire[y][x] +
@@ -816,8 +816,19 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
     services.education[y][x]
   ) / 4;
 
+  // Get zone demand to factor into level calculation
+  const zoneDemandForLevel = demand ? (
+    zone === 'residential' ? demand.residential :
+    zone === 'commercial' ? demand.commercial :
+    zone === 'industrial' ? demand.industrial : 0
+  ) : 0;
+  
+  // High demand increases target level, encouraging densification
+  // At demand 60, adds ~0.5 level; at demand 100, adds ~1 level
+  const demandLevelBoost = Math.max(0, (zoneDemandForLevel - 30) / 70) * 0.7;
+
   const targetLevel = Math.min(5, Math.max(1, Math.floor(
-    (landValue / 24) + (serviceCoverage / 28) + (building.age / 60)
+    (landValue / 24) + (serviceCoverage / 28) + (building.age / 60) + demandLevelBoost
   )));
 
   const targetIndex = Math.min(buildingList.length - 1, targetLevel - 1);
@@ -826,8 +837,9 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
   let anchorY = y;
 
   // Calculate consolidation probability based on demand
-  // Base probability is 18%, but increases significantly for small buildings with high demand
-  let consolidationChance = 0.18;
+  // Base probability is low to make consolidation gradual
+  let consolidationChance = 0.08;
+  let allowBuildingConsolidation = false;
   
   // Check if this is a small/medium density building that could consolidate
   const isSmallResidential = zone === 'residential' && 
@@ -837,31 +849,36 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
   const isSmallIndustrial = zone === 'industrial' && 
     building.type === 'factory_small';
   
-  if (demand) {
-    // Get relevant demand for this zone
-    const zoneDemand = zone === 'residential' ? demand.residential :
-                       zone === 'commercial' ? demand.commercial :
-                       zone === 'industrial' ? demand.industrial : 0;
-    
-    // Significantly boost consolidation for small buildings when demand is high (> 30)
-    if (zoneDemand > 30) {
-      if (isSmallResidential || isSmallCommercial || isSmallIndustrial) {
-        // At demand 50, chance increases by ~25%, at demand 100, by ~50%
-        const demandBoost = Math.min(0.50, (zoneDemand - 30) / 140);
-        consolidationChance += demandBoost;
-        
-        // Extra boost for very high demand (> 60) - more aggressive consolidation
-        if (zoneDemand > 60) {
-          consolidationChance += 0.15;
-        }
+  // Get relevant demand for this zone
+  const zoneDemand = demand ? (
+    zone === 'residential' ? demand.residential :
+    zone === 'commercial' ? demand.commercial :
+    zone === 'industrial' ? demand.industrial : 0
+  ) : 0;
+  
+  if (zoneDemand > 30) {
+    if (isSmallResidential || isSmallCommercial || isSmallIndustrial) {
+      // Gradual boost based on demand: at demand 60 adds ~10%, at demand 100 adds ~23%
+      const demandBoost = Math.min(0.25, (zoneDemand - 30) / 300);
+      consolidationChance += demandBoost;
+      
+      // At very high demand (> 70), allow consolidating existing small buildings
+      // but keep the probability increase modest
+      if (zoneDemand > 70) {
+        consolidationChance += 0.05;
+        // Allow consolidating existing small buildings (not just empty land)
+        // This enables developed areas to densify
+        allowBuildingConsolidation = true;
       }
     }
   }
 
   // Attempt to upgrade footprint/density when the tile is mature enough
-  if (building.age > 12 && (targetLevel > building.level || targetType !== building.type) && Math.random() < consolidationChance) {
+  // Keep consistent age requirement to prevent sudden mass consolidation
+  const ageRequirement = 12;
+  if (building.age > ageRequirement && (targetLevel > building.level || targetType !== building.type) && Math.random() < consolidationChance) {
     const size = getBuildingSize(targetType);
-    const footprint = findFootprintIncludingTile(grid, x, y, size.width, size.height, zone, grid.length);
+    const footprint = findFootprintIncludingTile(grid, x, y, size.width, size.height, zone, grid.length, allowBuildingConsolidation);
 
     if (footprint) {
       const anchor = applyBuildingFootprint(grid, footprint.originX, footprint.originY, targetType, zone, targetLevel, services);
@@ -1522,7 +1539,20 @@ function canPlaceMultiTileBuilding(
 // Including 'empty' would allow buildings to overlap with each other during evolution.
 const MERGEABLE_TILE_TYPES = new Set<BuildingType>(['grass', 'tree']);
 
-function isMergeableZoneTile(tile: Tile, zone: ZoneType, excludeTile?: { x: number; y: number }): boolean {
+// Small buildings that can be consolidated into larger ones when demand is high
+const CONSOLIDATABLE_BUILDINGS: Record<ZoneType, Set<BuildingType>> = {
+  residential: new Set(['house_small', 'house_medium']),
+  commercial: new Set(['shop_small', 'shop_medium']),
+  industrial: new Set(['factory_small']),
+  none: new Set(),
+};
+
+function isMergeableZoneTile(
+  tile: Tile, 
+  zone: ZoneType, 
+  excludeTile?: { x: number; y: number },
+  allowBuildingConsolidation?: boolean
+): boolean {
   // The tile being upgraded is always considered mergeable (it's the source of the evolution)
   if (excludeTile && tile.x === excludeTile.x && tile.y === excludeTile.y) {
     return tile.zone === zone && !tile.building.onFire && 
@@ -1532,9 +1562,20 @@ function isMergeableZoneTile(tile: Tile, zone: ZoneType, excludeTile?: { x: numb
   if (tile.zone !== zone) return false;
   if (tile.building.onFire) return false;
   if (tile.building.type === 'water' || tile.building.type === 'road') return false;
-  // Only allow merging grass and trees - truly unoccupied tiles
+  
+  // Always allow merging grass and trees - truly unoccupied tiles
+  if (MERGEABLE_TILE_TYPES.has(tile.building.type)) {
+    return true;
+  }
+  
+  // When demand is high, allow consolidating small buildings into larger ones
+  // This enables developed areas to densify without requiring empty land
+  if (allowBuildingConsolidation && CONSOLIDATABLE_BUILDINGS[zone]?.has(tile.building.type)) {
+    return true;
+  }
+  
   // 'empty' tiles are placeholders for multi-tile buildings and must NOT be merged
-  return MERGEABLE_TILE_TYPES.has(tile.building.type);
+  return false;
 }
 
 function footprintAvailable(
@@ -1545,7 +1586,8 @@ function footprintAvailable(
   height: number,
   zone: ZoneType,
   gridSize: number,
-  excludeTile?: { x: number; y: number }
+  excludeTile?: { x: number; y: number },
+  allowBuildingConsolidation?: boolean
 ): boolean {
   if (originX < 0 || originY < 0 || originX + width > gridSize || originY + height > gridSize) {
     return false;
@@ -1554,7 +1596,7 @@ function footprintAvailable(
   for (let dy = 0; dy < height; dy++) {
     for (let dx = 0; dx < width; dx++) {
       const tile = grid[originY + dy][originX + dx];
-      if (!isMergeableZoneTile(tile, zone, excludeTile)) {
+      if (!isMergeableZoneTile(tile, zone, excludeTile, allowBuildingConsolidation)) {
         return false;
       }
     }
@@ -1599,7 +1641,8 @@ function findFootprintIncludingTile(
   width: number,
   height: number,
   zone: ZoneType,
-  gridSize: number
+  gridSize: number,
+  allowBuildingConsolidation?: boolean
 ): { originX: number; originY: number } | null {
   const candidates: { originX: number; originY: number; score: number }[] = [];
   // The tile at (x, y) is the one being upgraded, so it should be excluded from the "can't merge existing buildings" check
@@ -1607,7 +1650,7 @@ function findFootprintIncludingTile(
 
   for (let oy = y - (height - 1); oy <= y; oy++) {
     for (let ox = x - (width - 1); ox <= x; ox++) {
-      if (!footprintAvailable(grid, ox, oy, width, height, zone, gridSize, excludeTile)) continue;
+      if (!footprintAvailable(grid, ox, oy, width, height, zone, gridSize, excludeTile, allowBuildingConsolidation)) continue;
       if (x < ox || x >= ox + width || y < oy || y >= oy + height) continue;
 
       const score = scoreFootprint(grid, ox, oy, width, height, gridSize);

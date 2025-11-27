@@ -4303,6 +4303,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
               if (buildingType === 'house_small') {
                 scaleMultiplier *= 1.08; // Scale up by 8%
               }
+              // Special scale adjustment for apartments (scaled up 15%)
+              if (buildingType === 'apartment_low' || buildingType === 'apartment_high') {
+                scaleMultiplier *= 1.15; // Scale up by 15%
+              }
               // Apply global scale from sprite pack if available
               const globalScale = activePack.globalScale ?? 1;
               const destWidth = w * 1.2 * scaleMultiplier * globalScale;
@@ -4330,13 +4334,15 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
                 verticalPush = destHeight * 0.15;
               }
               // Use construction-specific offset if building is under construction and one is defined
+              // Check building-type-specific offsets first, then fall back to sprite-key offsets
               let extraOffset = 0;
-              if (spriteKey) {
-                if (isUnderConstruction && activePack.constructionVerticalOffsets && spriteKey in activePack.constructionVerticalOffsets) {
-                  extraOffset = activePack.constructionVerticalOffsets[spriteKey] * h;
-                } else if (SPRITE_VERTICAL_OFFSETS[spriteKey]) {
-                  extraOffset = SPRITE_VERTICAL_OFFSETS[spriteKey] * h;
-                }
+              if (isUnderConstruction && activePack.constructionVerticalOffsets && spriteKey && spriteKey in activePack.constructionVerticalOffsets) {
+                extraOffset = activePack.constructionVerticalOffsets[spriteKey] * h;
+              } else if (activePack.buildingVerticalOffsets && buildingType in activePack.buildingVerticalOffsets) {
+                // Building-type-specific offset (for buildings sharing sprites but needing different positioning)
+                extraOffset = activePack.buildingVerticalOffsets[buildingType] * h;
+              } else if (spriteKey && SPRITE_VERTICAL_OFFSETS[spriteKey]) {
+                extraOffset = SPRITE_VERTICAL_OFFSETS[spriteKey] * h;
               }
               verticalPush += extraOffset;
               
