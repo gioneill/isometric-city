@@ -12,6 +12,8 @@ export interface SpritePack {
   name: string;
   // Path to the sprite sheet image
   src: string;
+  // Path to the construction sprite sheet (same layout, but buildings under construction)
+  constructionSrc?: string;
   // Number of columns in the sprite sheet
   cols: number;
   // Number of rows in the sprite sheet
@@ -149,6 +151,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   id: 'sprites4',
   name: 'Sprites 4',
   src: '/assets/sprites_red_water_new.png',
+  constructionSrc: '/assets/sprites_red_water_new_construction.png',
   cols: 5,
   rows: 6,
   layout: 'row',

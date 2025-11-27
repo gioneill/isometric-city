@@ -127,6 +127,16 @@ function loadGameState(): GameState | null {
         if (parsed.hour === undefined) {
           parsed.hour = 12; // Default to noon
         }
+        // Migrate constructionProgress for existing buildings (they're already built)
+        if (parsed.grid) {
+          for (let y = 0; y < parsed.grid.length; y++) {
+            for (let x = 0; x < parsed.grid[y].length; x++) {
+              if (parsed.grid[y][x]?.building && parsed.grid[y][x].building.constructionProgress === undefined) {
+                parsed.grid[y][x].building.constructionProgress = 100; // Existing buildings are complete
+              }
+            }
+          }
+        }
         return parsed as GameState;
       } else {
         localStorage.removeItem(STORAGE_KEY);
@@ -501,6 +511,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         }
         if (!parsed.waterBodies) {
           parsed.waterBodies = [];
+        }
+        // Migrate constructionProgress for existing buildings (they're already built)
+        if (parsed.grid) {
+          for (let y = 0; y < parsed.grid.length; y++) {
+            for (let x = 0; x < parsed.grid[y].length; x++) {
+              if (parsed.grid[y][x]?.building && parsed.grid[y][x].building.constructionProgress === undefined) {
+                parsed.grid[y][x].building.constructionProgress = 100; // Existing buildings are complete
+              }
+            }
+          }
         }
         setState(parsed as GameState);
         return true;

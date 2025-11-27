@@ -3108,10 +3108,17 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
   useEffect(() => {
     // Load the sprite sheet with background color filtering
     setTimeout(() => setImagesLoaded(false), 0);
-    Promise.all([
+    const imagesToLoad: Promise<HTMLImageElement>[] = [
       loadSpriteImage(currentSpritePack.src, true),
       loadImage('/assets/water.png') // Preload water.png
-    ])
+    ];
+    
+    // Also load construction sprite sheet if available
+    if (currentSpritePack.constructionSrc) {
+      imagesToLoad.push(loadSpriteImage(currentSpritePack.constructionSrc, true));
+    }
+    
+    Promise.all(imagesToLoad)
       .then(() => setImagesLoaded(true))
       .catch(console.error);
   }, [currentSpritePack]);
@@ -4222,7 +4229,18 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           // Get the filtered sprite sheet from cache (or fallback to unfiltered if not available)
           // Use the active sprite pack's source for cache lookup
           const activePack = getActiveSpritePack();
-          const filteredSpriteSheet = imageCache.get(`${activePack.src}_filtered`) || imageCache.get(activePack.src);
+          
+          // Check if building is under construction (constructionProgress < 100)
+          const isUnderConstruction = tile.building.constructionProgress !== undefined && 
+                                       tile.building.constructionProgress < 100;
+          
+          // Use construction sprite sheet if building is under construction and one is available
+          let spriteSource = activePack.src;
+          if (isUnderConstruction && activePack.constructionSrc) {
+            spriteSource = activePack.constructionSrc;
+          }
+          
+          const filteredSpriteSheet = imageCache.get(`${spriteSource}_filtered`) || imageCache.get(spriteSource);
           
           if (filteredSpriteSheet) {
             // Use naturalWidth/naturalHeight for accurate source dimensions

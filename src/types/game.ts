@@ -121,6 +121,7 @@ export interface Building {
   onFire: boolean;
   fireProgress: number;
   age: number;
+  constructionProgress: number; // 0-100, building is under construction until 100
 }
 
 export interface Tile {

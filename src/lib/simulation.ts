@@ -473,7 +473,13 @@ function createTile(x: number, y: number, buildingType: BuildingType = 'grass'):
   };
 }
 
+// Building types that don't require construction (already complete when placed)
+const NO_CONSTRUCTION_TYPES: BuildingType[] = ['grass', 'empty', 'water', 'road', 'tree'];
+
 function createBuilding(type: BuildingType): Building {
+  // Buildings that don't require construction start at 100% complete
+  const constructionProgress = NO_CONSTRUCTION_TYPES.includes(type) ? 100 : 0;
+  
   return {
     type,
     level: type === 'grass' || type === 'empty' || type === 'water' ? 0 : 1,
@@ -484,6 +490,7 @@ function createBuilding(type: BuildingType): Building {
     onFire: false,
     fireProgress: 0,
     age: 0,
+    constructionProgress,
   };
 }
 
@@ -598,6 +605,11 @@ function calculateServiceCoverage(grid: Tile[][], size: number): ServiceCoverage
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const tile = grid[y][x];
+      
+      // Skip buildings under construction - they don't provide services yet
+      if (tile.building.constructionProgress !== undefined && tile.building.constructionProgress < 100) {
+        continue;
+      }
       
       for (const service of serviceRanges.coverage) {
         if (tile.building.type === service.building) {
@@ -771,6 +783,21 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
   const landValue = tile.landValue;
 
   if (!hasPower || !hasWater) {
+    return building;
+  }
+
+  // Progress construction if building is not yet complete
+  // Construction requires power and water to progress
+  if (building.constructionProgress !== undefined && building.constructionProgress < 100) {
+    // Construction progresses ~5-10% per tick, so buildings complete in 10-20 ticks
+    const constructionSpeed = 5 + Math.random() * 5;
+    building.constructionProgress = Math.min(100, building.constructionProgress + constructionSpeed);
+    
+    // While under construction, buildings don't generate population or jobs
+    building.population = 0;
+    building.jobs = 0;
+    
+    // Don't age or evolve until construction is complete
     return building;
   }
 
@@ -1242,6 +1269,21 @@ export function simulateTick(state: GameState): GameState {
       // Update utilities
       tile.building.powered = services.power[y][x];
       tile.building.watered = services.water[y][x];
+
+      // Progress construction for non-zoned buildings (service buildings, parks, etc.)
+      // Zoned buildings handle construction in evolveBuilding
+      if (tile.zone === 'none' && 
+          tile.building.constructionProgress !== undefined && 
+          tile.building.constructionProgress < 100 &&
+          !NO_CONSTRUCTION_TYPES.includes(tile.building.type)) {
+        // Construction requires power and water to progress
+        if (tile.building.powered && tile.building.watered) {
+          const constructionSpeed = 5 + Math.random() * 5;
+          tile.building.constructionProgress = Math.min(100, tile.building.constructionProgress + constructionSpeed);
+        }
+        // While under construction, service buildings don't provide coverage
+        // (handled by checking constructionProgress in service coverage calculation)
+      }
 
       // Check for road access and grow buildings in zones
       if (tile.zone !== 'none' && tile.building.type === 'grass') {
