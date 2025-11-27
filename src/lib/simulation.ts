@@ -743,7 +743,7 @@ function hasRoadAccess(
 }
 
 // Evolve buildings based on conditions, reserving footprints as density increases
-function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceCoverage): Building {
+function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceCoverage, demand?: { residential: number; commercial: number; industrial: number }): Building {
   const tile = grid[y][x];
   const building = tile.building;
   const zone = tile.zone;
@@ -797,8 +797,41 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
   let anchorX = x;
   let anchorY = y;
 
+  // Calculate consolidation probability based on demand
+  // Base probability is 18%, but increases significantly for small buildings with high demand
+  let consolidationChance = 0.18;
+  
+  // Check if this is a small/medium density building that could consolidate
+  const isSmallResidential = zone === 'residential' && 
+    (building.type === 'house_small' || building.type === 'house_medium');
+  const isSmallCommercial = zone === 'commercial' && 
+    (building.type === 'shop_small' || building.type === 'shop_medium');
+  const isSmallIndustrial = zone === 'industrial' && 
+    building.type === 'factory_small';
+  
+  if (demand) {
+    // Get relevant demand for this zone
+    const zoneDemand = zone === 'residential' ? demand.residential :
+                       zone === 'commercial' ? demand.commercial :
+                       zone === 'industrial' ? demand.industrial : 0;
+    
+    // Significantly boost consolidation for small buildings when demand is high (> 30)
+    if (zoneDemand > 30) {
+      if (isSmallResidential || isSmallCommercial || isSmallIndustrial) {
+        // At demand 50, chance increases by ~25%, at demand 100, by ~50%
+        const demandBoost = Math.min(0.50, (zoneDemand - 30) / 140);
+        consolidationChance += demandBoost;
+        
+        // Extra boost for very high demand (> 60) - more aggressive consolidation
+        if (zoneDemand > 60) {
+          consolidationChance += 0.15;
+        }
+      }
+    }
+  }
+
   // Attempt to upgrade footprint/density when the tile is mature enough
-  if (building.age > 12 && (targetLevel > building.level || targetType !== building.type) && Math.random() < 0.18) {
+  if (building.age > 12 && (targetLevel > building.level || targetType !== building.type) && Math.random() < consolidationChance) {
     const size = getBuildingSize(targetType);
     const footprint = findFootprintIncludingTile(grid, x, y, size.width, size.height, zone, grid.length);
 
@@ -1227,8 +1260,8 @@ export function simulateTick(state: GameState): GameState {
           }
         }
       } else if (tile.zone !== 'none' && tile.building.type !== 'grass') {
-        // Evolve existing building
-        newGrid[y][x].building = evolveBuilding(newGrid, x, y, services);
+        // Evolve existing building, passing current demand to influence consolidation
+        newGrid[y][x].building = evolveBuilding(newGrid, x, y, services, state.stats.demand);
       }
 
       // Update pollution from buildings

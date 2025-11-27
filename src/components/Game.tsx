@@ -2520,6 +2520,61 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     return false;
   }, [grid, gridSize]);
   
+  // Helper function to find the origin of a multi-tile building that contains a given tile
+  // Returns the origin coordinates and building type, or null if not part of a multi-tile building
+  const findBuildingOrigin = useCallback((gridX: number, gridY: number): { originX: number; originY: number; buildingType: BuildingType } | null => {
+    const maxSize = 4; // Maximum building size
+    
+    // First check if this tile itself has a multi-tile building
+    const tile = grid[gridY]?.[gridX];
+    if (!tile) return null;
+    
+    // If this tile has a real building (not empty), check if it's multi-tile
+    if (tile.building.type !== 'empty' && 
+        tile.building.type !== 'grass' && 
+        tile.building.type !== 'water' && 
+        tile.building.type !== 'road' && 
+        tile.building.type !== 'tree') {
+      const size = getBuildingSize(tile.building.type);
+      if (size.width > 1 || size.height > 1) {
+        return { originX: gridX, originY: gridY, buildingType: tile.building.type };
+      }
+      return null; // Single-tile building
+    }
+    
+    // If this is an 'empty' tile, search for the origin building
+    if (tile.building.type === 'empty') {
+      for (let dy = 0; dy < maxSize; dy++) {
+        for (let dx = 0; dx < maxSize; dx++) {
+          const originX = gridX - dx;
+          const originY = gridY - dy;
+          
+          if (originX >= 0 && originX < gridSize && originY >= 0 && originY < gridSize) {
+            const originTile = grid[originY][originX];
+            
+            if (originTile.building.type !== 'empty' && 
+                originTile.building.type !== 'grass' &&
+                originTile.building.type !== 'water' &&
+                originTile.building.type !== 'road' &&
+                originTile.building.type !== 'tree') {
+              const size = getBuildingSize(originTile.building.type);
+              
+              // Check if the clicked tile is within this building's footprint
+              if (size.width > 1 || size.height > 1) {
+                if (gridX >= originX && gridX < originX + size.width &&
+                    gridY >= originY && gridY < originY + size.height) {
+                  return { originX, originY, buildingType: originTile.building.type };
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return null;
+  }, [grid, gridSize]);
+  
   // Helper function to check if a tile is part of a park building footprint
   const isPartOfParkBuilding = useCallback((gridX: number, gridY: number): boolean => {
     const maxSize = 4; // Maximum building size
@@ -2621,6 +2676,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     };
     const buildingQueue: BuildingDraw[] = [];
     const waterQueue: BuildingDraw[] = [];
+    const roadQueue: BuildingDraw[] = []; // Roads drawn above water
     const beachQueue: BuildingDraw[] = [];
     const baseTileQueue: BuildingDraw[] = [];
     const greenBaseTileQueue: BuildingDraw[] = [];
@@ -2996,8 +3052,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       
       // Draw road markings (yellow dashed lines) - aligned with gridlines
       ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 1.2;
-      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 0.8;  // Thinner lines
+      ctx.setLineDash([1.5, 2]);  // Smaller, more frequent dots
       ctx.lineCap = 'round';
       
       // Marking length - extend most of the way
@@ -3167,14 +3223,19 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       
       // Highlight on hover/select (always draw, even if base was skipped)
       if (highlight) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+        // Draw a semi-transparent fill for better visibility
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
         ctx.beginPath();
         ctx.moveTo(x + w / 2, y);
         ctx.lineTo(x + w, y + h / 2);
         ctx.lineTo(x + w / 2, y + h);
         ctx.lineTo(x, y + h / 2);
         ctx.closePath();
+        ctx.fill();
+        
+        // Draw white border
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
         ctx.stroke();
       }
     }
@@ -3674,7 +3735,23 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         
         const tile = grid[y][x];
         const isHovered = hoveredTile?.x === x && hoveredTile?.y === y;
-        const isSelected = selectedTile?.x === x && selectedTile?.y === y;
+        
+        // Check if this tile is selected or part of a selected multi-tile building
+        let isSelected = selectedTile?.x === x && selectedTile?.y === y;
+        if (!isSelected && selectedTile) {
+          // Check if selected tile is a multi-tile building that includes this tile
+          const selectedOrigin = grid[selectedTile.y]?.[selectedTile.x];
+          if (selectedOrigin) {
+            const selectedSize = getBuildingSize(selectedOrigin.building.type);
+            if (selectedSize.width > 1 || selectedSize.height > 1) {
+              // Check if current tile is within the selected building's footprint
+              if (x >= selectedTile.x && x < selectedTile.x + selectedSize.width &&
+                  y >= selectedTile.y && y < selectedTile.y + selectedSize.height) {
+                isSelected = true;
+              }
+            }
+          }
+        }
         
         // Check if tile is in drag selection rectangle (only show for zoning tools)
         const isInDragRect = showsDragGrid && dragStartTile && dragEndTile && 
@@ -3719,6 +3796,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           const size = getBuildingSize(tile.building.type);
           const depth = x + y + size.width + size.height - 2;
           waterQueue.push({ screenX, screenY, tile, depth });
+        }
+        // Roads go to their own queue (drawn above water)
+        else if (tile.building.type === 'road') {
+          const depth = x + y;
+          roadQueue.push({ screenX, screenY, tile, depth });
         }
         // Check for beach tiles (grass/empty tiles adjacent to water)
         else if ((tile.building.type === 'grass' || tile.building.type === 'empty') &&
@@ -3784,6 +3866,26 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       });
     
     ctx.restore(); // Remove clipping after drawing water
+    
+    // Draw roads (above water, needs full redraw including base tile)
+    roadQueue
+      .sort((a, b) => a.depth - b.depth)
+      .forEach(({ tile, screenX, screenY }) => {
+        // Draw road base tile first (grey diamond)
+        const w = TILE_WIDTH;
+        const h = TILE_HEIGHT;
+        ctx.fillStyle = '#4a4a4a';
+        ctx.beginPath();
+        ctx.moveTo(screenX + w / 2, screenY);
+        ctx.lineTo(screenX + w, screenY + h / 2);
+        ctx.lineTo(screenX + w / 2, screenY + h);
+        ctx.lineTo(screenX, screenY + h / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw road markings and sidewalks
+        drawBuilding(ctx, screenX, screenY, tile);
+      });
     
     // Draw green base tiles for grass/empty tiles adjacent to water (after water, before gray bases)
     greenBaseTileQueue
@@ -3947,7 +4049,13 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         
         if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
           if (selectedTool === 'select') {
-            setSelectedTile({ x: gridX, y: gridY });
+            // For multi-tile buildings, select the origin tile
+            const origin = findBuildingOrigin(gridX, gridY);
+            if (origin) {
+              setSelectedTile({ x: origin.originX, y: origin.originY });
+            } else {
+              setSelectedTile({ x: gridX, y: gridY });
+            }
           } else if (showsDragGrid) {
             // Start drag rectangle selection for zoning tools
             setDragStartTile({ x: gridX, y: gridY });
@@ -3971,7 +4079,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         }
       }
     }
-  }, [offset, gridSize, selectedTool, placeAtTile, zoom, showsDragGrid, supportsDragPlace, setSelectedTile]);
+  }, [offset, gridSize, selectedTool, placeAtTile, zoom, showsDragGrid, supportsDragPlace, setSelectedTile, findBuildingOrigin]);
   
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
