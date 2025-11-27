@@ -66,8 +66,12 @@ export function CloseIcon({ size = 18, className }: IconProps) {
 export function RoadIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      <path {...baseStroke} d="M9 3h6l-1.5 18h-3z" />
-      <path {...baseStroke} d="M12 6v3M12 12v3M12 18v1" />
+      {/* Road surface */}
+      <rect {...baseStroke} x="6" y="4" width="12" height="16" rx="1" />
+      {/* Center lane divider */}
+      <path {...baseStroke} d="M12 6v12" strokeDasharray="2 2" />
+      {/* Side edges */}
+      <path {...baseStroke} d="M6 8h12M6 16h12" />
     </svg>
   );
 }
