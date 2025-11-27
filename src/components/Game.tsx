@@ -164,6 +164,50 @@ type Pedestrian = {
   pathIndex: number;
 };
 
+// Boat types for water navigation
+type BoatState = 'sailing' | 'docked' | 'arriving' | 'departing';
+
+type WakeParticle = {
+  x: number;
+  y: number;
+  age: number;
+  opacity: number;
+};
+
+type Boat = {
+  id: number;
+  // Screen position (isometric coordinates)
+  x: number;
+  y: number;
+  // Movement direction in radians
+  angle: number;
+  // Target angle for smooth turning
+  targetAngle: number;
+  // Current state
+  state: BoatState;
+  // Speed (pixels per second in screen space)
+  speed: number;
+  // Origin marina/pier tile coordinates
+  originX: number;
+  originY: number;
+  // Destination marina/pier tile coordinates
+  destX: number;
+  destY: number;
+  // Screen position of destination
+  destScreenX: number;
+  destScreenY: number;
+  // Lifetime/age tracking
+  age: number;
+  // Boat color/style
+  color: string;
+  // Wake particles (similar to plane contrails)
+  wake: WakeParticle[];
+  // Progress for wake spawning
+  wakeSpawnProgress: number;
+  // Boat size variant (0 = small, 1 = medium)
+  sizeVariant: number;
+};
+
 type DirectionMeta = {
   step: { x: number; y: number };
   vec: { dx: number; dy: number };
@@ -194,6 +238,12 @@ const AIRPLANE_MIN_POPULATION = 5000; // Minimum population required for airplan
 const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c3aed']; // Airline liveries
 const CONTRAIL_MAX_AGE = 3.0; // seconds
 const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
+
+// Boat system constants
+const BOAT_COLORS = ['#ffffff', '#1e3a5f', '#8b4513', '#2f4f4f', '#c41e3a', '#1e90ff']; // Various boat hull colors
+const BOAT_MIN_ZOOM = 0.3; // Minimum zoom level to show boats
+const WAKE_MAX_AGE = 2.0; // seconds - how long wake particles last
+const WAKE_SPAWN_INTERVAL = 0.03; // seconds between wake particles
 
 function createDirectionMeta(step: { x: number; y: number }, vec: { dx: number; dy: number }): DirectionMeta {
   const length = Math.hypot(vec.dx, vec.dy) || 1;
@@ -2352,6 +2402,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
   const airplaneIdRef = useRef(0);
   const airplaneSpawnTimerRef = useRef(0);
 
+  // Boat system refs
+  const boatsRef = useRef<Boat[]>([]);
+  const boatIdRef = useRef(0);
+  const boatSpawnTimerRef = useRef(0);
+
   // Performance: Cache expensive grid calculations
   const cachedRoadTileCountRef = useRef<{ count: number; gridVersion: number }>({ count: 0, gridVersion: -1 });
   const cachedPopulationRef = useRef<{ count: number; gridVersion: number }>({ count: 0, gridVersion: -1 });
@@ -3571,6 +3626,66 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     return airports;
   }, []);
 
+  // Find all marinas and piers in the city (boat spawn/destination points)
+  const findMarinasAndPiers = useCallback((): { x: number; y: number; type: 'marina' | 'pier' }[] => {
+    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    if (!currentGrid || currentGridSize <= 0) return [];
+    
+    const docks: { x: number; y: number; type: 'marina' | 'pier' }[] = [];
+    for (let y = 0; y < currentGridSize; y++) {
+      for (let x = 0; x < currentGridSize; x++) {
+        const buildingType = currentGrid[y][x].building.type;
+        if (buildingType === 'marina_docks_small') {
+          docks.push({ x, y, type: 'marina' });
+        } else if (buildingType === 'pier_large') {
+          docks.push({ x, y, type: 'pier' });
+        }
+      }
+    }
+    return docks;
+  }, []);
+
+  // Find water tile adjacent to a marina/pier for boat positioning
+  const findAdjacentWaterTile = useCallback((dockX: number, dockY: number): { x: number; y: number } | null => {
+    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    if (!currentGrid || currentGridSize <= 0) return null;
+    
+    // Check adjacent tiles for water
+    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+    for (const [dx, dy] of directions) {
+      const nx = dockX + dx;
+      const ny = dockY + dy;
+      if (nx >= 0 && nx < currentGridSize && ny >= 0 && ny < currentGridSize) {
+        if (currentGrid[ny][nx].building.type === 'water') {
+          return { x: nx, y: ny };
+        }
+      }
+    }
+    return null;
+  }, []);
+
+  // Check if a screen position is over water (for boat pathfinding)
+  // Uses inverse of gridToScreen: screenX = (x - y) * TILE_WIDTH/2, screenY = (x + y) * TILE_HEIGHT/2
+  // Solving: x = screenX/TILE_WIDTH + screenY/TILE_HEIGHT, y = screenY/TILE_HEIGHT - screenX/TILE_WIDTH
+  const screenToTile = useCallback((screenX: number, screenY: number): { tileX: number; tileY: number } => {
+    const tileX = Math.floor(screenX / TILE_WIDTH + screenY / TILE_HEIGHT);
+    const tileY = Math.floor(screenY / TILE_HEIGHT - screenX / TILE_WIDTH);
+    return { tileX, tileY };
+  }, []);
+
+  const isOverWater = useCallback((screenX: number, screenY: number): boolean => {
+    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    if (!currentGrid || currentGridSize <= 0) return false;
+    
+    const { tileX, tileY } = screenToTile(screenX, screenY);
+    
+    if (tileX < 0 || tileX >= currentGridSize || tileY < 0 || tileY >= currentGridSize) {
+      return false;
+    }
+    
+    return currentGrid[tileY][tileX].building.type === 'water';
+  }, [screenToTile]);
+
   // Update airplanes - spawn, move, and manage lifecycle
   const updateAirplanes = useCallback((delta: number) => {
     const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed } = worldStateRef.current;
@@ -3949,6 +4064,373 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     ctx.restore();
   }, []);
 
+  // Update boats - spawn, move, and manage lifecycle
+  const updateBoats = useCallback((delta: number) => {
+    const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed, zoom: currentZoom } = worldStateRef.current;
+    
+    if (!currentGrid || currentGridSize <= 0 || currentSpeed === 0) {
+      return;
+    }
+
+    // Clear boats if zoomed out too far
+    if (currentZoom < BOAT_MIN_ZOOM) {
+      boatsRef.current = [];
+      return;
+    }
+
+    // Find marinas and piers
+    const docks = findMarinasAndPiers();
+    
+    // No boats if no docks
+    if (docks.length === 0) {
+      boatsRef.current = [];
+      return;
+    }
+
+    // Calculate max boats based on number of docks (5 boats per dock, max 50)
+    const maxBoats = Math.min(50, docks.length * 5);
+    
+    // Speed multiplier based on game speed
+    const speedMultiplier = currentSpeed === 1 ? 1 : currentSpeed === 2 ? 1.5 : 2;
+
+    // Spawn timer
+    boatSpawnTimerRef.current -= delta;
+    if (boatsRef.current.length < maxBoats && boatSpawnTimerRef.current <= 0) {
+      // Pick a random dock as origin
+      const originDock = docks[Math.floor(Math.random() * docks.length)];
+      
+      // Find adjacent water tile for positioning
+      const waterTile = findAdjacentWaterTile(originDock.x, originDock.y);
+      if (waterTile) {
+        // Pick a destination dock (different from origin, or same if only one dock)
+        let destDock = originDock;
+        if (docks.length > 1) {
+          const otherDocks = docks.filter(d => d.x !== originDock.x || d.y !== originDock.y);
+          destDock = otherDocks[Math.floor(Math.random() * otherDocks.length)];
+        }
+        
+        // Find water tile near destination
+        const destWaterTile = findAdjacentWaterTile(destDock.x, destDock.y);
+        if (destWaterTile) {
+          // Convert to screen coordinates
+          const { screenX: originScreenX, screenY: originScreenY } = gridToScreen(waterTile.x, waterTile.y, 0, 0);
+          const { screenX: destScreenX, screenY: destScreenY } = gridToScreen(destWaterTile.x, destWaterTile.y, 0, 0);
+          
+          // Calculate angle to destination
+          const angle = Math.atan2(destScreenY - originScreenY, destScreenX - originScreenX);
+          
+          boatsRef.current.push({
+            id: boatIdRef.current++,
+            x: originScreenX + TILE_WIDTH / 2,
+            y: originScreenY + TILE_HEIGHT / 2,
+            angle: angle,
+            targetAngle: angle,
+            state: 'departing',
+            speed: 15 + Math.random() * 10, // Boats are slower than cars
+            originX: originDock.x,
+            originY: originDock.y,
+            destX: destDock.x,
+            destY: destDock.y,
+            destScreenX: destScreenX + TILE_WIDTH / 2,
+            destScreenY: destScreenY + TILE_HEIGHT / 2,
+            age: 0,
+            color: BOAT_COLORS[Math.floor(Math.random() * BOAT_COLORS.length)],
+            wake: [],
+            wakeSpawnProgress: 0,
+            sizeVariant: Math.random() < 0.7 ? 0 : 1, // 70% small boats, 30% medium
+          });
+        }
+      }
+      
+      boatSpawnTimerRef.current = 1 + Math.random() * 2; // 1-3 seconds between spawns
+    }
+
+    // Update existing boats
+    const updatedBoats: Boat[] = [];
+    
+    for (const boat of boatsRef.current) {
+      boat.age += delta;
+      
+      // Update wake particles (similar to contrails)
+      boat.wake = boat.wake
+        .map(p => ({ ...p, age: p.age + delta, opacity: Math.max(0, 1 - p.age / WAKE_MAX_AGE) }))
+        .filter(p => p.age < WAKE_MAX_AGE);
+      
+      // Distance to destination
+      const distToDest = Math.hypot(boat.x - boat.destScreenX, boat.y - boat.destScreenY);
+      
+      // Calculate next position
+      let nextX = boat.x;
+      let nextY = boat.y;
+      
+      switch (boat.state) {
+        case 'departing': {
+          // Move away from dock, then switch to sailing
+          nextX = boat.x + Math.cos(boat.angle) * boat.speed * delta * speedMultiplier;
+          nextY = boat.y + Math.sin(boat.angle) * boat.speed * delta * speedMultiplier;
+          
+          if (boat.age > 2) {
+            boat.state = 'sailing';
+          }
+          break;
+        }
+        
+        case 'sailing': {
+          // Navigate toward destination with gentle course corrections
+          const angleToDestination = Math.atan2(boat.destScreenY - boat.y, boat.destScreenX - boat.x);
+          boat.targetAngle = angleToDestination;
+          
+          // Smooth turning
+          let angleDiff = boat.targetAngle - boat.angle;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          boat.angle += angleDiff * Math.min(1, delta * 2);
+          
+          // Calculate next position
+          nextX = boat.x + Math.cos(boat.angle) * boat.speed * delta * speedMultiplier;
+          nextY = boat.y + Math.sin(boat.angle) * boat.speed * delta * speedMultiplier;
+          
+          // Check if approaching destination
+          if (distToDest < 60) {
+            boat.state = 'arriving';
+          }
+          
+          // Safety: remove boats that have been sailing too long (stuck)
+          if (boat.age > 60) {
+            continue;
+          }
+          break;
+        }
+        
+        case 'arriving': {
+          // Slow down and dock
+          boat.speed = Math.max(5, boat.speed - delta * 8);
+          
+          const angleToDestination = Math.atan2(boat.destScreenY - boat.y, boat.destScreenX - boat.x);
+          boat.targetAngle = angleToDestination;
+          
+          // Smooth turning
+          let angleDiff = boat.targetAngle - boat.angle;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          boat.angle += angleDiff * Math.min(1, delta * 3);
+          
+          nextX = boat.x + Math.cos(boat.angle) * boat.speed * delta * speedMultiplier;
+          nextY = boat.y + Math.sin(boat.angle) * boat.speed * delta * speedMultiplier;
+          
+          // Check if docked
+          if (distToDest < 15) {
+            boat.state = 'docked';
+            // Set up return trip - swap origin and destination
+            const tempX = boat.originX;
+            const tempY = boat.originY;
+            boat.originX = boat.destX;
+            boat.originY = boat.destY;
+            boat.destX = tempX;
+            boat.destY = tempY;
+            
+            // Update screen destination
+            const destWaterTile = findAdjacentWaterTile(boat.destX, boat.destY);
+            if (destWaterTile) {
+              const { screenX, screenY } = gridToScreen(destWaterTile.x, destWaterTile.y, 0, 0);
+              boat.destScreenX = screenX + TILE_WIDTH / 2;
+              boat.destScreenY = screenY + TILE_HEIGHT / 2;
+            }
+            
+            boat.age = 0; // Reset age for return trip timer
+            boat.wake = []; // Clear wake when docked
+          }
+          break;
+        }
+        
+        case 'docked': {
+          // Wait at dock, then depart
+          if (boat.age > 3 + Math.random() * 3) {
+            boat.state = 'departing';
+            boat.speed = 15 + Math.random() * 10;
+            boat.age = 0;
+            
+            // Calculate angle to new destination
+            const angle = Math.atan2(boat.destScreenY - boat.y, boat.destScreenX - boat.x);
+            boat.angle = angle;
+            boat.targetAngle = angle;
+          }
+          break;
+        }
+      }
+      
+      // Check if next position is over water (skip for docked boats)
+      if (boat.state !== 'docked') {
+        if (!isOverWater(nextX, nextY)) {
+          // Next position would be on land - remove the boat
+          continue;
+        }
+        
+        // Update position
+        boat.x = nextX;
+        boat.y = nextY;
+        
+        // Add wake particles when moving
+        boat.wakeSpawnProgress += delta;
+        if (boat.wakeSpawnProgress >= WAKE_SPAWN_INTERVAL) {
+          boat.wakeSpawnProgress -= WAKE_SPAWN_INTERVAL;
+          
+          // Add wake particles behind the boat (two trails like plane contrails)
+          const perpAngle = boat.angle + Math.PI / 2;
+          const wakeOffset = 3;
+          const behindBoat = -6; // Position behind the boat
+          
+          boat.wake.push(
+            { 
+              x: boat.x + Math.cos(boat.angle) * behindBoat + Math.cos(perpAngle) * wakeOffset, 
+              y: boat.y + Math.sin(boat.angle) * behindBoat + Math.sin(perpAngle) * wakeOffset, 
+              age: 0, 
+              opacity: 1 
+            },
+            { 
+              x: boat.x + Math.cos(boat.angle) * behindBoat - Math.cos(perpAngle) * wakeOffset, 
+              y: boat.y + Math.sin(boat.angle) * behindBoat - Math.sin(perpAngle) * wakeOffset, 
+              age: 0, 
+              opacity: 1 
+            }
+          );
+        }
+      }
+      
+      updatedBoats.push(boat);
+    }
+    
+    boatsRef.current = updatedBoats;
+  }, [findMarinasAndPiers, findAdjacentWaterTile, isOverWater]);
+
+  // Draw boats with wakes
+  const drawBoats = useCallback((ctx: CanvasRenderingContext2D) => {
+    const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    const canvas = ctx.canvas;
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Don't draw boats if zoomed out
+    if (currentZoom < BOAT_MIN_ZOOM) {
+      return;
+    }
+    
+    // Early exit if no boats
+    if (!currentGrid || currentGridSize <= 0 || boatsRef.current.length === 0) {
+      return;
+    }
+    
+    ctx.save();
+    ctx.scale(dpr * currentZoom, dpr * currentZoom);
+    ctx.translate(currentOffset.x / currentZoom, currentOffset.y / currentZoom);
+    
+    const viewWidth = canvas.width / (dpr * currentZoom);
+    const viewHeight = canvas.height / (dpr * currentZoom);
+    const viewLeft = -currentOffset.x / currentZoom - 100;
+    const viewTop = -currentOffset.y / currentZoom - 100;
+    const viewRight = viewWidth - currentOffset.x / currentZoom + 100;
+    const viewBottom = viewHeight - currentOffset.y / currentZoom + 100;
+    
+    for (const boat of boatsRef.current) {
+      // Draw wake particles first (behind boat) - similar to plane contrails
+      if (boat.wake.length > 0) {
+        for (const particle of boat.wake) {
+          // Skip if outside viewport
+          if (particle.x < viewLeft || particle.x > viewRight || particle.y < viewTop || particle.y > viewBottom) {
+            continue;
+          }
+          
+          // Wake particles expand and fade over time
+          const size = 2 + particle.age * 4;
+          const opacity = particle.opacity * 0.5;
+          
+          ctx.fillStyle = `rgba(200, 220, 255, ${opacity})`;
+          ctx.beginPath();
+          ctx.arc(particle.x, particle.y, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      
+      // Skip boat rendering if outside viewport
+      if (boat.x < viewLeft || boat.x > viewRight || boat.y < viewTop || boat.y > viewBottom) {
+        continue;
+      }
+      
+      ctx.save();
+      ctx.translate(boat.x, boat.y);
+      ctx.rotate(boat.angle);
+      
+      const scale = boat.sizeVariant === 0 ? 0.8 : 1.0;
+      ctx.scale(scale, scale);
+      
+      // Draw small foam/splash at stern when moving
+      if (boat.state !== 'docked') {
+        const foamOpacity = Math.min(0.5, boat.speed / 30);
+        ctx.fillStyle = `rgba(255, 255, 255, ${foamOpacity})`;
+        ctx.beginPath();
+        ctx.ellipse(-7, 0, 3, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Draw boat hull (simple sailboat/motorboat shape)
+      ctx.fillStyle = boat.color;
+      ctx.beginPath();
+      // Hull - pointed bow, flat stern
+      ctx.moveTo(10, 0); // Bow
+      ctx.quadraticCurveTo(8, -4, 0, -4); // Starboard side
+      ctx.lineTo(-8, -3); // Stern starboard
+      ctx.lineTo(-8, 3); // Stern port
+      ctx.lineTo(0, 4); // Port side
+      ctx.quadraticCurveTo(8, 4, 10, 0); // Back to bow
+      ctx.closePath();
+      ctx.fill();
+      
+      // Hull outline
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+      
+      // Deck (lighter color)
+      const hullHSL = boat.color === '#ffffff' ? 'hsl(0, 0%, 95%)' : 
+                      boat.color === '#1e3a5f' ? 'hsl(210, 52%, 35%)' :
+                      boat.color === '#8b4513' ? 'hsl(30, 75%, 40%)' :
+                      boat.color === '#2f4f4f' ? 'hsl(180, 25%, 35%)' :
+                      boat.color === '#c41e3a' ? 'hsl(350, 75%, 50%)' :
+                      'hsl(210, 80%, 50%)';
+      ctx.fillStyle = hullHSL;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 5, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Cabin/cockpit
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(-3, -1.5, 4, 3);
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 0.3;
+      ctx.strokeRect(-3, -1.5, 4, 3);
+      
+      // Mast or antenna
+      ctx.strokeStyle = '#666';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(2, 0);
+      ctx.lineTo(2, -8);
+      ctx.stroke();
+      
+      // Flag or light at top
+      ctx.fillStyle = '#ff4444';
+      ctx.beginPath();
+      ctx.moveTo(2, -8);
+      ctx.lineTo(5, -7);
+      ctx.lineTo(2, -6);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.restore();
+    }
+    
+    ctx.restore();
+  }, []);
+
   // Draw emergency vehicles (fire trucks and police cars)
   const drawEmergencyVehicles = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
@@ -4225,7 +4707,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     const maxSize = 4; // Maximum building size
     const parkBuildings: BuildingType[] = ['park_large', 'baseball_field_small', 'football_field',
       'mini_golf_course', 'go_kart_track', 'amphitheater', 'greenhouse_garden',
-      'pier_large', 'roller_coaster_small', 'mountain_lodge', 'playground_large', 'mountain_trailhead'];
+      'marina_docks_small', 'roller_coaster_small', 'mountain_lodge', 'playground_large', 'mountain_trailhead'];
 
     for (let dy = 0; dy < maxSize; dy++) {
       for (let dx = 0; dx < maxSize; dx++) {
@@ -5315,9 +5797,9 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
               let sourceY = useParksBuilding.row * tileHeight;
               let sourceH = tileHeight;
               
-              // Special handling for pier_large - shift source down to avoid capturing
+              // Special handling for marina_docks_small (2x2) - shift source down to avoid capturing
               // content from the sprite above it in the sprite sheet
-              if (buildingType === 'pier_large') {
+              if (buildingType === 'marina_docks_small') {
                 sourceY += tileHeight * 0.15; // Shift down 15% to avoid row above
               }
               
@@ -5494,7 +5976,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
               
               // Check if building should be horizontally flipped (used for waterfront buildings like marina/pier)
               // Some buildings are mirrored by default and the flip flag inverts that
-              const defaultMirroredBuildings = ['pier_large'];
+              const defaultMirroredBuildings = ['marina_docks_small', 'pier_large'];
               const isDefaultMirrored = defaultMirroredBuildings.includes(buildingType);
               const isFlipped = isDefaultMirrored ? !tile.building.flipped : tile.building.flipped === true;
               
@@ -5866,16 +6348,18 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         updateEmergencyVehicles(delta); // Update emergency vehicles!
         updatePedestrians(delta); // Update pedestrians (zoom-gated)
         updateAirplanes(delta); // Update airplanes (airport required)
+        updateBoats(delta); // Update boats (marina/pier required)
       }
       drawCars(ctx);
       drawPedestrians(ctx); // Draw pedestrians (zoom-gated)
+      drawBoats(ctx); // Draw boats on water
       drawEmergencyVehicles(ctx); // Draw emergency vehicles!
       drawAirplanes(ctx); // Draw airplanes above everything
     };
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes]);
+  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateBoats, drawBoats]);
   
   // Day/Night cycle lighting rendering
   useEffect(() => {
@@ -6953,7 +7437,7 @@ export default function Game() {
       go_kart_track: { width: 2, height: 2 },
       amphitheater: { width: 2, height: 2 },
       greenhouse_garden: { width: 2, height: 2 },
-      pier_large: { width: 2, height: 2 },
+      marina_docks_small: { width: 2, height: 2 },
       roller_coaster_small: { width: 2, height: 2 },
       mountain_lodge: { width: 2, height: 2 },
       mountain_trailhead: { width: 3, height: 3 },
