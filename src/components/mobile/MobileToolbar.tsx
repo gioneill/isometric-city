@@ -216,7 +216,12 @@ export function MobileToolbar({ onOpenPanel }: MobileToolbarProps) {
   };
 
   const handleToolSelect = (tool: Tool, closeMenu: boolean = false) => {
-    setTool(tool);
+    // If the tool is already selected and it's not 'select', toggle back to select
+    if (selectedTool === tool && tool !== 'select') {
+      setTool('select');
+    } else {
+      setTool(tool);
+    }
     setExpandedCategory(null);
     if (closeMenu) {
       setShowMenu(false);
