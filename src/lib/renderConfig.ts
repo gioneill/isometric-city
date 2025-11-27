@@ -41,6 +41,9 @@ export interface SpritePack {
   // Per-sprite vertical offset adjustments for CONSTRUCTION sprites only
   // These override verticalOffsets when rendering buildings under construction
   constructionVerticalOffsets?: Record<string, number>;
+  // Per-sprite vertical offset adjustments for ABANDONED sprites only
+  // These override verticalOffsets when rendering abandoned buildings
+  abandonedVerticalOffsets?: Record<string, number>;
   // Maps building types to sprite keys in spriteOrder
   buildingToSprite: Record<string, string>;
   // Optional global scale multiplier for all sprites in this pack
@@ -303,6 +306,11 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   },
   constructionVerticalOffsets: {
     water_tower: 0.0, // Construction water tower shifted down 0.5 tiles from normal (-0.5 + 0.5 = 0.0)
+  },
+  abandonedVerticalOffsets: {
+    // Abandoned apartments need to shift down ~0.75 tiles from normal position
+    apartment_low: -0.25, // Normal is -1.0, abandoned shifts down 0.75: -1.0 + 0.75 = -0.25
+    apartment_high: 0.15, // Normal is -0.60, abandoned shifts down 0.75: -0.60 + 0.75 = 0.15
   },
   buildingToSprite: {
     house_small: 'house_small',

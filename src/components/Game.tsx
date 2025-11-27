@@ -4416,11 +4416,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, navig
                 // Single-tile sprites also need push (sprites have transparent bottom padding)
                 verticalPush = destHeight * 0.15;
               }
-              // Use construction-specific offset if building is under construction and one is defined
-              // Check building-type-specific offsets first, then fall back to sprite-key offsets
+              // Use state-specific offset if available, then fall back to building-type or sprite-key offsets
+              // Priority: construction > abandoned > building-type > sprite-key
               let extraOffset = 0;
               if (isUnderConstruction && activePack.constructionVerticalOffsets && spriteKey && spriteKey in activePack.constructionVerticalOffsets) {
                 extraOffset = activePack.constructionVerticalOffsets[spriteKey] * h;
+              } else if (isAbandoned && activePack.abandonedVerticalOffsets && buildingType in activePack.abandonedVerticalOffsets) {
+                // Abandoned buildings may need different positioning than normal
+                extraOffset = activePack.abandonedVerticalOffsets[buildingType] * h;
               } else if (activePack.buildingVerticalOffsets && buildingType in activePack.buildingVerticalOffsets) {
                 // Building-type-specific offset (for buildings sharing sprites but needing different positioning)
                 extraOffset = activePack.buildingVerticalOffsets[buildingType] * h;
@@ -5646,6 +5649,184 @@ export default function Game() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [state.activePanel, state.selectedTool, selectedTile, setActivePanel, setTool, overlayMode]);
+
+  // Debug logging for zone growth issues
+  useEffect(() => {
+    if (!selectedTile) return;
+    
+    const tile = state.grid[selectedTile.y]?.[selectedTile.x];
+    if (!tile) return;
+    
+    // Only log for zoned tiles
+    if (tile.zone === 'none') return;
+    
+    const { x, y } = selectedTile;
+    const gridSize = state.gridSize;
+    const grid = state.grid;
+    const services = state.services;
+    
+    // Check all growth conditions
+    const hasPower = services.power[y]?.[x] ?? false;
+    const hasWater = services.water[y]?.[x] ?? false;
+    const buildingType = tile.building.type;
+    const isEmptyZone = buildingType === 'grass';
+    const isMultiTilePlaceholder = buildingType === 'empty';
+    
+    // Building sizes for multi-tile buildings (must match simulation.ts)
+    const BUILDING_SIZES: Record<string, { width: number; height: number }> = {
+      stadium: { width: 4, height: 4 },
+      airport: { width: 4, height: 4 },
+      amusement_park: { width: 4, height: 4 },
+      university: { width: 3, height: 3 },
+      hospital: { width: 3, height: 3 },
+      power_plant: { width: 2, height: 2 },
+      space_program: { width: 3, height: 3 },
+      park_large: { width: 3, height: 3 },
+      mansion: { width: 2, height: 2 },
+      apartment_low: { width: 2, height: 2 },
+      apartment_high: { width: 2, height: 2 },
+      office_low: { width: 2, height: 2 },
+      office_high: { width: 2, height: 2 },
+      mall: { width: 3, height: 3 },
+      factory_medium: { width: 2, height: 2 },
+      factory_large: { width: 3, height: 3 },
+      warehouse: { width: 2, height: 2 },
+      city_hall: { width: 2, height: 2 },
+    };
+    
+    const getBuildingSize = (type: string) => BUILDING_SIZES[type] || { width: 1, height: 1 };
+    
+    // If this is an 'empty' tile (part of multi-tile building), find the origin
+    // Must verify the building's footprint actually covers this tile
+    const findOrigin = (): { originX: number; originY: number; buildingType: string; size: { width: number; height: number } } | null => {
+      if (!isMultiTilePlaceholder) return null;
+      
+      // Search nearby tiles to find the origin (up to 4 tiles away for 4x4 buildings)
+      for (let dy = 0; dy < 4; dy++) {
+        for (let dx = 0; dx < 4; dx++) {
+          const checkX = x - dx;
+          const checkY = y - dy;
+          if (checkX >= 0 && checkY >= 0 && checkX < gridSize && checkY < gridSize) {
+            const checkTile = grid[checkY][checkX];
+            if (checkTile.building.type !== 'empty' &&
+                checkTile.building.type !== 'grass' &&
+                checkTile.building.type !== 'water' &&
+                checkTile.building.type !== 'road' &&
+                checkTile.building.type !== 'tree') {
+              const size = getBuildingSize(checkTile.building.type);
+              // Verify this building's footprint actually includes our tile
+              if (x >= checkX && x < checkX + size.width &&
+                  y >= checkY && y < checkY + size.height) {
+                return { originX: checkX, originY: checkY, buildingType: checkTile.building.type, size };
+              }
+            }
+          }
+        }
+      }
+      return null;
+    };
+    
+    // Check road access (simplified version of hasRoadAccess from simulation.ts)
+    const checkRoadAccess = (): { hasAccess: boolean; reason: string } => {
+      const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      const visited = new Set<string>();
+      const queue: { x: number; y: number; dist: number }[] = [{ x, y, dist: 0 }];
+      visited.add(`${x},${y}`);
+      const maxDistance = 8;
+      const startZone = tile.zone;
+      
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (current.dist >= maxDistance) continue;
+        
+        for (const [dx, dy] of directions) {
+          const nx = current.x + dx;
+          const ny = current.y + dy;
+          const key = `${nx},${ny}`;
+          
+          if (visited.has(key)) continue;
+          if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) continue;
+          
+          visited.add(key);
+          const neighbor = grid[ny][nx];
+          
+          if (neighbor.building.type === 'road') {
+            return { hasAccess: true, reason: `Found road at (${nx}, ${ny}), distance ${current.dist + 1}` };
+          }
+          
+          if (neighbor.zone === startZone && 
+              (neighbor.building.type === 'grass' || neighbor.building.type === 'tree')) {
+            queue.push({ x: nx, y: ny, dist: current.dist + 1 });
+          }
+        }
+      }
+      
+      return { hasAccess: false, reason: `No road found within ${maxDistance} tiles through same zone` };
+    };
+    
+    // Check if building can spawn (for multi-tile buildings)
+    const checkCanSpawn = (): { canSpawn: boolean; reason: string } => {
+      if (!isEmptyZone) {
+        return { canSpawn: false, reason: 'Tile already has a building' };
+      }
+      
+      // Check for smallest building in zone (1x1)
+      // Residential starts with house_small (1x1), commercial with shop_small (1x1), industrial with factory_small (1x1)
+      return { canSpawn: true, reason: 'Space available for 1x1 building' };
+    };
+    
+    const roadCheck = checkRoadAccess();
+    const spawnCheck = checkCanSpawn();
+    
+    // Build diagnostic message
+    const issues: string[] = [];
+    if (!isEmptyZone && !isMultiTilePlaceholder) issues.push(`Has building (${buildingType})`);
+    if (!hasPower) issues.push('No power');
+    if (!hasWater) issues.push('No water');
+    if (!roadCheck.hasAccess) issues.push(`No road access: ${roadCheck.reason}`);
+    if (!spawnCheck.canSpawn && isEmptyZone) issues.push(spawnCheck.reason);
+    
+    console.group(`🏗️ Zone Diagnostic: (${x}, ${y}) - ${tile.zone}`);
+    
+    // Special handling for 'empty' placeholder tiles
+    if (isMultiTilePlaceholder) {
+      const origin = findOrigin();
+      if (origin) {
+        console.log(`✅ This tile is part of a multi-tile building`);
+        console.log(`   Origin: (${origin.originX}, ${origin.originY})`);
+        console.log(`   Building type: ${origin.buildingType} (${origin.size.width}x${origin.size.height})`);
+      } else {
+        console.log(`🐛 BUG: ORPHANED 'empty' TILE DETECTED!`);
+        console.log(`   This tile has type 'empty' but no valid parent building found.`);
+        console.log(`   This prevents new buildings from growing here.`);
+        console.log(`   Cause: Likely from partial building demolition, abandonment cleanup, or a bug.`);
+        console.log(`   Fix: Bulldoze this tile to reset it to grass.`);
+      }
+      console.groupEnd();
+      return;
+    }
+    
+    console.log(`Building: ${buildingType}${isEmptyZone ? ' (empty zone - can grow)' : ''}`);
+    console.log(`Power: ${hasPower ? '✅' : '❌'}`);
+    console.log(`Water: ${hasWater ? '✅' : '❌'}`);
+    console.log(`Road Access: ${roadCheck.hasAccess ? '✅' : '❌'} - ${roadCheck.reason}`);
+    if (isEmptyZone) {
+      console.log(`Can Spawn: ${spawnCheck.canSpawn ? '✅' : '❌'} - ${spawnCheck.reason}`);
+    }
+    
+    if (isEmptyZone && issues.length === 0) {
+      console.log(`✅ All conditions met! Building should grow (5% chance per tick)`);
+    } else if (isEmptyZone) {
+      console.log(`❌ Issues preventing growth:`, issues);
+    } else {
+      console.log(`ℹ️ Tile has existing building - checking evolution conditions`);
+      const demand = state.stats.demand;
+      const zoneDemand = tile.zone === 'residential' ? demand.residential :
+                        tile.zone === 'commercial' ? demand.commercial : demand.industrial;
+      console.log(`Zone demand: ${zoneDemand}`);
+    }
+    console.groupEnd();
+  }, [selectedTile, state.grid, state.gridSize, state.services, state.stats.demand]);
 
   // Handle cheat code triggers
   useEffect(() => {

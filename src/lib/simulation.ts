@@ -830,6 +830,23 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
       if (Math.random() < clearingChance) {
         // Clear the abandoned building - revert to zoned grass
         // This allows natural redevelopment when demand recovers
+        // For multi-tile buildings, clear the entire footprint to avoid orphaned 'empty' tiles
+        const size = getBuildingSize(building.type);
+        if (size.width > 1 || size.height > 1) {
+          // Clear all tiles in the footprint
+          for (let dy = 0; dy < size.height; dy++) {
+            for (let dx = 0; dx < size.width; dx++) {
+              const clearTile = grid[y + dy]?.[x + dx];
+              if (clearTile) {
+                const clearedBuilding = createBuilding('grass');
+                clearedBuilding.powered = services.power[y + dy]?.[x + dx] ?? false;
+                clearedBuilding.watered = services.water[y + dy]?.[x + dx] ?? false;
+                clearTile.building = clearedBuilding;
+              }
+            }
+          }
+        }
+        // Return grass for the origin tile
         const clearedBuilding = createBuilding('grass');
         clearedBuilding.powered = building.powered;
         clearedBuilding.watered = building.watered;
@@ -1410,6 +1427,18 @@ export function simulateTick(state: GameState): GameState {
         }
         // While under construction, service buildings don't provide coverage
         // (handled by checking constructionProgress in service coverage calculation)
+      }
+
+      // Cleanup orphaned 'empty' tiles (from bugs in abandoned building clearing, etc.)
+      // These should be reset to grass so buildings can grow there again
+      if (tile.building.type === 'empty') {
+        const origin = findBuildingOrigin(newGrid, x, y, size);
+        if (!origin) {
+          // This is an orphaned 'empty' tile - reset it to grass
+          tile.building = createBuilding('grass');
+          tile.building.powered = services.power[y][x];
+          tile.building.watered = services.water[y][x];
+        }
       }
 
       // Check for road access and grow buildings in zones
