@@ -4371,6 +4371,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
               if (buildingType === 'mall' && isDenseVariant) {
                 scaleMultiplier *= 0.85;
               }
+              // Special scale adjustment for dense apartment_high variants (scaled down 8%)
+              if (buildingType === 'apartment_high' && isDenseVariant) {
+                scaleMultiplier *= 0.92;
+              }
               // Apply global scale from sprite pack if available
               const globalScale = activePack.globalScale ?? 1;
               const destWidth = w * 1.2 * scaleMultiplier * globalScale;

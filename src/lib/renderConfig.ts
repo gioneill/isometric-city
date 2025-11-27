@@ -117,8 +117,8 @@ const SPRITE_PACK_RED: SpritePack = {
     police_station: -0.2,
   },
   buildingVerticalOffsets: {
-    // Small houses shifted down 0.25 tiles
-    house_small: -0.05, // Was -0.3 from verticalOffsets, shifted down 0.25
+    // Small houses
+    house_small: -0.2, // Shifted up a bit
     house_medium: -0.05, // Was -0.3 from verticalOffsets, shifted down 0.25
     // 2x2 commercial buildings
     office_low: -0.5, // Shifted down 0.5 tiles from -1.0
@@ -289,8 +289,8 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     city_hall: 0.1, // Shift right about 0.2 tiles
   },
   buildingVerticalOffsets: {
-    // Small houses shifted down 0.25 tiles
-    house_small: -0.05, // Was -0.3 from verticalOffsets, shifted down 0.25
+    // Small houses
+    house_small: -0.2, // Shifted up a bit
     house_medium: -0.05, // Was -0.3 from verticalOffsets, shifted down 0.25
     // 2x2 commercial buildings
     office_low: -0.5, // Shifted down 0.5 tiles from -1.0
