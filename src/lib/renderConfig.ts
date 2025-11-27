@@ -23,6 +23,8 @@ export interface SpritePack {
   denseVariants?: Record<string, { row: number; col: number }[]>;
   // Path to the parks sprite sheet (separate sheet for park/recreation buildings)
   parksSrc?: string;
+  // Path to the parks construction sprite sheet (same layout as parks, but under construction)
+  parksConstructionSrc?: string;
   // Parks layout configuration (columns and rows for the parks sheet)
   parksCols?: number;
   parksRows?: number;
@@ -434,6 +436,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   },
   // Parks sprite sheet configuration (same offsets/scaling approach as dense)
   parksSrc: '/assets/sprites_red_water_new_parks.png',
+  parksConstructionSrc: '/assets/sprites_red_water_new_parks_construction.png',
   parksCols: 5,
   parksRows: 6,
   parksBuildings: {

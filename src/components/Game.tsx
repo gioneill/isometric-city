@@ -3710,6 +3710,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     if (currentSpritePack.parksSrc) {
       imagesToLoad.push(loadSpriteImage(currentSpritePack.parksSrc, true));
     }
+    
+    // Also load parks construction sprite sheet if available
+    if (currentSpritePack.parksConstructionSrc) {
+      imagesToLoad.push(loadSpriteImage(currentSpritePack.parksConstructionSrc, true));
+    }
 
     Promise.all(imagesToLoad)
       .then(() => setImagesLoaded(true))
@@ -4840,18 +4845,25 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
           const isAbandoned = tile.building.abandoned === true;
 
           // Use appropriate sprite sheet based on building state
-          // Priority: construction > abandoned > parks > dense variants > normal
+          // Priority: parks construction > construction > abandoned > parks > dense variants > normal
           let spriteSource = activePack.src;
           let useDenseVariant: { row: number; col: number } | null = null;
           let useParksBuilding: { row: number; col: number } | null = null;
           
-          if (isUnderConstruction && activePack.constructionSrc) {
+          // Check if this is a parks building first
+          const isParksBuilding = activePack.parksBuildings && activePack.parksBuildings[buildingType];
+          
+          if (isUnderConstruction && isParksBuilding && activePack.parksConstructionSrc) {
+            // Parks building under construction - use parks construction sheet
+            useParksBuilding = activePack.parksBuildings![buildingType];
+            spriteSource = activePack.parksConstructionSrc;
+          } else if (isUnderConstruction && activePack.constructionSrc) {
             spriteSource = activePack.constructionSrc;
           } else if (isAbandoned && activePack.abandonedSrc) {
             spriteSource = activePack.abandonedSrc;
-          } else if (activePack.parksSrc && activePack.parksBuildings && activePack.parksBuildings[buildingType]) {
+          } else if (isParksBuilding && activePack.parksSrc) {
             // Check if this building type is from the parks sprite sheet
-            useParksBuilding = activePack.parksBuildings[buildingType];
+            useParksBuilding = activePack.parksBuildings![buildingType];
             spriteSource = activePack.parksSrc;
           } else if (activePack.denseSrc && activePack.denseVariants && activePack.denseVariants[buildingType]) {
             // Check if this building type has dense variants available
