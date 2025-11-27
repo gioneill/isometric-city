@@ -41,7 +41,9 @@ export type BuildingType =
   | 'stadium'
   | 'museum'
   | 'airport'
-  | 'space_program';
+  | 'space_program'
+  | 'city_hall'
+  | 'amusement_park';
 
 export type ZoneType = 'none' | 'residential' | 'commercial' | 'industrial';
 

@@ -1059,7 +1059,7 @@ function SettingsPanel() {
     // Only update if URL value actually changed and we're not updating from state
     if (spriteTestParam !== lastUrlValueRef.current && !isUpdatingFromStateRef.current) {
       lastUrlValueRef.current = spriteTestParam;
-      setShowSpriteTest(spriteTestParam);
+      setTimeout(() => setShowSpriteTest(spriteTestParam), 0);
     }
   }, [searchParams]);
   
@@ -1542,7 +1542,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
         <DialogHeader>
           <DialogTitle>Sprite Test View</DialogTitle>
           <DialogDescription>
-            All {currentSpritePack.spriteOrder.length} sprites from "{currentSpritePack.name}". Index shown in brackets.
+            All {currentSpritePack.spriteOrder.length} sprites from &quot;{currentSpritePack.name}&quot;. Index shown in brackets.
           </DialogDescription>
         </DialogHeader>
         
@@ -1556,7 +1556,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
         
         <div className="text-xs text-muted-foreground space-y-1">
           <p>Sprite sheet: {currentSpritePack.src} ({currentSpritePack.cols}x{currentSpritePack.rows} grid)</p>
-          <p>Edit offsets in <code className="bg-muted px-1 rounded">src/lib/renderConfig.ts</code> → each sprite pack's verticalOffsets</p>
+          <p>Edit offsets in <code className="bg-muted px-1 rounded">src/lib/renderConfig.ts</code> → each sprite pack&apos;s verticalOffsets</p>
         </div>
       </DialogContent>
     </Dialog>
@@ -2002,7 +2002,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
 
     const updatedVehicles: EmergencyVehicle[] = [];
     
-    for (const vehicle of emergencyVehiclesRef.current) {
+    for (const vehicle of [...emergencyVehiclesRef.current]) {
       // Update flash timer for lights
       vehicle.flashTimer += delta * 8;
       
@@ -2176,7 +2176,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     }
     
     const updatedCars: Car[] = [];
-    for (const car of carsRef.current) {
+    for (const car of [...carsRef.current]) {
       let alive = true;
       
       car.age += delta;
@@ -2480,7 +2480,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
   // Load sprite sheet on mount and when sprite pack changes
   useEffect(() => {
     // Load the sprite sheet with background color filtering
-    setImagesLoaded(false);
+    setTimeout(() => setImagesLoaded(false), 0);
     Promise.all([
       loadSpriteImage(currentSpritePack.src, true),
       loadImage('/assets/water.png') // Preload water.png
@@ -2490,7 +2490,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
   }, [currentSpritePack]);
   
   // Helper function to check if a tile is part of a multi-tile building footprint
-  function isPartOfMultiTileBuilding(gridX: number, gridY: number): boolean {
+  const isPartOfMultiTileBuilding = useCallback((gridX: number, gridY: number): boolean => {
     // Check all possible origin positions that could have a multi-tile building covering this tile
     // For a 2x2 building, check up to 1 tile away in each direction
     // For a 3x3 building, check up to 2 tiles away
@@ -2518,10 +2518,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     }
     
     return false;
-  }
+  }, [grid, gridSize]);
   
   // Helper function to check if a tile is part of a park building footprint
-  function isPartOfParkBuilding(gridX: number, gridY: number): boolean {
+  const isPartOfParkBuilding = useCallback((gridX: number, gridY: number): boolean => {
     const maxSize = 4; // Maximum building size
     const parkBuildings: BuildingType[] = ['park_large'];
 
@@ -2545,7 +2545,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       }
     }
     return false;
-  }
+  }, [grid, gridSize]);
   
   // Update canvas size on resize with high-DPI support
   useEffect(() => {
@@ -2643,6 +2643,1019 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         }
       }
       return false;
+    }
+    
+    // Helper function to check if a tile is water
+    function isWater(gridX: number, gridY: number): boolean {
+      if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) return false;
+      return grid[gridY][gridX].building.type === 'water';
+    }
+    
+    // Helper function to check if a tile has a road
+    function hasRoad(gridX: number, gridY: number): boolean {
+      if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) return false;
+      return grid[gridY][gridX].building.type === 'road';
+    }
+    
+    // Draw road with proper adjacency, markings, and sidewalks
+    function drawRoad(ctx: CanvasRenderingContext2D, x: number, y: number, gridX: number, gridY: number) {
+      const w = TILE_WIDTH;
+      const h = TILE_HEIGHT;
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      
+      // Check adjacency (in isometric coordinates)
+      const north = hasRoad(gridX - 1, gridY);  // top-left edge
+      const east = hasRoad(gridX, gridY - 1);   // top-right edge
+      const south = hasRoad(gridX + 1, gridY);  // bottom-right edge
+      const west = hasRoad(gridX, gridY + 1);   // bottom-left edge
+      
+      // Road width - aligned with gridlines
+      const roadW = w * 0.14;
+      const roadH = h * 0.14;
+      
+      // Sidewalk configuration
+      const sidewalkWidth = w * 0.08; // Width of the sidewalk strip
+      const sidewalkColor = '#9ca3af'; // Light gray for sidewalk
+      const curbColor = '#6b7280'; // Darker gray for curb edge
+      
+      // Edge stop distance - extend roads almost to the edge for better connection
+      // Using 0.98 means roads extend to 98% of the way to the edge
+      const edgeStop = 0.98;
+      
+      // Calculate edge midpoints (where gridlines meet)
+      const northEdgeX = x + w * 0.25;
+      const northEdgeY = y + h * 0.25;
+      const eastEdgeX = x + w * 0.75;
+      const eastEdgeY = y + h * 0.25;
+      const southEdgeX = x + w * 0.75;
+      const southEdgeY = y + h * 0.75;
+      const westEdgeX = x + w * 0.25;
+      const westEdgeY = y + h * 0.75;
+      
+      // Calculate direction vectors for each edge (normalized)
+      // These align with the gridline directions
+      const northDx = (northEdgeX - cx) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
+      const northDy = (northEdgeY - cy) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
+      const eastDx = (eastEdgeX - cx) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
+      const eastDy = (eastEdgeY - cy) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
+      const southDx = (southEdgeX - cx) / Math.hypot(southEdgeX - cx, southEdgeY - cy);
+      const southDy = (southEdgeY - cy) / Math.hypot(southEdgeX - cx, southEdgeY - cy);
+      const westDx = (westEdgeX - cx) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
+      const westDy = (westEdgeY - cy) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
+      
+      // Perpendicular vectors for road width (rotated 90 degrees)
+      const getPerp = (dx: number, dy: number) => ({ nx: -dy, ny: dx });
+      
+      // ============================================
+      // DRAW SIDEWALKS FIRST (underneath the road)
+      // ============================================
+      // Sidewalks appear on edges where there's NO adjacent road
+      // They run along the outer perimeter of the tile edge
+      
+      // Diamond corner points
+      const topCorner = { x: x + w / 2, y: y };
+      const rightCorner = { x: x + w, y: y + h / 2 };
+      const bottomCorner = { x: x + w / 2, y: y + h };
+      const leftCorner = { x: x, y: y + h / 2 };
+      
+      // Draw sidewalk helper - draws a strip along an edge, optionally shortening at corners
+      const drawSidewalkEdge = (
+        startX: number, startY: number, 
+        endX: number, endY: number,
+        inwardDx: number, inwardDy: number,
+        shortenStart: boolean = false,
+        shortenEnd: boolean = false
+      ) => {
+        const swWidth = sidewalkWidth;
+        const shortenDist = swWidth * 0.707; // Distance to shorten at corners
+        
+        // Calculate edge direction vector
+        const edgeDx = endX - startX;
+        const edgeDy = endY - startY;
+        const edgeLen = Math.hypot(edgeDx, edgeDy);
+        const edgeDirX = edgeDx / edgeLen;
+        const edgeDirY = edgeDy / edgeLen;
+        
+        // Apply shortening if needed
+        let actualStartX = startX;
+        let actualStartY = startY;
+        let actualEndX = endX;
+        let actualEndY = endY;
+        
+        if (shortenStart && edgeLen > shortenDist * 2) {
+          actualStartX = startX + edgeDirX * shortenDist;
+          actualStartY = startY + edgeDirY * shortenDist;
+        }
+        if (shortenEnd && edgeLen > shortenDist * 2) {
+          actualEndX = endX - edgeDirX * shortenDist;
+          actualEndY = endY - edgeDirY * shortenDist;
+        }
+        
+        // Draw curb (darker line at outer edge)
+        ctx.strokeStyle = curbColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(actualStartX, actualStartY);
+        ctx.lineTo(actualEndX, actualEndY);
+        ctx.stroke();
+        
+        // Draw sidewalk fill
+        ctx.fillStyle = sidewalkColor;
+        ctx.beginPath();
+        ctx.moveTo(actualStartX, actualStartY);
+        ctx.lineTo(actualEndX, actualEndY);
+        ctx.lineTo(actualEndX + inwardDx * swWidth, actualEndY + inwardDy * swWidth);
+        ctx.lineTo(actualStartX + inwardDx * swWidth, actualStartY + inwardDy * swWidth);
+        ctx.closePath();
+        ctx.fill();
+      };
+      
+      // North edge sidewalk (top-left edge: leftCorner to topCorner)
+      // Inward direction points toward center-right and down
+      if (!north) {
+        const inwardDx = 0.707; // ~45 degrees inward
+        const inwardDy = 0.707;
+        // Shorten at topCorner if east edge also has sidewalk
+        const shortenAtTop = !east;
+        // Shorten at leftCorner if west edge also has sidewalk
+        const shortenAtLeft = !west;
+        drawSidewalkEdge(leftCorner.x, leftCorner.y, topCorner.x, topCorner.y, inwardDx, inwardDy, shortenAtLeft, shortenAtTop);
+      }
+      
+      // East edge sidewalk (top-right edge: topCorner to rightCorner)
+      // Inward direction points toward center-left and down
+      if (!east) {
+        const inwardDx = -0.707;
+        const inwardDy = 0.707;
+        // Shorten at topCorner if north edge also has sidewalk
+        const shortenAtTop = !north;
+        // Shorten at rightCorner if south edge also has sidewalk
+        const shortenAtRight = !south;
+        drawSidewalkEdge(topCorner.x, topCorner.y, rightCorner.x, rightCorner.y, inwardDx, inwardDy, shortenAtTop, shortenAtRight);
+      }
+      
+      // South edge sidewalk (bottom-right edge: rightCorner to bottomCorner)
+      // Inward direction points toward center-left and up
+      if (!south) {
+        const inwardDx = -0.707;
+        const inwardDy = -0.707;
+        // Shorten at rightCorner if east edge also has sidewalk
+        const shortenAtRight = !east;
+        // Shorten at bottomCorner if west edge also has sidewalk
+        const shortenAtBottom = !west;
+        drawSidewalkEdge(rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y, inwardDx, inwardDy, shortenAtRight, shortenAtBottom);
+      }
+      
+      // West edge sidewalk (bottom-left edge: bottomCorner to leftCorner)
+      // Inward direction points toward center-right and up
+      if (!west) {
+        const inwardDx = 0.707;
+        const inwardDy = -0.707;
+        // Shorten at bottomCorner if south edge also has sidewalk
+        const shortenAtBottom = !south;
+        // Shorten at leftCorner if north edge also has sidewalk
+        const shortenAtLeft = !north;
+        drawSidewalkEdge(bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y, inwardDx, inwardDy, shortenAtBottom, shortenAtLeft);
+      }
+      
+      // Draw corner sidewalk pieces for non-adjacent edges that meet
+      // Corner pieces connect exactly where the shortened edge strips end
+      const swWidth = sidewalkWidth;
+      const shortenDist = swWidth * 0.707;
+      ctx.fillStyle = sidewalkColor;
+      
+      // Helper to calculate where a shortened edge's inner endpoint is
+      const getShortenedInnerEndpoint = (
+        cornerX: number, cornerY: number,
+        otherCornerX: number, otherCornerY: number,
+        inwardDx: number, inwardDy: number
+      ) => {
+        // Edge direction FROM otherCorner TO corner (the direction the edge approaches the corner)
+        const edgeDx = cornerX - otherCornerX;
+        const edgeDy = cornerY - otherCornerY;
+        const edgeLen = Math.hypot(edgeDx, edgeDy);
+        const edgeDirX = edgeDx / edgeLen;
+        const edgeDirY = edgeDy / edgeLen;
+        // Shortened outer endpoint (move backwards from corner along edge)
+        const shortenedOuterX = cornerX - edgeDirX * shortenDist;
+        const shortenedOuterY = cornerY - edgeDirY * shortenDist;
+        // Inner endpoint
+        return {
+          x: shortenedOuterX + inwardDx * swWidth,
+          y: shortenedOuterY + inwardDy * swWidth
+        };
+      };
+      
+      // Top corner (where north and east edges meet) - only if both don't have roads
+      if (!north && !east) {
+        const northInner = getShortenedInnerEndpoint(
+          topCorner.x, topCorner.y, leftCorner.x, leftCorner.y,
+          0.707, 0.707
+        );
+        const eastInner = getShortenedInnerEndpoint(
+          topCorner.x, topCorner.y, rightCorner.x, rightCorner.y,
+          -0.707, 0.707
+        );
+        ctx.beginPath();
+        ctx.moveTo(topCorner.x, topCorner.y);
+        ctx.lineTo(northInner.x, northInner.y);
+        ctx.lineTo(eastInner.x, eastInner.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // Right corner (where east and south edges meet)
+      if (!east && !south) {
+        const eastInner = getShortenedInnerEndpoint(
+          rightCorner.x, rightCorner.y, topCorner.x, topCorner.y,
+          -0.707, 0.707
+        );
+        const southInner = getShortenedInnerEndpoint(
+          rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y,
+          -0.707, -0.707
+        );
+        ctx.beginPath();
+        ctx.moveTo(rightCorner.x, rightCorner.y);
+        ctx.lineTo(eastInner.x, eastInner.y);
+        ctx.lineTo(southInner.x, southInner.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // Bottom corner (where south and west edges meet)
+      if (!south && !west) {
+        const southInner = getShortenedInnerEndpoint(
+          bottomCorner.x, bottomCorner.y, rightCorner.x, rightCorner.y,
+          -0.707, -0.707
+        );
+        const westInner = getShortenedInnerEndpoint(
+          bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y,
+          0.707, -0.707
+        );
+        ctx.beginPath();
+        ctx.moveTo(bottomCorner.x, bottomCorner.y);
+        ctx.lineTo(southInner.x, southInner.y);
+        ctx.lineTo(westInner.x, westInner.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // Left corner (where west and north edges meet)
+      if (!west && !north) {
+        const westInner = getShortenedInnerEndpoint(
+          leftCorner.x, leftCorner.y, bottomCorner.x, bottomCorner.y,
+          0.707, -0.707
+        );
+        const northInner = getShortenedInnerEndpoint(
+          leftCorner.x, leftCorner.y, topCorner.x, topCorner.y,
+          0.707, 0.707
+        );
+        ctx.beginPath();
+        ctx.moveTo(leftCorner.x, leftCorner.y);
+        ctx.lineTo(westInner.x, westInner.y);
+        ctx.lineTo(northInner.x, northInner.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // ============================================
+      // DRAW ROAD SEGMENTS
+      // ============================================
+      ctx.fillStyle = '#4a4a4a';
+      
+      // North segment (to top-left) - aligned with gridline
+      if (north) {
+        const stopX = cx + (northEdgeX - cx) * edgeStop;
+        const stopY = cy + (northEdgeY - cy) * edgeStop;
+        const perp = getPerp(northDx, northDy);
+        const halfWidth = roadW * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
+        ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
+        ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
+        ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // East segment (to top-right) - aligned with gridline
+      if (east) {
+        const stopX = cx + (eastEdgeX - cx) * edgeStop;
+        const stopY = cy + (eastEdgeY - cy) * edgeStop;
+        const perp = getPerp(eastDx, eastDy);
+        const halfWidth = roadW * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
+        ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
+        ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
+        ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // South segment (to bottom-right) - aligned with gridline
+      if (south) {
+        const stopX = cx + (southEdgeX - cx) * edgeStop;
+        const stopY = cy + (southEdgeY - cy) * edgeStop;
+        const perp = getPerp(southDx, southDy);
+        const halfWidth = roadW * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
+        ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
+        ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
+        ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // West segment (to bottom-left) - aligned with gridline
+      if (west) {
+        const stopX = cx + (westEdgeX - cx) * edgeStop;
+        const stopY = cy + (westEdgeY - cy) * edgeStop;
+        const perp = getPerp(westDx, westDy);
+        const halfWidth = roadW * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
+        ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
+        ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
+        ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // Center intersection (always drawn)
+      const centerSize = roadW * 1.4;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - centerSize);
+      ctx.lineTo(cx + centerSize, cy);
+      ctx.lineTo(cx, cy + centerSize);
+      ctx.lineTo(cx - centerSize, cy);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Draw road markings (yellow dashed lines) - aligned with gridlines
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 3]);
+      ctx.lineCap = 'round';
+      
+      // Marking length - extend most of the way
+      const markingLength = 0.85; // 85% of the way to edge stop
+      
+      // North marking (toward top-left)
+      if (north) {
+        const stopX = cx + (northEdgeX - cx) * edgeStop * markingLength;
+        const stopY = cy + (northEdgeY - cy) * edgeStop * markingLength;
+        ctx.beginPath();
+        ctx.moveTo(cx + northDx * 2, cy + northDy * 2);
+        ctx.lineTo(stopX + northDx * 2, stopY + northDy * 2);
+        ctx.stroke();
+      }
+      
+      // East marking (toward top-right)
+      if (east) {
+        const stopX = cx + (eastEdgeX - cx) * edgeStop * markingLength;
+        const stopY = cy + (eastEdgeY - cy) * edgeStop * markingLength;
+        ctx.beginPath();
+        ctx.moveTo(cx + eastDx * 2, cy + eastDy * 2);
+        ctx.lineTo(stopX + eastDx * 2, stopY + eastDy * 2);
+        ctx.stroke();
+      }
+      
+      // South marking (toward bottom-right)
+      if (south) {
+        const stopX = cx + (southEdgeX - cx) * edgeStop * markingLength;
+        const stopY = cy + (southEdgeY - cy) * edgeStop * markingLength;
+        ctx.beginPath();
+        ctx.moveTo(cx + southDx * 2, cy + southDy * 2);
+        ctx.lineTo(stopX + southDx * 2, stopY + southDy * 2);
+        ctx.stroke();
+      }
+      
+      // West marking (toward bottom-left)
+      if (west) {
+        const stopX = cx + (westEdgeX - cx) * edgeStop * markingLength;
+        const stopY = cy + (westEdgeY - cy) * edgeStop * markingLength;
+        ctx.beginPath();
+        ctx.moveTo(cx + westDx * 2, cy + westDy * 2);
+        ctx.lineTo(stopX + westDx * 2, stopY + westDy * 2);
+        ctx.stroke();
+      }
+      
+      ctx.setLineDash([]);
+      ctx.lineCap = 'butt';
+    }
+    
+    // Draw isometric tile base
+    function drawIsometricTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, highlight: boolean, currentZoom: number, skipGreyBase: boolean = false, skipGreenBase: boolean = false) {
+      const w = TILE_WIDTH;
+      const h = TILE_HEIGHT;
+      
+      // Determine tile colors (top face and shading)
+      let topColor = '#4a7c3f'; // grass
+      let leftColor = '#3d6634';
+      let rightColor = '#5a8f4f';
+      let strokeColor = '#2d4a26';
+      
+      const isPark = tile.building.type === 'park' || tile.building.type === 'park_large' || tile.building.type === 'tennis' ||
+                     (tile.building.type === 'empty' && isPartOfParkBuilding(tile.x, tile.y));
+      // Check if this is a building (not grass, empty, water, road, tree, park, or tennis)
+      // Also check if it's part of a multi-tile building footprint
+      const isDirectBuilding = !isPark &&
+        tile.building.type !== 'grass' &&
+        tile.building.type !== 'empty' &&
+        tile.building.type !== 'water' &&
+        tile.building.type !== 'road' &&
+        tile.building.type !== 'tree';
+      const isPartOfBuilding = tile.building.type === 'empty' && isPartOfMultiTileBuilding(tile.x, tile.y);
+      const isBuilding = isDirectBuilding || isPartOfBuilding;
+      
+      // ALL buildings get grey/concrete base tiles (except parks which stay green)
+      const hasGreyBase = isBuilding && !isPark;
+      
+      if (tile.building.type === 'water') {
+        topColor = '#2563eb';
+        leftColor = '#1d4ed8';
+        rightColor = '#3b82f6';
+        strokeColor = '#1e3a8a';
+      } else if (tile.building.type === 'road') {
+        topColor = '#4a4a4a';
+        leftColor = '#3a3a3a';
+        rightColor = '#5a5a5a';
+        strokeColor = '#333';
+      } else if (isPark) {
+        topColor = '#4a7c3f';
+        leftColor = '#3d6634';
+        rightColor = '#5a8f4f';
+        strokeColor = '#2d4a26';
+      } else if (hasGreyBase && !skipGreyBase) {
+        // Grey/concrete base tiles for ALL buildings (except parks)
+        // Skip if skipGreyBase is true (will be drawn later after water)
+        topColor = '#6b7280';
+        leftColor = '#4b5563';
+        rightColor = '#9ca3af';
+        strokeColor = '#374151';
+      } else if (tile.zone === 'residential') {
+        if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
+          topColor = '#3d7c3f';
+          leftColor = '#2d6634';
+          rightColor = '#4d8f4f';
+        } else {
+          topColor = '#2d5a2d';
+          leftColor = '#1d4a1d';
+          rightColor = '#3d6a3d';
+        }
+        strokeColor = '#22c55e';
+      } else if (tile.zone === 'commercial') {
+        if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
+          topColor = '#3a5c7c';
+          leftColor = '#2a4c6c';
+          rightColor = '#4a6c8c';
+        } else {
+          topColor = '#2a4a6a';
+          leftColor = '#1a3a5a';
+          rightColor = '#3a5a7a';
+        }
+        strokeColor = '#3b82f6';
+      } else if (tile.zone === 'industrial') {
+        if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
+          topColor = '#7c5c3a';
+          leftColor = '#6c4c2a';
+          rightColor = '#8c6c4a';
+        } else {
+          topColor = '#6a4a2a';
+          leftColor = '#5a3a1a';
+          rightColor = '#7a5a3a';
+        }
+        strokeColor = '#f59e0b';
+      }
+      
+      // Skip drawing green base for grass/empty tiles adjacent to water (will be drawn later over water)
+      const shouldSkipDrawing = skipGreenBase && (tile.building.type === 'grass' || tile.building.type === 'empty');
+      
+      // Draw the isometric diamond (top face)
+      if (!shouldSkipDrawing) {
+        ctx.fillStyle = topColor;
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, y);
+        ctx.lineTo(x + w, y + h / 2);
+        ctx.lineTo(x + w / 2, y + h);
+        ctx.lineTo(x, y + h / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw grid lines only when zoomed in (hide when zoom < 0.6)
+        if (currentZoom >= 0.6) {
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+        
+        // Draw zone border with dashed line (hide when zoomed out, only on grass/empty tiles - not on roads or buildings)
+        if (tile.zone !== 'none' && 
+            currentZoom >= 0.95 &&
+            (tile.building.type === 'grass' || tile.building.type === 'empty')) {
+          ctx.strokeStyle = tile.zone === 'residential' ? '#22c55e' : 
+                            tile.zone === 'commercial' ? '#3b82f6' : '#f59e0b';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 2]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+      
+      // Highlight on hover/select (always draw, even if base was skipped)
+      if (highlight) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, y);
+        ctx.lineTo(x + w, y + h / 2);
+        ctx.lineTo(x + w / 2, y + h);
+        ctx.lineTo(x, y + h / 2);
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+    
+    // Draw green base tile for grass/empty tiles (called after water tiles)
+    function drawGreenBaseTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, currentZoom: number) {
+      const w = TILE_WIDTH;
+      const h = TILE_HEIGHT;
+      
+      // Determine green base colors based on zone
+      let topColor = '#4a7c3f'; // default grass
+      let leftColor = '#3d6634';
+      let rightColor = '#5a8f4f';
+      let strokeColor = '#2d4a26';
+      
+      if (tile.zone === 'residential') {
+        topColor = '#2d5a2d';
+        leftColor = '#1d4a1d';
+        rightColor = '#3d6a3d';
+        strokeColor = '#22c55e';
+      } else if (tile.zone === 'commercial') {
+        topColor = '#2a4a6a';
+        leftColor = '#1a3a5a';
+        rightColor = '#3a5a7a';
+        strokeColor = '#3b82f6';
+      } else if (tile.zone === 'industrial') {
+        topColor = '#6a4a2a';
+        leftColor = '#5a3a1a';
+        rightColor = '#7a5a3a';
+        strokeColor = '#f59e0b';
+      }
+      
+      // Draw the isometric diamond (top face)
+      ctx.fillStyle = topColor;
+      ctx.beginPath();
+      ctx.moveTo(x + w / 2, y);
+      ctx.lineTo(x + w, y + h / 2);
+      ctx.lineTo(x + w / 2, y + h);
+      ctx.lineTo(x, y + h / 2);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Draw grid lines only when zoomed in (hide when zoom < 0.6)
+      if (currentZoom >= 0.6) {
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+      
+      // Draw zone border with dashed line (hide when zoomed out, only on grass/empty tiles)
+      if (tile.zone !== 'none' && currentZoom >= 0.95) {
+        ctx.strokeStyle = tile.zone === 'residential' ? '#22c55e' : 
+                          tile.zone === 'commercial' ? '#3b82f6' : '#f59e0b';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    
+    // Draw gray base tile for buildings (called after water tiles)
+    function drawGreyBaseTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, currentZoom: number) {
+      const w = TILE_WIDTH;
+      const h = TILE_HEIGHT;
+      
+      // Grey/concrete base tiles for ALL buildings (except parks)
+      const topColor = '#6b7280';
+      const leftColor = '#4b5563';
+      const rightColor = '#9ca3af';
+      const strokeColor = '#374151';
+      
+      // Draw the isometric diamond (top face)
+      ctx.fillStyle = topColor;
+      ctx.beginPath();
+      ctx.moveTo(x + w / 2, y);
+      ctx.lineTo(x + w, y + h / 2);
+      ctx.lineTo(x + w / 2, y + h);
+      ctx.lineTo(x, y + h / 2);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Draw grid lines only when zoomed in (hide when zoom < 0.6)
+      if (currentZoom >= 0.6) {
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+    
+    // Draw beach effect on tiles adjacent to water (sidewalk-style)
+    function drawBeach(ctx: CanvasRenderingContext2D, x: number, y: number, gridX: number, gridY: number) {
+      const w = TILE_WIDTH;
+      const h = TILE_HEIGHT;
+      
+      // Check which edges are adjacent to water (in isometric coordinates)
+      const north = isWater(gridX - 1, gridY);  // top-left edge
+      const east = isWater(gridX, gridY - 1);   // top-right edge
+      const south = isWater(gridX + 1, gridY);  // bottom-right edge
+      const west = isWater(gridX, gridY + 1);   // bottom-left edge
+      
+      // Beach/sidewalk configuration
+      const beachWidth = w * 0.04; // Width of the beach strip (50% thinner)
+      const beachColor = '#d4a574'; // Light sandy/tan color for beach
+      const curbColor = '#b8956a'; // Darker color for curb edge
+      
+      // Diamond corner points
+      const topCorner = { x: x + w / 2, y: y };
+      const rightCorner = { x: x + w, y: y + h / 2 };
+      const bottomCorner = { x: x + w / 2, y: y + h };
+      const leftCorner = { x: x, y: y + h / 2 };
+      
+      // Draw beach strip helper - draws a strip along an edge facing water, optionally shortening at corners
+      const drawBeachEdge = (
+        startX: number, startY: number, 
+        endX: number, endY: number,
+        inwardDx: number, inwardDy: number,
+        shortenStart: boolean = false,
+        shortenEnd: boolean = false
+      ) => {
+        const swWidth = beachWidth;
+        const shortenDist = swWidth * 0.707; // Distance to shorten at corners
+        
+        // Calculate edge direction vector
+        const edgeDx = endX - startX;
+        const edgeDy = endY - startY;
+        const edgeLen = Math.hypot(edgeDx, edgeDy);
+        const edgeDirX = edgeDx / edgeLen;
+        const edgeDirY = edgeDy / edgeLen;
+        
+        // Apply shortening if needed
+        let actualStartX = startX;
+        let actualStartY = startY;
+        let actualEndX = endX;
+        let actualEndY = endY;
+        
+        if (shortenStart && edgeLen > shortenDist * 2) {
+          actualStartX = startX + edgeDirX * shortenDist;
+          actualStartY = startY + edgeDirY * shortenDist;
+        }
+        if (shortenEnd && edgeLen > shortenDist * 2) {
+          actualEndX = endX - edgeDirX * shortenDist;
+          actualEndY = endY - edgeDirY * shortenDist;
+        }
+        
+        // Draw curb (darker line at outer edge)
+        ctx.strokeStyle = curbColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(actualStartX, actualStartY);
+        ctx.lineTo(actualEndX, actualEndY);
+        ctx.stroke();
+        
+        // Draw beach fill
+        ctx.fillStyle = beachColor;
+        ctx.beginPath();
+        ctx.moveTo(actualStartX, actualStartY);
+        ctx.lineTo(actualEndX, actualEndY);
+        ctx.lineTo(actualEndX + inwardDx * swWidth, actualEndY + inwardDy * swWidth);
+        ctx.lineTo(actualStartX + inwardDx * swWidth, actualStartY + inwardDy * swWidth);
+        ctx.closePath();
+        ctx.fill();
+      };
+      
+      // North edge beach (top-left edge: leftCorner to topCorner)
+      // Inward direction points toward center-right and down
+      if (north) {
+        const inwardDx = 0.707; // ~45 degrees inward
+        const inwardDy = 0.707;
+        // Shorten at topCorner if east edge also has beach
+        const shortenAtTop = east;
+        // Shorten at leftCorner if west edge also has beach
+        const shortenAtLeft = west;
+        drawBeachEdge(leftCorner.x, leftCorner.y, topCorner.x, topCorner.y, inwardDx, inwardDy, shortenAtLeft, shortenAtTop);
+      }
+      
+      // East edge beach (top-right edge: topCorner to rightCorner)
+      // Inward direction points toward center-left and down
+      if (east) {
+        const inwardDx = -0.707;
+        const inwardDy = 0.707;
+        // Shorten at topCorner if north edge also has beach
+        const shortenAtTop = north;
+        // Shorten at rightCorner if south edge also has beach
+        const shortenAtRight = south;
+        drawBeachEdge(topCorner.x, topCorner.y, rightCorner.x, rightCorner.y, inwardDx, inwardDy, shortenAtTop, shortenAtRight);
+      }
+      
+      // South edge beach (bottom-right edge: rightCorner to bottomCorner)
+      // Inward direction points toward center-left and up
+      if (south) {
+        const inwardDx = -0.707;
+        const inwardDy = -0.707;
+        // Shorten at rightCorner if east edge also has beach
+        const shortenAtRight = east;
+        // Shorten at bottomCorner if west edge also has beach
+        const shortenAtBottom = west;
+        drawBeachEdge(rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y, inwardDx, inwardDy, shortenAtRight, shortenAtBottom);
+      }
+      
+      // West edge beach (bottom-left edge: bottomCorner to leftCorner)
+      // Inward direction points toward center-right and up
+      if (west) {
+        const inwardDx = 0.707;
+        const inwardDy = -0.707;
+        // Shorten at bottomCorner if south edge also has beach
+        const shortenAtBottom = south;
+        // Shorten at leftCorner if north edge also has beach
+        const shortenAtLeft = north;
+        drawBeachEdge(bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y, inwardDx, inwardDy, shortenAtBottom, shortenAtLeft);
+      }
+      
+      // Draw corner beach pieces for adjacent edges that both face water
+      // Corner pieces connect exactly where the shortened edge strips end
+      const bwWidth = beachWidth;
+      const shortenDist = bwWidth * 0.707;
+      ctx.fillStyle = beachColor;
+      
+      // Helper to calculate where a shortened edge's inner endpoint is
+      const getShortenedInnerEndpoint = (
+        cornerX: number, cornerY: number,
+        otherCornerX: number, otherCornerY: number,
+        inwardDx: number, inwardDy: number
+      ) => {
+        // Edge direction FROM otherCorner TO corner (the direction the edge approaches the corner)
+        const edgeDx = cornerX - otherCornerX;
+        const edgeDy = cornerY - otherCornerY;
+        const edgeLen = Math.hypot(edgeDx, edgeDy);
+        const edgeDirX = edgeDx / edgeLen;
+        const edgeDirY = edgeDy / edgeLen;
+        // Shortened outer endpoint (move backwards from corner along edge)
+        const shortenedOuterX = cornerX - edgeDirX * shortenDist;
+        const shortenedOuterY = cornerY - edgeDirY * shortenDist;
+        // Inner endpoint
+        return {
+          x: shortenedOuterX + inwardDx * bwWidth,
+          y: shortenedOuterY + inwardDy * bwWidth
+        };
+      };
+      
+      // Top corner (where north and east edges meet)
+      if (north && east) {
+        const northInner = getShortenedInnerEndpoint(
+          topCorner.x, topCorner.y, leftCorner.x, leftCorner.y,
+          0.707, 0.707
+        );
+        const eastInner = getShortenedInnerEndpoint(
+          topCorner.x, topCorner.y, rightCorner.x, rightCorner.y,
+          -0.707, 0.707
+        );
+        ctx.beginPath();
+        ctx.moveTo(topCorner.x, topCorner.y);
+        ctx.lineTo(northInner.x, northInner.y);
+        ctx.lineTo(eastInner.x, eastInner.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // Right corner (where east and south edges meet)
+      if (east && south) {
+        const eastInner = getShortenedInnerEndpoint(
+          rightCorner.x, rightCorner.y, topCorner.x, topCorner.y,
+          -0.707, 0.707
+        );
+        const southInner = getShortenedInnerEndpoint(
+          rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y,
+          -0.707, -0.707
+        );
+        ctx.beginPath();
+        ctx.moveTo(rightCorner.x, rightCorner.y);
+        ctx.lineTo(eastInner.x, eastInner.y);
+        ctx.lineTo(southInner.x, southInner.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // Bottom corner (where south and west edges meet)
+      if (south && west) {
+        const southInner = getShortenedInnerEndpoint(
+          bottomCorner.x, bottomCorner.y, rightCorner.x, rightCorner.y,
+          -0.707, -0.707
+        );
+        const westInner = getShortenedInnerEndpoint(
+          bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y,
+          0.707, -0.707
+        );
+        ctx.beginPath();
+        ctx.moveTo(bottomCorner.x, bottomCorner.y);
+        ctx.lineTo(southInner.x, southInner.y);
+        ctx.lineTo(westInner.x, westInner.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // Left corner (where west and north edges meet)
+      if (west && north) {
+        const westInner = getShortenedInnerEndpoint(
+          leftCorner.x, leftCorner.y, bottomCorner.x, bottomCorner.y,
+          0.707, -0.707
+        );
+        const northInner = getShortenedInnerEndpoint(
+          leftCorner.x, leftCorner.y, topCorner.x, topCorner.y,
+          0.707, 0.707
+        );
+        ctx.beginPath();
+        ctx.moveTo(leftCorner.x, leftCorner.y);
+        ctx.lineTo(westInner.x, westInner.y);
+        ctx.lineTo(northInner.x, northInner.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    
+    // Draw building sprite
+    function drawBuilding(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile) {
+      const buildingType = tile.building.type;
+      const w = TILE_WIDTH;
+      const h = TILE_HEIGHT;
+      
+      // Handle roads separately with adjacency
+      if (buildingType === 'road') {
+        drawRoad(ctx, x, y, tile.x, tile.y);
+        return;
+      }
+      
+      // Check if this building type has a sprite in the tile renderer
+      const hasTileSprite = BUILDING_TO_SPRITE[buildingType];
+      
+      if (hasTileSprite) {
+        // Special handling for water: use separate water.png image
+        if (buildingType === 'water') {
+          const waterImage = imageCache.get('/assets/water.png');
+          if (waterImage) {
+            // Center the water sprite on the tile
+            const tileCenterX = x + w / 2;
+            const tileCenterY = y + h / 2;
+            
+            // Scale to 71.5% of tile size (65% * 1.1 = 10% expansion)
+            const destWidth = w * 1.2 * 0.715;
+            const aspectRatio = (waterImage.naturalHeight || waterImage.height) / (waterImage.naturalWidth || waterImage.width);
+            const destHeight = destWidth * aspectRatio;
+            
+            // Draw the water image centered on tile (can overflow/clip at map edges)
+            ctx.drawImage(
+              waterImage,
+              0, 0, waterImage.naturalWidth || waterImage.width, waterImage.naturalHeight || waterImage.height,
+              Math.round(tileCenterX - destWidth / 2), Math.round(tileCenterY - destHeight / 2),
+              Math.round(destWidth), Math.round(destHeight)
+            );
+          }
+        } else {
+          // ===== TILE RENDERER PATH =====
+          // Handles both single-tile and multi-tile buildings
+          // Get the filtered sprite sheet from cache (or fallback to unfiltered if not available)
+          // Use the active sprite pack's source for cache lookup
+          const activePack = getActiveSpritePack();
+          const filteredSpriteSheet = imageCache.get(`${activePack.src}_filtered`) || imageCache.get(activePack.src);
+          
+          if (filteredSpriteSheet) {
+            // Use naturalWidth/naturalHeight for accurate source dimensions
+            const sheetWidth = filteredSpriteSheet.naturalWidth || filteredSpriteSheet.width;
+            const sheetHeight = filteredSpriteSheet.naturalHeight || filteredSpriteSheet.height;
+            
+            // getSpriteCoords handles building type to sprite key mapping
+            const coords = getSpriteCoords(buildingType, sheetWidth, sheetHeight);
+            
+            if (coords) {
+              // Get building size to handle multi-tile buildings
+              const buildingSize = getBuildingSize(buildingType);
+              const isMultiTile = buildingSize.width > 1 || buildingSize.height > 1;
+              
+              // Calculate draw position for multi-tile buildings
+              // Multi-tile buildings need to be positioned at the front-most corner
+              let drawPosX = x;
+              let drawPosY = y;
+              
+              if (isMultiTile) {
+                // Calculate offset to position sprite at the front-most visible corner
+                // In isometric view, the front-most corner is at (originX + width - 1, originY + height - 1)
+                const frontmostOffsetX = buildingSize.width - 1;
+                const frontmostOffsetY = buildingSize.height - 1;
+                const screenOffsetX = (frontmostOffsetX - frontmostOffsetY) * (w / 2);
+                const screenOffsetY = (frontmostOffsetX + frontmostOffsetY) * (h / 2);
+                drawPosX = x + screenOffsetX;
+                drawPosY = y + screenOffsetY;
+              }
+              
+              // Calculate destination size preserving aspect ratio of source sprite
+              // Scale factor: 1.2 base (reduced from 1.5 for ~20% smaller)
+              // Multi-tile buildings scale with their footprint
+              let scaleMultiplier = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
+              // Special scale adjustment for airport (scaled up 5%)
+              if (buildingType === 'airport') {
+                scaleMultiplier *= 1.05; // Scale up by 5%
+              }
+              // Special scale adjustment for school (scaled up 5%)
+              if (buildingType === 'school') {
+                scaleMultiplier *= 1.05; // Scale up by 5%
+              }
+              // Special scale adjustment for university (scaled down 5%)
+              if (buildingType === 'university') {
+                scaleMultiplier *= 0.95; // Scale down by 5%
+              }
+              // Special scale adjustment for space_program (scaled up 10%)
+              if (buildingType === 'space_program') {
+                scaleMultiplier *= 1.1; // Scale up by 10%
+              }
+              // Special scale adjustment for stadium (scaled down 30%)
+              if (buildingType === 'stadium') {
+                scaleMultiplier *= 0.7; // Scale down by 30%
+              }
+              // Special scale adjustment for water_tower (scaled down 10%)
+              if (buildingType === 'water_tower') {
+                scaleMultiplier *= 0.9; // Scale down by 10%
+              }
+              // Special scale adjustment for house_small (scaled up 8%)
+              if (buildingType === 'house_small') {
+                scaleMultiplier *= 1.08; // Scale up by 8%
+              }
+              // Apply global scale from sprite pack if available
+              const globalScale = activePack.globalScale ?? 1;
+              const destWidth = w * 1.2 * scaleMultiplier * globalScale;
+              const aspectRatio = coords.sh / coords.sw;  // height/width ratio of source
+              const destHeight = destWidth * aspectRatio;
+              
+              // Position: center horizontally on tile/footprint, anchor bottom of sprite at tile bottom
+              let drawX = drawPosX + w / 2 - destWidth / 2;
+              
+              // Apply per-sprite horizontal offset adjustments
+              const spriteKey = BUILDING_TO_SPRITE[buildingType];
+              const horizontalOffset = (spriteKey && SPRITE_HORIZONTAL_OFFSETS[spriteKey]) ? SPRITE_HORIZONTAL_OFFSETS[spriteKey] * w : 0;
+              drawX += horizontalOffset;
+              
+              // Simple positioning: sprite bottom aligns with tile/footprint bottom
+              // Add vertical push to compensate for transparent space at bottom of sprites
+              let drawY: number;
+              let verticalPush: number;
+              if (isMultiTile) {
+                // Multi-tile sprites need larger push to sit on their footprint
+                const footprintDepth = buildingSize.width + buildingSize.height - 2;
+                verticalPush = footprintDepth * h * 0.25;
+              } else {
+                // Single-tile sprites also need push (sprites have transparent bottom padding)
+                verticalPush = destHeight * 0.15;
+              }
+              const extraOffset = (spriteKey && SPRITE_VERTICAL_OFFSETS[spriteKey]) ? SPRITE_VERTICAL_OFFSETS[spriteKey] * h : 0;
+              verticalPush += extraOffset;
+              
+              drawY = drawPosY + h - destHeight + verticalPush;
+              
+              // Draw the sprite with correct aspect ratio (normal buildings)
+              ctx.drawImage(
+                filteredSpriteSheet,
+                coords.sx, coords.sy, coords.sw, coords.sh,  // Source: exact tile from sprite sheet
+                Math.round(drawX), Math.round(drawY),        // Destination position
+                Math.round(destWidth), Math.round(destHeight) // Destination size (preserving aspect ratio)
+              );
+            }
+          }
+        }
+      }
+      
+      // Draw fire effect
+      if (tile.building.onFire) {
+        const fireX = x + w / 2;
+        const fireY = y - 10;
+        
+        ctx.fillStyle = 'rgba(255, 100, 0, 0.5)';
+        ctx.beginPath();
+        ctx.ellipse(fireX, fireY, 18, 25, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = 'rgba(255, 200, 0, 0.8)';
+        ctx.beginPath();
+        ctx.ellipse(fireX, fireY + 5, 10, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
+        ctx.beginPath();
+        ctx.ellipse(fireX, fireY + 8, 5, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     
     // Draw tiles in isometric order (back to front)
@@ -2887,7 +3900,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     }
     
     ctx.restore();
-  }, [grid, gridSize, offset, zoom, hoveredTile, selectedTile, overlayMode, imagesLoaded, canvasSize, dragStartTile, dragEndTile, state.services, currentSpritePack, waterBodies]);
+  }, [grid, gridSize, offset, zoom, hoveredTile, selectedTile, overlayMode, imagesLoaded, canvasSize, dragStartTile, dragEndTile, state.services, currentSpritePack, waterBodies, isPartOfMultiTileBuilding, isPartOfParkBuilding, showsDragGrid]);
   
   // Animate decorative car traffic AND emergency vehicles on top of the base canvas
   useEffect(() => {
@@ -2916,1020 +3929,6 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
   }, [canvasSize.width, canvasSize.height, updateCars, drawCars, updateEmergencyVehicles, drawEmergencyVehicles]);
-  
-  // Draw isometric tile base
-  function drawIsometricTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, highlight: boolean, currentZoom: number, skipGreyBase: boolean = false, skipGreenBase: boolean = false) {
-    const w = TILE_WIDTH;
-    const h = TILE_HEIGHT;
-    
-    // Determine tile colors (top face and shading)
-    let topColor = '#4a7c3f'; // grass
-    let leftColor = '#3d6634';
-    let rightColor = '#5a8f4f';
-    let strokeColor = '#2d4a26';
-    
-    const isPark = tile.building.type === 'park' || tile.building.type === 'park_large' || tile.building.type === 'tennis' ||
-                   (tile.building.type === 'empty' && isPartOfParkBuilding(tile.x, tile.y));
-    // Check if this is a building (not grass, empty, water, road, tree, park, or tennis)
-    // Also check if it's part of a multi-tile building footprint
-    const isDirectBuilding = !isPark &&
-      tile.building.type !== 'grass' &&
-      tile.building.type !== 'empty' &&
-      tile.building.type !== 'water' &&
-      tile.building.type !== 'road' &&
-      tile.building.type !== 'tree';
-    const isPartOfBuilding = tile.building.type === 'empty' && isPartOfMultiTileBuilding(tile.x, tile.y);
-    const isBuilding = isDirectBuilding || isPartOfBuilding;
-    
-    // ALL buildings get grey/concrete base tiles (except parks which stay green)
-    const hasGreyBase = isBuilding && !isPark;
-    
-    if (tile.building.type === 'water') {
-      topColor = '#2563eb';
-      leftColor = '#1d4ed8';
-      rightColor = '#3b82f6';
-      strokeColor = '#1e3a8a';
-    } else if (tile.building.type === 'road') {
-      topColor = '#4a4a4a';
-      leftColor = '#3a3a3a';
-      rightColor = '#5a5a5a';
-      strokeColor = '#333';
-    } else if (isPark) {
-      topColor = '#4a7c3f';
-      leftColor = '#3d6634';
-      rightColor = '#5a8f4f';
-      strokeColor = '#2d4a26';
-    } else if (hasGreyBase && !skipGreyBase) {
-      // Grey/concrete base tiles for ALL buildings (except parks)
-      // Skip if skipGreyBase is true (will be drawn later after water)
-      topColor = '#6b7280';
-      leftColor = '#4b5563';
-      rightColor = '#9ca3af';
-      strokeColor = '#374151';
-    } else if (tile.zone === 'residential') {
-      if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
-        topColor = '#3d7c3f';
-        leftColor = '#2d6634';
-        rightColor = '#4d8f4f';
-      } else {
-        topColor = '#2d5a2d';
-        leftColor = '#1d4a1d';
-        rightColor = '#3d6a3d';
-      }
-      strokeColor = '#22c55e';
-    } else if (tile.zone === 'commercial') {
-      if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
-        topColor = '#3a5c7c';
-        leftColor = '#2a4c6c';
-        rightColor = '#4a6c8c';
-      } else {
-        topColor = '#2a4a6a';
-        leftColor = '#1a3a5a';
-        rightColor = '#3a5a7a';
-      }
-      strokeColor = '#3b82f6';
-    } else if (tile.zone === 'industrial') {
-      if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
-        topColor = '#7c5c3a';
-        leftColor = '#6c4c2a';
-        rightColor = '#8c6c4a';
-      } else {
-        topColor = '#6a4a2a';
-        leftColor = '#5a3a1a';
-        rightColor = '#7a5a3a';
-      }
-      strokeColor = '#f59e0b';
-    }
-    
-    // Skip drawing green base for grass/empty tiles adjacent to water (will be drawn later over water)
-    const shouldSkipDrawing = skipGreenBase && (tile.building.type === 'grass' || tile.building.type === 'empty');
-    
-    // Draw the isometric diamond (top face)
-    if (!shouldSkipDrawing) {
-      ctx.fillStyle = topColor;
-      ctx.beginPath();
-      ctx.moveTo(x + w / 2, y);
-      ctx.lineTo(x + w, y + h / 2);
-      ctx.lineTo(x + w / 2, y + h);
-      ctx.lineTo(x, y + h / 2);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Draw grid lines only when zoomed in (hide when zoom < 0.6)
-      if (currentZoom >= 0.6) {
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      }
-      
-      // Draw zone border with dashed line (hide when zoomed out, only on grass/empty tiles - not on roads or buildings)
-      if (tile.zone !== 'none' && 
-          currentZoom >= 0.95 &&
-          (tile.building.type === 'grass' || tile.building.type === 'empty')) {
-        ctx.strokeStyle = tile.zone === 'residential' ? '#22c55e' : 
-                          tile.zone === 'commercial' ? '#3b82f6' : '#f59e0b';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 2]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-    }
-    
-    // Highlight on hover/select (always draw, even if base was skipped)
-    if (highlight) {
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x + w / 2, y);
-      ctx.lineTo(x + w, y + h / 2);
-      ctx.lineTo(x + w / 2, y + h);
-      ctx.lineTo(x, y + h / 2);
-      ctx.closePath();
-      ctx.stroke();
-    }
-  }
-  
-  // Draw green base tile for grass/empty tiles (called after water tiles)
-  function drawGreenBaseTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, currentZoom: number) {
-    const w = TILE_WIDTH;
-    const h = TILE_HEIGHT;
-    
-    // Determine green base colors based on zone
-    let topColor = '#4a7c3f'; // default grass
-    let leftColor = '#3d6634';
-    let rightColor = '#5a8f4f';
-    let strokeColor = '#2d4a26';
-    
-    if (tile.zone === 'residential') {
-      topColor = '#2d5a2d';
-      leftColor = '#1d4a1d';
-      rightColor = '#3d6a3d';
-      strokeColor = '#22c55e';
-    } else if (tile.zone === 'commercial') {
-      topColor = '#2a4a6a';
-      leftColor = '#1a3a5a';
-      rightColor = '#3a5a7a';
-      strokeColor = '#3b82f6';
-    } else if (tile.zone === 'industrial') {
-      topColor = '#6a4a2a';
-      leftColor = '#5a3a1a';
-      rightColor = '#7a5a3a';
-      strokeColor = '#f59e0b';
-    }
-    
-    // Draw the isometric diamond (top face)
-    ctx.fillStyle = topColor;
-    ctx.beginPath();
-    ctx.moveTo(x + w / 2, y);
-    ctx.lineTo(x + w, y + h / 2);
-    ctx.lineTo(x + w / 2, y + h);
-    ctx.lineTo(x, y + h / 2);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Draw grid lines only when zoomed in (hide when zoom < 0.6)
-    if (currentZoom >= 0.6) {
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
-    }
-    
-    // Draw zone border with dashed line (hide when zoomed out, only on grass/empty tiles)
-    if (tile.zone !== 'none' && currentZoom >= 0.95) {
-      ctx.strokeStyle = tile.zone === 'residential' ? '#22c55e' : 
-                        tile.zone === 'commercial' ? '#3b82f6' : '#f59e0b';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 2]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-  
-  // Draw gray base tile for buildings (called after water tiles)
-  function drawGreyBaseTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, currentZoom: number) {
-    const w = TILE_WIDTH;
-    const h = TILE_HEIGHT;
-    
-    // Grey/concrete base tiles for ALL buildings (except parks)
-    const topColor = '#6b7280';
-    const leftColor = '#4b5563';
-    const rightColor = '#9ca3af';
-    const strokeColor = '#374151';
-    
-    // Draw the isometric diamond (top face)
-    ctx.fillStyle = topColor;
-    ctx.beginPath();
-    ctx.moveTo(x + w / 2, y);
-    ctx.lineTo(x + w, y + h / 2);
-    ctx.lineTo(x + w / 2, y + h);
-    ctx.lineTo(x, y + h / 2);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Draw grid lines only when zoomed in (hide when zoom < 0.6)
-    if (currentZoom >= 0.6) {
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
-    }
-  }
-  
-  // Helper function to check if a tile is water
-  function isWater(gridX: number, gridY: number): boolean {
-    if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) return false;
-    return grid[gridY][gridX].building.type === 'water';
-  }
-  
-  // Draw beach effect on tiles adjacent to water (sidewalk-style)
-  function drawBeach(ctx: CanvasRenderingContext2D, x: number, y: number, gridX: number, gridY: number) {
-    const w = TILE_WIDTH;
-    const h = TILE_HEIGHT;
-    
-    // Check which edges are adjacent to water (in isometric coordinates)
-    const north = isWater(gridX - 1, gridY);  // top-left edge
-    const east = isWater(gridX, gridY - 1);   // top-right edge
-    const south = isWater(gridX + 1, gridY);  // bottom-right edge
-    const west = isWater(gridX, gridY + 1);   // bottom-left edge
-    
-    // Beach/sidewalk configuration
-    const beachWidth = w * 0.04; // Width of the beach strip (50% thinner)
-    const beachColor = '#d4a574'; // Light sandy/tan color for beach
-    const curbColor = '#b8956a'; // Darker color for curb edge
-    
-    // Diamond corner points
-    const topCorner = { x: x + w / 2, y: y };
-    const rightCorner = { x: x + w, y: y + h / 2 };
-    const bottomCorner = { x: x + w / 2, y: y + h };
-    const leftCorner = { x: x, y: y + h / 2 };
-    
-    // Draw beach strip helper - draws a strip along an edge facing water, optionally shortening at corners
-    const drawBeachEdge = (
-      startX: number, startY: number, 
-      endX: number, endY: number,
-      inwardDx: number, inwardDy: number,
-      shortenStart: boolean = false,
-      shortenEnd: boolean = false
-    ) => {
-      const swWidth = beachWidth;
-      const shortenDist = swWidth * 0.707; // Distance to shorten at corners
-      
-      // Calculate edge direction vector
-      const edgeDx = endX - startX;
-      const edgeDy = endY - startY;
-      const edgeLen = Math.hypot(edgeDx, edgeDy);
-      const edgeDirX = edgeDx / edgeLen;
-      const edgeDirY = edgeDy / edgeLen;
-      
-      // Apply shortening if needed
-      let actualStartX = startX;
-      let actualStartY = startY;
-      let actualEndX = endX;
-      let actualEndY = endY;
-      
-      if (shortenStart && edgeLen > shortenDist * 2) {
-        actualStartX = startX + edgeDirX * shortenDist;
-        actualStartY = startY + edgeDirY * shortenDist;
-      }
-      if (shortenEnd && edgeLen > shortenDist * 2) {
-        actualEndX = endX - edgeDirX * shortenDist;
-        actualEndY = endY - edgeDirY * shortenDist;
-      }
-      
-      // Draw curb (darker line at outer edge)
-      ctx.strokeStyle = curbColor;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(actualStartX, actualStartY);
-      ctx.lineTo(actualEndX, actualEndY);
-      ctx.stroke();
-      
-      // Draw beach fill
-      ctx.fillStyle = beachColor;
-      ctx.beginPath();
-      ctx.moveTo(actualStartX, actualStartY);
-      ctx.lineTo(actualEndX, actualEndY);
-      ctx.lineTo(actualEndX + inwardDx * swWidth, actualEndY + inwardDy * swWidth);
-      ctx.lineTo(actualStartX + inwardDx * swWidth, actualStartY + inwardDy * swWidth);
-      ctx.closePath();
-      ctx.fill();
-    };
-    
-    // North edge beach (top-left edge: leftCorner to topCorner)
-    // Inward direction points toward center-right and down
-    if (north) {
-      const inwardDx = 0.707; // ~45 degrees inward
-      const inwardDy = 0.707;
-      // Shorten at topCorner if east edge also has beach
-      const shortenAtTop = east;
-      // Shorten at leftCorner if west edge also has beach
-      const shortenAtLeft = west;
-      drawBeachEdge(leftCorner.x, leftCorner.y, topCorner.x, topCorner.y, inwardDx, inwardDy, shortenAtLeft, shortenAtTop);
-    }
-    
-    // East edge beach (top-right edge: topCorner to rightCorner)
-    // Inward direction points toward center-left and down
-    if (east) {
-      const inwardDx = -0.707;
-      const inwardDy = 0.707;
-      // Shorten at topCorner if north edge also has beach
-      const shortenAtTop = north;
-      // Shorten at rightCorner if south edge also has beach
-      const shortenAtRight = south;
-      drawBeachEdge(topCorner.x, topCorner.y, rightCorner.x, rightCorner.y, inwardDx, inwardDy, shortenAtTop, shortenAtRight);
-    }
-    
-    // South edge beach (bottom-right edge: rightCorner to bottomCorner)
-    // Inward direction points toward center-left and up
-    if (south) {
-      const inwardDx = -0.707;
-      const inwardDy = -0.707;
-      // Shorten at rightCorner if east edge also has beach
-      const shortenAtRight = east;
-      // Shorten at bottomCorner if west edge also has beach
-      const shortenAtBottom = west;
-      drawBeachEdge(rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y, inwardDx, inwardDy, shortenAtRight, shortenAtBottom);
-    }
-    
-    // West edge beach (bottom-left edge: bottomCorner to leftCorner)
-    // Inward direction points toward center-right and up
-    if (west) {
-      const inwardDx = 0.707;
-      const inwardDy = -0.707;
-      // Shorten at bottomCorner if south edge also has beach
-      const shortenAtBottom = south;
-      // Shorten at leftCorner if north edge also has beach
-      const shortenAtLeft = north;
-      drawBeachEdge(bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y, inwardDx, inwardDy, shortenAtBottom, shortenAtLeft);
-    }
-    
-    // Draw corner beach pieces for adjacent edges that both face water
-    // Corner pieces connect exactly where the shortened edge strips end
-    const bwWidth = beachWidth;
-    const shortenDist = bwWidth * 0.707;
-    ctx.fillStyle = beachColor;
-    
-    // Helper to calculate where a shortened edge's inner endpoint is
-    const getShortenedInnerEndpoint = (
-      cornerX: number, cornerY: number,
-      otherCornerX: number, otherCornerY: number,
-      inwardDx: number, inwardDy: number
-    ) => {
-      // Edge direction FROM otherCorner TO corner (the direction the edge approaches the corner)
-      const edgeDx = cornerX - otherCornerX;
-      const edgeDy = cornerY - otherCornerY;
-      const edgeLen = Math.hypot(edgeDx, edgeDy);
-      const edgeDirX = edgeDx / edgeLen;
-      const edgeDirY = edgeDy / edgeLen;
-      // Shortened outer endpoint (move backwards from corner along edge)
-      const shortenedOuterX = cornerX - edgeDirX * shortenDist;
-      const shortenedOuterY = cornerY - edgeDirY * shortenDist;
-      // Inner endpoint
-      return {
-        x: shortenedOuterX + inwardDx * bwWidth,
-        y: shortenedOuterY + inwardDy * bwWidth
-      };
-    };
-    
-    // Top corner (where north and east edges meet)
-    if (north && east) {
-      const northInner = getShortenedInnerEndpoint(
-        topCorner.x, topCorner.y, leftCorner.x, leftCorner.y,
-        0.707, 0.707
-      );
-      const eastInner = getShortenedInnerEndpoint(
-        topCorner.x, topCorner.y, rightCorner.x, rightCorner.y,
-        -0.707, 0.707
-      );
-      ctx.beginPath();
-      ctx.moveTo(topCorner.x, topCorner.y);
-      ctx.lineTo(northInner.x, northInner.y);
-      ctx.lineTo(eastInner.x, eastInner.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // Right corner (where east and south edges meet)
-    if (east && south) {
-      const eastInner = getShortenedInnerEndpoint(
-        rightCorner.x, rightCorner.y, topCorner.x, topCorner.y,
-        -0.707, 0.707
-      );
-      const southInner = getShortenedInnerEndpoint(
-        rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y,
-        -0.707, -0.707
-      );
-      ctx.beginPath();
-      ctx.moveTo(rightCorner.x, rightCorner.y);
-      ctx.lineTo(eastInner.x, eastInner.y);
-      ctx.lineTo(southInner.x, southInner.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // Bottom corner (where south and west edges meet)
-    if (south && west) {
-      const southInner = getShortenedInnerEndpoint(
-        bottomCorner.x, bottomCorner.y, rightCorner.x, rightCorner.y,
-        -0.707, -0.707
-      );
-      const westInner = getShortenedInnerEndpoint(
-        bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y,
-        0.707, -0.707
-      );
-      ctx.beginPath();
-      ctx.moveTo(bottomCorner.x, bottomCorner.y);
-      ctx.lineTo(southInner.x, southInner.y);
-      ctx.lineTo(westInner.x, westInner.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // Left corner (where west and north edges meet)
-    if (west && north) {
-      const westInner = getShortenedInnerEndpoint(
-        leftCorner.x, leftCorner.y, bottomCorner.x, bottomCorner.y,
-        0.707, -0.707
-      );
-      const northInner = getShortenedInnerEndpoint(
-        leftCorner.x, leftCorner.y, topCorner.x, topCorner.y,
-        0.707, 0.707
-      );
-      ctx.beginPath();
-      ctx.moveTo(leftCorner.x, leftCorner.y);
-      ctx.lineTo(westInner.x, westInner.y);
-      ctx.lineTo(northInner.x, northInner.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
-  
-  // Helper function to check if a tile has a road
-  function hasRoad(gridX: number, gridY: number): boolean {
-    if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) return false;
-    return grid[gridY][gridX].building.type === 'road';
-  }
-  
-  
-  // Draw road with proper adjacency, markings, and sidewalks
-  function drawRoad(ctx: CanvasRenderingContext2D, x: number, y: number, gridX: number, gridY: number) {
-    const w = TILE_WIDTH;
-    const h = TILE_HEIGHT;
-    const cx = x + w / 2;
-    const cy = y + h / 2;
-    
-    // Check adjacency (in isometric coordinates)
-    const north = hasRoad(gridX - 1, gridY);  // top-left edge
-    const east = hasRoad(gridX, gridY - 1);   // top-right edge
-    const south = hasRoad(gridX + 1, gridY);  // bottom-right edge
-    const west = hasRoad(gridX, gridY + 1);   // bottom-left edge
-    
-    // Road width - aligned with gridlines
-    const roadW = w * 0.14;
-    const roadH = h * 0.14;
-    
-    // Sidewalk configuration
-    const sidewalkWidth = w * 0.08; // Width of the sidewalk strip
-    const sidewalkColor = '#9ca3af'; // Light gray for sidewalk
-    const curbColor = '#6b7280'; // Darker gray for curb edge
-    
-    // Edge stop distance - extend roads almost to the edge for better connection
-    // Using 0.98 means roads extend to 98% of the way to the edge
-    const edgeStop = 0.98;
-    
-    // Calculate edge midpoints (where gridlines meet)
-    const northEdgeX = x + w * 0.25;
-    const northEdgeY = y + h * 0.25;
-    const eastEdgeX = x + w * 0.75;
-    const eastEdgeY = y + h * 0.25;
-    const southEdgeX = x + w * 0.75;
-    const southEdgeY = y + h * 0.75;
-    const westEdgeX = x + w * 0.25;
-    const westEdgeY = y + h * 0.75;
-    
-    // Calculate direction vectors for each edge (normalized)
-    // These align with the gridline directions
-    const northDx = (northEdgeX - cx) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
-    const northDy = (northEdgeY - cy) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
-    const eastDx = (eastEdgeX - cx) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
-    const eastDy = (eastEdgeY - cy) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
-    const southDx = (southEdgeX - cx) / Math.hypot(southEdgeX - cx, southEdgeY - cy);
-    const southDy = (southEdgeY - cy) / Math.hypot(southEdgeX - cx, southEdgeY - cy);
-    const westDx = (westEdgeX - cx) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
-    const westDy = (westEdgeY - cy) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
-    
-    // Perpendicular vectors for road width (rotated 90 degrees)
-    const getPerp = (dx: number, dy: number) => ({ nx: -dy, ny: dx });
-    
-    // ============================================
-    // DRAW SIDEWALKS FIRST (underneath the road)
-    // ============================================
-    // Sidewalks appear on edges where there's NO adjacent road
-    // They run along the outer perimeter of the tile edge
-    
-    // Diamond corner points
-    const topCorner = { x: x + w / 2, y: y };
-    const rightCorner = { x: x + w, y: y + h / 2 };
-    const bottomCorner = { x: x + w / 2, y: y + h };
-    const leftCorner = { x: x, y: y + h / 2 };
-    
-    // Draw sidewalk helper - draws a strip along an edge, optionally shortening at corners
-    const drawSidewalkEdge = (
-      startX: number, startY: number, 
-      endX: number, endY: number,
-      inwardDx: number, inwardDy: number,
-      shortenStart: boolean = false,
-      shortenEnd: boolean = false
-    ) => {
-      const swWidth = sidewalkWidth;
-      const shortenDist = swWidth * 0.707; // Distance to shorten at corners
-      
-      // Calculate edge direction vector
-      const edgeDx = endX - startX;
-      const edgeDy = endY - startY;
-      const edgeLen = Math.hypot(edgeDx, edgeDy);
-      const edgeDirX = edgeDx / edgeLen;
-      const edgeDirY = edgeDy / edgeLen;
-      
-      // Apply shortening if needed
-      let actualStartX = startX;
-      let actualStartY = startY;
-      let actualEndX = endX;
-      let actualEndY = endY;
-      
-      if (shortenStart && edgeLen > shortenDist * 2) {
-        actualStartX = startX + edgeDirX * shortenDist;
-        actualStartY = startY + edgeDirY * shortenDist;
-      }
-      if (shortenEnd && edgeLen > shortenDist * 2) {
-        actualEndX = endX - edgeDirX * shortenDist;
-        actualEndY = endY - edgeDirY * shortenDist;
-      }
-      
-      // Draw curb (darker line at outer edge)
-      ctx.strokeStyle = curbColor;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(actualStartX, actualStartY);
-      ctx.lineTo(actualEndX, actualEndY);
-      ctx.stroke();
-      
-      // Draw sidewalk fill
-      ctx.fillStyle = sidewalkColor;
-      ctx.beginPath();
-      ctx.moveTo(actualStartX, actualStartY);
-      ctx.lineTo(actualEndX, actualEndY);
-      ctx.lineTo(actualEndX + inwardDx * swWidth, actualEndY + inwardDy * swWidth);
-      ctx.lineTo(actualStartX + inwardDx * swWidth, actualStartY + inwardDy * swWidth);
-      ctx.closePath();
-      ctx.fill();
-    };
-    
-    // North edge sidewalk (top-left edge: leftCorner to topCorner)
-    // Inward direction points toward center-right and down
-    if (!north) {
-      const inwardDx = 0.707; // ~45 degrees inward
-      const inwardDy = 0.707;
-      // Shorten at topCorner if east edge also has sidewalk
-      const shortenAtTop = !east;
-      // Shorten at leftCorner if west edge also has sidewalk
-      const shortenAtLeft = !west;
-      drawSidewalkEdge(leftCorner.x, leftCorner.y, topCorner.x, topCorner.y, inwardDx, inwardDy, shortenAtLeft, shortenAtTop);
-    }
-    
-    // East edge sidewalk (top-right edge: topCorner to rightCorner)
-    // Inward direction points toward center-left and down
-    if (!east) {
-      const inwardDx = -0.707;
-      const inwardDy = 0.707;
-      // Shorten at topCorner if north edge also has sidewalk
-      const shortenAtTop = !north;
-      // Shorten at rightCorner if south edge also has sidewalk
-      const shortenAtRight = !south;
-      drawSidewalkEdge(topCorner.x, topCorner.y, rightCorner.x, rightCorner.y, inwardDx, inwardDy, shortenAtTop, shortenAtRight);
-    }
-    
-    // South edge sidewalk (bottom-right edge: rightCorner to bottomCorner)
-    // Inward direction points toward center-left and up
-    if (!south) {
-      const inwardDx = -0.707;
-      const inwardDy = -0.707;
-      // Shorten at rightCorner if east edge also has sidewalk
-      const shortenAtRight = !east;
-      // Shorten at bottomCorner if west edge also has sidewalk
-      const shortenAtBottom = !west;
-      drawSidewalkEdge(rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y, inwardDx, inwardDy, shortenAtRight, shortenAtBottom);
-    }
-    
-    // West edge sidewalk (bottom-left edge: bottomCorner to leftCorner)
-    // Inward direction points toward center-right and up
-    if (!west) {
-      const inwardDx = 0.707;
-      const inwardDy = -0.707;
-      // Shorten at bottomCorner if south edge also has sidewalk
-      const shortenAtBottom = !south;
-      // Shorten at leftCorner if north edge also has sidewalk
-      const shortenAtLeft = !north;
-      drawSidewalkEdge(bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y, inwardDx, inwardDy, shortenAtBottom, shortenAtLeft);
-    }
-    
-    // Draw corner sidewalk pieces for non-adjacent edges that meet
-    // Corner pieces connect exactly where the shortened edge strips end
-    const swWidth = sidewalkWidth;
-    const shortenDist = swWidth * 0.707;
-    ctx.fillStyle = sidewalkColor;
-    
-    // Helper to calculate where a shortened edge's inner endpoint is
-    const getShortenedInnerEndpoint = (
-      cornerX: number, cornerY: number,
-      otherCornerX: number, otherCornerY: number,
-      inwardDx: number, inwardDy: number
-    ) => {
-      // Edge direction FROM otherCorner TO corner (the direction the edge approaches the corner)
-      const edgeDx = cornerX - otherCornerX;
-      const edgeDy = cornerY - otherCornerY;
-      const edgeLen = Math.hypot(edgeDx, edgeDy);
-      const edgeDirX = edgeDx / edgeLen;
-      const edgeDirY = edgeDy / edgeLen;
-      // Shortened outer endpoint (move backwards from corner along edge)
-      const shortenedOuterX = cornerX - edgeDirX * shortenDist;
-      const shortenedOuterY = cornerY - edgeDirY * shortenDist;
-      // Inner endpoint
-      return {
-        x: shortenedOuterX + inwardDx * swWidth,
-        y: shortenedOuterY + inwardDy * swWidth
-      };
-    };
-    
-    // Top corner (where north and east edges meet) - only if both don't have roads
-    if (!north && !east) {
-      const northInner = getShortenedInnerEndpoint(
-        topCorner.x, topCorner.y, leftCorner.x, leftCorner.y,
-        0.707, 0.707
-      );
-      const eastInner = getShortenedInnerEndpoint(
-        topCorner.x, topCorner.y, rightCorner.x, rightCorner.y,
-        -0.707, 0.707
-      );
-      ctx.beginPath();
-      ctx.moveTo(topCorner.x, topCorner.y);
-      ctx.lineTo(northInner.x, northInner.y);
-      ctx.lineTo(eastInner.x, eastInner.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // Right corner (where east and south edges meet)
-    if (!east && !south) {
-      const eastInner = getShortenedInnerEndpoint(
-        rightCorner.x, rightCorner.y, topCorner.x, topCorner.y,
-        -0.707, 0.707
-      );
-      const southInner = getShortenedInnerEndpoint(
-        rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y,
-        -0.707, -0.707
-      );
-      ctx.beginPath();
-      ctx.moveTo(rightCorner.x, rightCorner.y);
-      ctx.lineTo(eastInner.x, eastInner.y);
-      ctx.lineTo(southInner.x, southInner.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // Bottom corner (where south and west edges meet)
-    if (!south && !west) {
-      const southInner = getShortenedInnerEndpoint(
-        bottomCorner.x, bottomCorner.y, rightCorner.x, rightCorner.y,
-        -0.707, -0.707
-      );
-      const westInner = getShortenedInnerEndpoint(
-        bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y,
-        0.707, -0.707
-      );
-      ctx.beginPath();
-      ctx.moveTo(bottomCorner.x, bottomCorner.y);
-      ctx.lineTo(southInner.x, southInner.y);
-      ctx.lineTo(westInner.x, westInner.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // Left corner (where west and north edges meet)
-    if (!west && !north) {
-      const westInner = getShortenedInnerEndpoint(
-        leftCorner.x, leftCorner.y, bottomCorner.x, bottomCorner.y,
-        0.707, -0.707
-      );
-      const northInner = getShortenedInnerEndpoint(
-        leftCorner.x, leftCorner.y, topCorner.x, topCorner.y,
-        0.707, 0.707
-      );
-      ctx.beginPath();
-      ctx.moveTo(leftCorner.x, leftCorner.y);
-      ctx.lineTo(westInner.x, westInner.y);
-      ctx.lineTo(northInner.x, northInner.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // ============================================
-    // DRAW ROAD SEGMENTS
-    // ============================================
-    ctx.fillStyle = '#4a4a4a';
-    
-    // North segment (to top-left) - aligned with gridline
-    if (north) {
-      const stopX = cx + (northEdgeX - cx) * edgeStop;
-      const stopY = cy + (northEdgeY - cy) * edgeStop;
-      const perp = getPerp(northDx, northDy);
-      const halfWidth = roadW * 0.5;
-      ctx.beginPath();
-      ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
-      ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
-      ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
-      ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // East segment (to top-right) - aligned with gridline
-    if (east) {
-      const stopX = cx + (eastEdgeX - cx) * edgeStop;
-      const stopY = cy + (eastEdgeY - cy) * edgeStop;
-      const perp = getPerp(eastDx, eastDy);
-      const halfWidth = roadW * 0.5;
-      ctx.beginPath();
-      ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
-      ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
-      ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
-      ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // South segment (to bottom-right) - aligned with gridline
-    if (south) {
-      const stopX = cx + (southEdgeX - cx) * edgeStop;
-      const stopY = cy + (southEdgeY - cy) * edgeStop;
-      const perp = getPerp(southDx, southDy);
-      const halfWidth = roadW * 0.5;
-      ctx.beginPath();
-      ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
-      ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
-      ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
-      ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // West segment (to bottom-left) - aligned with gridline
-    if (west) {
-      const stopX = cx + (westEdgeX - cx) * edgeStop;
-      const stopY = cy + (westEdgeY - cy) * edgeStop;
-      const perp = getPerp(westDx, westDy);
-      const halfWidth = roadW * 0.5;
-      ctx.beginPath();
-      ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
-      ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
-      ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
-      ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // Center intersection (always drawn)
-    const centerSize = roadW * 1.4;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - centerSize);
-    ctx.lineTo(cx + centerSize, cy);
-    ctx.lineTo(cx, cy + centerSize);
-    ctx.lineTo(cx - centerSize, cy);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Draw road markings (yellow dashed lines) - aligned with gridlines
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 1.2;
-    ctx.setLineDash([3, 3]);
-    ctx.lineCap = 'round';
-    
-    // Marking length - extend most of the way
-    const markingLength = 0.85; // 85% of the way to edge stop
-    
-    // North marking (toward top-left)
-    if (north) {
-      const stopX = cx + (northEdgeX - cx) * edgeStop * markingLength;
-      const stopY = cy + (northEdgeY - cy) * edgeStop * markingLength;
-      ctx.beginPath();
-      ctx.moveTo(cx + northDx * 2, cy + northDy * 2);
-      ctx.lineTo(stopX + northDx * 2, stopY + northDy * 2);
-      ctx.stroke();
-    }
-    
-    // East marking (toward top-right)
-    if (east) {
-      const stopX = cx + (eastEdgeX - cx) * edgeStop * markingLength;
-      const stopY = cy + (eastEdgeY - cy) * edgeStop * markingLength;
-      ctx.beginPath();
-      ctx.moveTo(cx + eastDx * 2, cy + eastDy * 2);
-      ctx.lineTo(stopX + eastDx * 2, stopY + eastDy * 2);
-      ctx.stroke();
-    }
-    
-    // South marking (toward bottom-right)
-    if (south) {
-      const stopX = cx + (southEdgeX - cx) * edgeStop * markingLength;
-      const stopY = cy + (southEdgeY - cy) * edgeStop * markingLength;
-      ctx.beginPath();
-      ctx.moveTo(cx + southDx * 2, cy + southDy * 2);
-      ctx.lineTo(stopX + southDx * 2, stopY + southDy * 2);
-      ctx.stroke();
-    }
-    
-    // West marking (toward bottom-left)
-    if (west) {
-      const stopX = cx + (westEdgeX - cx) * edgeStop * markingLength;
-      const stopY = cy + (westEdgeY - cy) * edgeStop * markingLength;
-      ctx.beginPath();
-      ctx.moveTo(cx + westDx * 2, cy + westDy * 2);
-      ctx.lineTo(stopX + westDx * 2, stopY + westDy * 2);
-      ctx.stroke();
-    }
-    
-    ctx.setLineDash([]);
-    ctx.lineCap = 'butt';
-  }
-  
-  // Draw building sprite
-  function drawBuilding(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile) {
-    const buildingType = tile.building.type;
-    const w = TILE_WIDTH;
-    const h = TILE_HEIGHT;
-    
-    // Handle roads separately with adjacency
-    if (buildingType === 'road') {
-      drawRoad(ctx, x, y, tile.x, tile.y);
-      return;
-    }
-    
-    // Check if this building type has a sprite in the tile renderer
-    const hasTileSprite = BUILDING_TO_SPRITE[buildingType];
-    
-    if (hasTileSprite) {
-      // Special handling for water: use separate water.png image
-      if (buildingType === 'water') {
-        const waterImage = imageCache.get('/assets/water.png');
-        if (waterImage) {
-          // Center the water sprite on the tile
-          const tileCenterX = x + w / 2;
-          const tileCenterY = y + h / 2;
-          
-          // Scale to 71.5% of tile size (65% * 1.1 = 10% expansion)
-          const destWidth = w * 1.2 * 0.715;
-          const aspectRatio = (waterImage.naturalHeight || waterImage.height) / (waterImage.naturalWidth || waterImage.width);
-          const destHeight = destWidth * aspectRatio;
-          
-          // Draw the water image centered on tile (can overflow/clip at map edges)
-          ctx.drawImage(
-            waterImage,
-            0, 0, waterImage.naturalWidth || waterImage.width, waterImage.naturalHeight || waterImage.height,
-            Math.round(tileCenterX - destWidth / 2), Math.round(tileCenterY - destHeight / 2),
-            Math.round(destWidth), Math.round(destHeight)
-          );
-        }
-      } else {
-        // ===== TILE RENDERER PATH =====
-        // Handles both single-tile and multi-tile buildings
-        // Get the filtered sprite sheet from cache (or fallback to unfiltered if not available)
-        // Use the active sprite pack's source for cache lookup
-        const activePack = getActiveSpritePack();
-        const filteredSpriteSheet = imageCache.get(`${activePack.src}_filtered`) || imageCache.get(activePack.src);
-        
-        if (filteredSpriteSheet) {
-          // Use naturalWidth/naturalHeight for accurate source dimensions
-          const sheetWidth = filteredSpriteSheet.naturalWidth || filteredSpriteSheet.width;
-          const sheetHeight = filteredSpriteSheet.naturalHeight || filteredSpriteSheet.height;
-          
-          // getSpriteCoords handles building type to sprite key mapping
-          const coords = getSpriteCoords(buildingType, sheetWidth, sheetHeight);
-          
-          if (coords) {
-            // Get building size to handle multi-tile buildings
-            const buildingSize = getBuildingSize(buildingType);
-            const isMultiTile = buildingSize.width > 1 || buildingSize.height > 1;
-            
-            // Calculate draw position for multi-tile buildings
-            // Multi-tile buildings need to be positioned at the front-most corner
-            let drawPosX = x;
-            let drawPosY = y;
-            
-            if (isMultiTile) {
-              // Calculate offset to position sprite at the front-most visible corner
-              // In isometric view, the front-most corner is at (originX + width - 1, originY + height - 1)
-              const frontmostOffsetX = buildingSize.width - 1;
-              const frontmostOffsetY = buildingSize.height - 1;
-              const screenOffsetX = (frontmostOffsetX - frontmostOffsetY) * (w / 2);
-              const screenOffsetY = (frontmostOffsetX + frontmostOffsetY) * (h / 2);
-              drawPosX = x + screenOffsetX;
-              drawPosY = y + screenOffsetY;
-            }
-            
-            // Calculate destination size preserving aspect ratio of source sprite
-            // Scale factor: 1.2 base (reduced from 1.5 for ~20% smaller)
-            // Multi-tile buildings scale with their footprint
-            let scaleMultiplier = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
-            // Special scale adjustment for airport (scaled up 5%)
-            if (buildingType === 'airport') {
-              scaleMultiplier *= 1.05; // Scale up by 5%
-            }
-            // Special scale adjustment for school (scaled up 5%)
-            if (buildingType === 'school') {
-              scaleMultiplier *= 1.05; // Scale up by 5%
-            }
-            // Special scale adjustment for university (scaled down 5%)
-            if (buildingType === 'university') {
-              scaleMultiplier *= 0.95; // Scale down by 5%
-            }
-            // Special scale adjustment for space_program (scaled up 10%)
-            if (buildingType === 'space_program') {
-              scaleMultiplier *= 1.1; // Scale up by 10%
-            }
-            // Special scale adjustment for stadium (scaled down 30%)
-            if (buildingType === 'stadium') {
-              scaleMultiplier *= 0.7; // Scale down by 30%
-            }
-            // Special scale adjustment for water_tower (scaled down 10%)
-            if (buildingType === 'water_tower') {
-              scaleMultiplier *= 0.9; // Scale down by 10%
-            }
-            // Special scale adjustment for house_small (scaled up 8%)
-            if (buildingType === 'house_small') {
-              scaleMultiplier *= 1.08; // Scale up by 8%
-            }
-            // Apply global scale from sprite pack if available
-            const globalScale = activePack.globalScale ?? 1;
-            const destWidth = w * 1.2 * scaleMultiplier * globalScale;
-            const aspectRatio = coords.sh / coords.sw;  // height/width ratio of source
-            const destHeight = destWidth * aspectRatio;
-            
-            // Position: center horizontally on tile/footprint, anchor bottom of sprite at tile bottom
-            let drawX = drawPosX + w / 2 - destWidth / 2;
-            
-            // Apply per-sprite horizontal offset adjustments
-            const spriteKey = BUILDING_TO_SPRITE[buildingType];
-            const horizontalOffset = (spriteKey && SPRITE_HORIZONTAL_OFFSETS[spriteKey]) ? SPRITE_HORIZONTAL_OFFSETS[spriteKey] * w : 0;
-            drawX += horizontalOffset;
-            
-            // Simple positioning: sprite bottom aligns with tile/footprint bottom
-            // Add vertical push to compensate for transparent space at bottom of sprites
-            let drawY: number;
-            let verticalPush: number;
-            if (isMultiTile) {
-              // Multi-tile sprites need larger push to sit on their footprint
-              const footprintDepth = buildingSize.width + buildingSize.height - 2;
-              verticalPush = footprintDepth * h * 0.25;
-            } else {
-              // Single-tile sprites also need push (sprites have transparent bottom padding)
-              verticalPush = destHeight * 0.15;
-            }
-            const extraOffset = (spriteKey && SPRITE_VERTICAL_OFFSETS[spriteKey]) ? SPRITE_VERTICAL_OFFSETS[spriteKey] * h : 0;
-            verticalPush += extraOffset;
-            
-            drawY = drawPosY + h - destHeight + verticalPush;
-            
-            // Draw the sprite with correct aspect ratio (normal buildings)
-            ctx.drawImage(
-              filteredSpriteSheet,
-              coords.sx, coords.sy, coords.sw, coords.sh,  // Source: exact tile from sprite sheet
-              Math.round(drawX), Math.round(drawY),        // Destination position
-              Math.round(destWidth), Math.round(destHeight) // Destination size (preserving aspect ratio)
-            );
-          }
-        }
-      }
-    }
-    
-    // Draw fire effect
-    if (tile.building.onFire) {
-      const fireX = x + w / 2;
-      const fireY = y - 10;
-      
-      ctx.fillStyle = 'rgba(255, 100, 0, 0.5)';
-      ctx.beginPath();
-      ctx.ellipse(fireX, fireY, 18, 25, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      ctx.fillStyle = 'rgba(255, 200, 0, 0.8)';
-      ctx.beginPath();
-      ctx.ellipse(fireX, fireY + 5, 10, 15, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
-      ctx.beginPath();
-      ctx.ellipse(fireX, fireY + 8, 5, 8, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
   
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
@@ -4035,22 +4034,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
               }
             }
           }
-          setLastPlacedTile({ x: targetX, y: targetY });
         }
-        // For other tools (bulldoze, tree, etc.), place as you drag without snapping
+        // For other drag-to-place tools, place continuously
         else if (isDragging && supportsDragPlace && dragStartTile) {
-          setDragEndTile({ x: gridX, y: gridY });
-          // Place at current tile if it's different from last placed
-          if (!lastPlacedTile || lastPlacedTile.x !== gridX || lastPlacedTile.y !== gridY) {
-            placeAtTile(gridX, gridY);
-            setLastPlacedTile({ x: gridX, y: gridY });
-          }
+          placeAtTile(gridX, gridY);
         }
-      } else {
-        setHoveredTile(null);
       }
     }
-  }, [isPanning, isDragging, dragStart, offset, gridSize, zoom, showsDragGrid, supportsDragPlace, dragStartTile, lastPlacedTile, placeAtTile, selectedTool, roadDrawDirection]);
+  }, [isPanning, dragStart, offset, zoom, gridSize, isDragging, showsDragGrid, dragStartTile, selectedTool, roadDrawDirection, supportsDragPlace, placeAtTile]);
   
   const handleMouseUp = useCallback(() => {
     // Check for road connection when dragging off edge
@@ -4085,23 +4076,26 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       const minY = Math.min(dragStartTile.y, dragEndTile.y);
       const maxY = Math.max(dragStartTile.y, dragEndTile.y);
       
-      // Place at all tiles in the rectangle
-      for (let y = minY; y <= maxY; y++) {
-        for (let x = minX; x <= maxX; x++) {
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
           placeAtTile(x, y);
         }
       }
     }
-    // For roads and other tools, placement already happened during drag
     
-    setIsPanning(false);
+    // Clear drag state
     setIsDragging(false);
-    setLastPlacedTile(null);
     setDragStartTile(null);
     setDragEndTile(null);
+    setIsPanning(false);
     setRoadDrawDirection(null);
     placedRoadTilesRef.current.clear();
-  }, [isDragging, dragStartTile, dragEndTile, showsDragGrid, placeAtTile, selectedTool, adjacentCities, gridSize]);
+    
+    // Clear hovered tile when mouse leaves
+    if (!containerRef.current) {
+      setHoveredTile(null);
+    }
+  }, [isDragging, gridSize, showsDragGrid, supportsDragPlace, dragStartTile, placeAtTile, selectedTool, dragEndTile, adjacentCities]);
   
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -4126,13 +4120,13 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         ref={canvasRef}
         width={canvasSize.width}
         height={canvasSize.height}
-        className="block"
+        className="absolute top-0 left-0"
       />
       <canvas
         ref={carsCanvasRef}
         width={canvasSize.width}
         height={canvasSize.height}
-        className="absolute inset-0 pointer-events-none"
+        className="absolute top-0 left-0 pointer-events-none"
       />
       
       {selectedTile && selectedTool === 'select' && (
@@ -4257,8 +4251,8 @@ const OverlayModeToggle = React.memo(function OverlayModeToggle({
           variant={overlayMode === 'water' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('water')}
-          className={`h-8 px-3 ${overlayMode === 'water' ? 'bg-cyan-500 hover:bg-cyan-600' : ''}`}
-          title="Water Supply"
+          className={`h-8 px-3 ${overlayMode === 'water' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+          title="Water System"
         >
           <WaterIcon size={14} />
         </Button>
@@ -4277,7 +4271,7 @@ const OverlayModeToggle = React.memo(function OverlayModeToggle({
           variant={overlayMode === 'police' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('police')}
-          className={`h-8 px-3 ${overlayMode === 'police' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+          className={`h-8 px-3 ${overlayMode === 'police' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
           title="Police Coverage"
         >
           <SafetyIcon size={14} />
@@ -4290,7 +4284,7 @@ const OverlayModeToggle = React.memo(function OverlayModeToggle({
           className={`h-8 px-3 ${overlayMode === 'health' ? 'bg-green-500 hover:bg-green-600' : ''}`}
           title="Health Coverage"
         >
-          <MedicalCrossIcon size={14} />
+          <HealthIcon size={14} />
         </Button>
         
         <Button
@@ -4302,13 +4296,13 @@ const OverlayModeToggle = React.memo(function OverlayModeToggle({
         >
           <EducationIcon size={14} />
         </Button>
-
+        
         <Button
           variant={overlayMode === 'subway' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('subway')}
-          className={`h-8 px-3 ${overlayMode === 'subway' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
-          title="Subway Network"
+          className={`h-8 px-3 ${overlayMode === 'subway' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}`}
+          title="Subway Coverage"
         >
           <SubwayIcon size={14} />
         </Button>
@@ -4317,7 +4311,6 @@ const OverlayModeToggle = React.memo(function OverlayModeToggle({
   );
 });
 
-// Main Game Component
 export default function Game() {
   const { state, setTool, setActivePanel } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
@@ -4381,19 +4374,25 @@ export default function Game() {
     // Update previous tool reference
     previousSelectedToolRef.current = state.selectedTool;
     
-    if (state.selectedTool === 'power_plant') {
-      setOverlayMode('power');
-    } else if (state.selectedTool === 'water_tower') {
-      setOverlayMode('water');
-    } else if (state.selectedTool === 'fire_station') {
-      setOverlayMode('fire');
-    } else if (state.selectedTool === 'police_station') {
-      setOverlayMode('police');
-    } else if (state.selectedTool === 'hospital') {
-      setOverlayMode('health');
-    } else if (state.selectedTool === 'school' || state.selectedTool === 'university') {
-      setOverlayMode('education');
-    }
+    setTimeout(() => {
+      if (state.selectedTool === 'power_plant') {
+        setOverlayMode('power');
+      } else if (state.selectedTool === 'water_tower') {
+        setOverlayMode('water');
+      } else if (state.selectedTool === 'fire_station') {
+        setOverlayMode('fire');
+      } else if (state.selectedTool === 'police_station') {
+        setOverlayMode('police');
+      } else if (state.selectedTool === 'hospital') {
+        setOverlayMode('health');
+      } else if (state.selectedTool === 'school' || state.selectedTool === 'university') {
+        setOverlayMode('education');
+      } else if (state.selectedTool === 'subway_station') {
+        setOverlayMode('subway');
+      } else {
+        setOverlayMode('none');
+      }
+    }, 0);
   }, [state.selectedTool]);
   
   useEffect(() => {
