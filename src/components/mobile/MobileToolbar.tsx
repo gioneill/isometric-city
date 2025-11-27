@@ -241,6 +241,20 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
       {/* Bottom Toolbar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 safe-area-bottom">
         <Card className="rounded-none border-x-0 border-b-0 bg-card/95 backdrop-blur-sm">
+          {/* Selected tool info - now above the toolbar */}
+          {selectedTool && TOOL_INFO[selectedTool] && (
+            <div className="flex items-center justify-between px-4 py-1.5 border-b border-sidebar-border/50 bg-secondary/30 text-xs">
+              <span className="text-foreground font-medium">
+                {TOOL_INFO[selectedTool].name}
+              </span>
+              {TOOL_INFO[selectedTool].cost > 0 && (
+                <span className={`font-mono ${stats.money >= TOOL_INFO[selectedTool].cost ? 'text-green-400' : 'text-red-400'}`}>
+                  ${TOOL_INFO[selectedTool].cost}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center justify-around px-2 py-2 gap-1">
             {/* Quick access tools */}
             <Button
@@ -316,20 +330,6 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
               )}
             </Button>
           </div>
-
-          {/* Selected tool info */}
-          {selectedTool && TOOL_INFO[selectedTool] && (
-            <div className="flex items-center justify-between px-4 py-1.5 border-t border-border bg-secondary/30 text-xs">
-              <span className="text-foreground font-medium">
-                {TOOL_INFO[selectedTool].name}
-              </span>
-              {TOOL_INFO[selectedTool].cost > 0 && (
-                <span className={`font-mono ${stats.money >= TOOL_INFO[selectedTool].cost ? 'text-green-400' : 'text-red-400'}`}>
-                  ${TOOL_INFO[selectedTool].cost}
-                </span>
-              )}
-            </div>
-          )}
         </Card>
       </div>
 
