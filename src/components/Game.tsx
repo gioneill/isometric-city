@@ -165,13 +165,20 @@ type Pedestrian = {
 };
 
 // Boat types for water navigation
-type BoatState = 'sailing' | 'docked' | 'arriving' | 'departing';
+type BoatState = 'sailing' | 'docked' | 'arriving' | 'departing' | 'touring';
 
 type WakeParticle = {
   x: number;
   y: number;
   age: number;
   opacity: number;
+};
+
+type TourWaypoint = {
+  screenX: number;
+  screenY: number;
+  tileX: number;
+  tileY: number;
 };
 
 type Boat = {
@@ -187,7 +194,7 @@ type Boat = {
   state: BoatState;
   // Speed (pixels per second in screen space)
   speed: number;
-  // Origin marina/pier tile coordinates
+  // Origin marina/pier tile coordinates (home dock)
   originX: number;
   originY: number;
   // Destination marina/pier tile coordinates
@@ -206,6 +213,13 @@ type Boat = {
   wakeSpawnProgress: number;
   // Boat size variant (0 = small, 1 = medium)
   sizeVariant: number;
+  // Tour waypoints - points to visit during tour before returning to dock
+  tourWaypoints: TourWaypoint[];
+  // Current waypoint index in tour
+  tourWaypointIndex: number;
+  // Home dock screen position (for return trip)
+  homeScreenX: number;
+  homeScreenY: number;
 };
 
 type DirectionMeta = {
@@ -3704,6 +3718,116 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     return currentGrid[tileY][tileX].building.type === 'water';
   }, [screenToTile]);
 
+  // Find all connected water tiles from a starting water tile using BFS
+  // Returns array of water tile coordinates belonging to the same body of water
+  const findConnectedWaterTiles = useCallback((startTileX: number, startTileY: number, maxTiles: number = 200): { x: number; y: number }[] => {
+    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    if (!currentGrid || currentGridSize <= 0) return [];
+    
+    const visited = new Set<string>();
+    const waterTiles: { x: number; y: number }[] = [];
+    const queue: { x: number; y: number }[] = [{ x: startTileX, y: startTileY }];
+    
+    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]; // 4-directional for cleaner water bodies
+    
+    while (queue.length > 0 && waterTiles.length < maxTiles) {
+      const { x, y } = queue.shift()!;
+      const key = `${x},${y}`;
+      
+      if (visited.has(key)) continue;
+      visited.add(key);
+      
+      if (x < 0 || x >= currentGridSize || y < 0 || y >= currentGridSize) continue;
+      if (currentGrid[y][x].building.type !== 'water') continue;
+      
+      waterTiles.push({ x, y });
+      
+      for (const [dx, dy] of directions) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (!visited.has(`${nx},${ny}`)) {
+          queue.push({ x: nx, y: ny });
+        }
+      }
+    }
+    
+    return waterTiles;
+  }, []);
+
+  // Generate random tour waypoints within a body of water
+  // Creates a scenic tour route that explores the water body
+  const generateTourWaypoints = useCallback((startTileX: number, startTileY: number): TourWaypoint[] => {
+    // Find all water tiles connected to the starting point
+    const waterTiles = findConnectedWaterTiles(startTileX, startTileY);
+    
+    if (waterTiles.length < 3) return []; // Too small for a tour
+    
+    // Determine number of waypoints based on body of water size (2-6 waypoints)
+    const numWaypoints = Math.min(6, Math.max(2, Math.floor(waterTiles.length / 10)));
+    
+    // Spread waypoints across the water body
+    // We'll pick tiles that are spread out from each other
+    const waypoints: TourWaypoint[] = [];
+    const usedIndices = new Set<number>();
+    
+    // First, try to pick tiles at the edges/corners of the water body for a better tour
+    // Sort water tiles by distance from center to get outer tiles first
+    const centerX = waterTiles.reduce((sum, t) => sum + t.x, 0) / waterTiles.length;
+    const centerY = waterTiles.reduce((sum, t) => sum + t.y, 0) / waterTiles.length;
+    
+    const tilesWithDist = waterTiles.map((tile, idx) => ({
+      ...tile,
+      idx,
+      distFromCenter: Math.hypot(tile.x - centerX, tile.y - centerY)
+    }));
+    
+    // Sort by distance from center (outer tiles first), but add randomness
+    tilesWithDist.sort((a, b) => (b.distFromCenter - a.distFromCenter) + (Math.random() - 0.5) * 3);
+    
+    for (let i = 0; i < numWaypoints && i < tilesWithDist.length; i++) {
+      const tile = tilesWithDist[i];
+      
+      // Check that this waypoint is reasonably far from previous ones
+      let tooClose = false;
+      for (const wp of waypoints) {
+        const dist = Math.hypot(tile.x - wp.tileX, tile.y - wp.tileY);
+        if (dist < 3) { // Minimum distance between waypoints
+          tooClose = true;
+          break;
+        }
+      }
+      
+      if (!tooClose) {
+        const { screenX, screenY } = gridToScreen(tile.x, tile.y, 0, 0);
+        waypoints.push({
+          screenX: screenX + TILE_WIDTH / 2,
+          screenY: screenY + TILE_HEIGHT / 2,
+          tileX: tile.x,
+          tileY: tile.y
+        });
+        usedIndices.add(tile.idx);
+      }
+    }
+    
+    // If we didn't get enough waypoints, add some random ones
+    while (waypoints.length < numWaypoints && waypoints.length < waterTiles.length) {
+      const randomIdx = Math.floor(Math.random() * waterTiles.length);
+      if (!usedIndices.has(randomIdx)) {
+        const tile = waterTiles[randomIdx];
+        const { screenX, screenY } = gridToScreen(tile.x, tile.y, 0, 0);
+        waypoints.push({
+          screenX: screenX + TILE_WIDTH / 2,
+          screenY: screenY + TILE_HEIGHT / 2,
+          tileX: tile.x,
+          tileY: tile.y
+        });
+        usedIndices.add(randomIdx);
+      }
+    }
+    
+    return waypoints;
+  }, [findConnectedWaterTiles]);
+
   // Update airplanes - spawn, move, and manage lifecycle
   const updateAirplanes = useCallback((delta: number) => {
     const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed } = worldStateRef.current;
@@ -4114,50 +4238,55 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     // Spawn timer
     boatSpawnTimerRef.current -= delta;
     if (boatsRef.current.length < maxBoats && boatSpawnTimerRef.current <= 0) {
-      // Pick a random dock as origin
-      const originDock = docks[Math.floor(Math.random() * docks.length)];
+      // Pick a random dock as home base
+      const homeDock = docks[Math.floor(Math.random() * docks.length)];
       
       // Find adjacent water tile for positioning
-      const waterTile = findAdjacentWaterTile(originDock.x, originDock.y);
+      const waterTile = findAdjacentWaterTile(homeDock.x, homeDock.y);
       if (waterTile) {
-        // Pick a destination dock (different from origin, or same if only one dock)
-        let destDock = originDock;
-        if (docks.length > 1) {
-          const otherDocks = docks.filter(d => d.x !== originDock.x || d.y !== originDock.y);
-          destDock = otherDocks[Math.floor(Math.random() * otherDocks.length)];
+        // Generate tour waypoints within the connected body of water
+        const tourWaypoints = generateTourWaypoints(waterTile.x, waterTile.y);
+        
+        // Convert to screen coordinates
+        const { screenX: originScreenX, screenY: originScreenY } = gridToScreen(waterTile.x, waterTile.y, 0, 0);
+        const homeScreenX = originScreenX + TILE_WIDTH / 2;
+        const homeScreenY = originScreenY + TILE_HEIGHT / 2;
+        
+        // Set first tour waypoint as initial destination (or home if no waypoints)
+        let firstDestScreenX = homeScreenX;
+        let firstDestScreenY = homeScreenY;
+        if (tourWaypoints.length > 0) {
+          firstDestScreenX = tourWaypoints[0].screenX;
+          firstDestScreenY = tourWaypoints[0].screenY;
         }
         
-        // Find water tile near destination
-        const destWaterTile = findAdjacentWaterTile(destDock.x, destDock.y);
-        if (destWaterTile) {
-          // Convert to screen coordinates
-          const { screenX: originScreenX, screenY: originScreenY } = gridToScreen(waterTile.x, waterTile.y, 0, 0);
-          const { screenX: destScreenX, screenY: destScreenY } = gridToScreen(destWaterTile.x, destWaterTile.y, 0, 0);
-          
-          // Calculate angle to destination
-          const angle = Math.atan2(destScreenY - originScreenY, destScreenX - originScreenX);
-          
-          boatsRef.current.push({
-            id: boatIdRef.current++,
-            x: originScreenX + TILE_WIDTH / 2,
-            y: originScreenY + TILE_HEIGHT / 2,
-            angle: angle,
-            targetAngle: angle,
-            state: 'departing',
-            speed: 15 + Math.random() * 10, // Boats are slower than cars
-            originX: originDock.x,
-            originY: originDock.y,
-            destX: destDock.x,
-            destY: destDock.y,
-            destScreenX: destScreenX + TILE_WIDTH / 2,
-            destScreenY: destScreenY + TILE_HEIGHT / 2,
-            age: 0,
-            color: BOAT_COLORS[Math.floor(Math.random() * BOAT_COLORS.length)],
-            wake: [],
-            wakeSpawnProgress: 0,
-            sizeVariant: Math.random() < 0.7 ? 0 : 1, // 70% small boats, 30% medium
-          });
-        }
+        // Calculate angle to first destination
+        const angle = Math.atan2(firstDestScreenY - originScreenY, firstDestScreenX - originScreenX);
+        
+        boatsRef.current.push({
+          id: boatIdRef.current++,
+          x: homeScreenX,
+          y: homeScreenY,
+          angle: angle,
+          targetAngle: angle,
+          state: 'departing',
+          speed: 15 + Math.random() * 10, // Boats are slower than cars
+          originX: homeDock.x,
+          originY: homeDock.y,
+          destX: homeDock.x, // Will be updated based on tour/return
+          destY: homeDock.y,
+          destScreenX: firstDestScreenX,
+          destScreenY: firstDestScreenY,
+          age: 0,
+          color: BOAT_COLORS[Math.floor(Math.random() * BOAT_COLORS.length)],
+          wake: [],
+          wakeSpawnProgress: 0,
+          sizeVariant: Math.random() < 0.7 ? 0 : 1, // 70% small boats, 30% medium
+          tourWaypoints: tourWaypoints,
+          tourWaypointIndex: 0,
+          homeScreenX: homeScreenX,
+          homeScreenY: homeScreenY,
+        });
       }
       
       boatSpawnTimerRef.current = 1 + Math.random() * 2; // 1-3 seconds between spawns
@@ -4183,18 +4312,71 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       
       switch (boat.state) {
         case 'departing': {
-          // Move away from dock, then switch to sailing
+          // Move away from dock, then switch to touring (or sailing if no waypoints)
           nextX = boat.x + Math.cos(boat.angle) * boat.speed * delta * speedMultiplier;
           nextY = boat.y + Math.sin(boat.angle) * boat.speed * delta * speedMultiplier;
           
           if (boat.age > 2) {
-            boat.state = 'sailing';
+            // Start touring if we have waypoints, otherwise head home
+            if (boat.tourWaypoints.length > 0) {
+              boat.state = 'touring';
+              boat.tourWaypointIndex = 0;
+              // Set first waypoint as destination
+              boat.destScreenX = boat.tourWaypoints[0].screenX;
+              boat.destScreenY = boat.tourWaypoints[0].screenY;
+            } else {
+              // No tour, just sail around briefly then return
+              boat.state = 'sailing';
+              boat.destScreenX = boat.homeScreenX;
+              boat.destScreenY = boat.homeScreenY;
+            }
+          }
+          break;
+        }
+        
+        case 'touring': {
+          // Navigate through tour waypoints
+          const angleToWaypoint = Math.atan2(boat.destScreenY - boat.y, boat.destScreenX - boat.x);
+          boat.targetAngle = angleToWaypoint;
+          
+          // Smooth turning (slightly slower for leisurely tour)
+          let angleDiff = boat.targetAngle - boat.angle;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+          boat.angle += angleDiff * Math.min(1, delta * 1.8);
+          
+          // Calculate next position
+          nextX = boat.x + Math.cos(boat.angle) * boat.speed * delta * speedMultiplier;
+          nextY = boat.y + Math.sin(boat.angle) * boat.speed * delta * speedMultiplier;
+          
+          // Check if reached current waypoint
+          if (distToDest < 40) {
+            boat.tourWaypointIndex++;
+            
+            // Check if there are more waypoints
+            if (boat.tourWaypointIndex < boat.tourWaypoints.length) {
+              // Move to next waypoint
+              const nextWaypoint = boat.tourWaypoints[boat.tourWaypointIndex];
+              boat.destScreenX = nextWaypoint.screenX;
+              boat.destScreenY = nextWaypoint.screenY;
+            } else {
+              // Tour complete - head back home
+              boat.state = 'sailing';
+              boat.destScreenX = boat.homeScreenX;
+              boat.destScreenY = boat.homeScreenY;
+              boat.age = 0; // Reset age for the return trip
+            }
+          }
+          
+          // Safety: remove boats that have been touring too long (stuck)
+          if (boat.age > 120) {
+            continue;
           }
           break;
         }
         
         case 'sailing': {
-          // Navigate toward destination with gentle course corrections
+          // Navigate toward home dock with gentle course corrections
           const angleToDestination = Math.atan2(boat.destScreenY - boat.y, boat.destScreenX - boat.x);
           boat.targetAngle = angleToDestination;
           
@@ -4208,7 +4390,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
           nextX = boat.x + Math.cos(boat.angle) * boat.speed * delta * speedMultiplier;
           nextY = boat.y + Math.sin(boat.angle) * boat.speed * delta * speedMultiplier;
           
-          // Check if approaching destination
+          // Check if approaching home dock
           if (distToDest < 60) {
             boat.state = 'arriving';
           }
@@ -4221,7 +4403,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         }
         
         case 'arriving': {
-          // Slow down and dock
+          // Slow down and dock at home
           boat.speed = Math.max(5, boat.speed - delta * 8);
           
           const angleToDestination = Math.atan2(boat.destScreenY - boat.y, boat.destScreenX - boat.x);
@@ -4236,37 +4418,38 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
           nextX = boat.x + Math.cos(boat.angle) * boat.speed * delta * speedMultiplier;
           nextY = boat.y + Math.sin(boat.angle) * boat.speed * delta * speedMultiplier;
           
-          // Check if docked
+          // Check if docked at home
           if (distToDest < 15) {
             boat.state = 'docked';
-            // Set up return trip - swap origin and destination
-            const tempX = boat.originX;
-            const tempY = boat.originY;
-            boat.originX = boat.destX;
-            boat.originY = boat.destY;
-            boat.destX = tempX;
-            boat.destY = tempY;
-            
-            // Update screen destination
-            const destWaterTile = findAdjacentWaterTile(boat.destX, boat.destY);
-            if (destWaterTile) {
-              const { screenX, screenY } = gridToScreen(destWaterTile.x, destWaterTile.y, 0, 0);
-              boat.destScreenX = screenX + TILE_WIDTH / 2;
-              boat.destScreenY = screenY + TILE_HEIGHT / 2;
-            }
-            
-            boat.age = 0; // Reset age for return trip timer
+            boat.age = 0; // Reset age for dock timer
             boat.wake = []; // Clear wake when docked
           }
           break;
         }
         
         case 'docked': {
-          // Wait at dock, then depart
+          // Wait at dock, then generate a new tour and depart
           if (boat.age > 3 + Math.random() * 3) {
+            // Generate fresh tour waypoints for the next trip
+            const waterTile = findAdjacentWaterTile(boat.originX, boat.originY);
+            if (waterTile) {
+              boat.tourWaypoints = generateTourWaypoints(waterTile.x, waterTile.y);
+              boat.tourWaypointIndex = 0;
+            }
+            
             boat.state = 'departing';
             boat.speed = 15 + Math.random() * 10;
             boat.age = 0;
+            
+            // Set initial destination for departure
+            if (boat.tourWaypoints.length > 0) {
+              boat.destScreenX = boat.tourWaypoints[0].screenX;
+              boat.destScreenY = boat.tourWaypoints[0].screenY;
+            } else {
+              // No waypoints - pick a random direction temporarily
+              boat.destScreenX = boat.homeScreenX + (Math.random() - 0.5) * 200;
+              boat.destScreenY = boat.homeScreenY + (Math.random() - 0.5) * 200;
+            }
             
             // Calculate angle to new destination
             const angle = Math.atan2(boat.destScreenY - boat.y, boat.destScreenX - boat.x);
@@ -4319,7 +4502,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     }
     
     boatsRef.current = updatedBoats;
-  }, [findMarinasAndPiers, findAdjacentWaterTile, isOverWater]);
+  }, [findMarinasAndPiers, findAdjacentWaterTile, isOverWater, generateTourWaypoints]);
 
   // Draw boats with wakes
   const drawBoats = useCallback((ctx: CanvasRenderingContext2D) => {
