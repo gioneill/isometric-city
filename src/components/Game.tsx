@@ -514,7 +514,7 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
   onSelectTool: (tool: Tool) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, buttonHeight: 0 });
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, buttonHeight: 0, openUpward: false });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -522,6 +522,7 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
   
   const hasSelectedTool = tools.includes(selectedTool);
   const SUBMENU_GAP = 12; // Gap between sidebar and submenu
+  const SUBMENU_MAX_HEIGHT = 280; // Approximate max height of submenu
   
   const clearCloseTimeout = useCallback(() => {
     if (timeoutRef.current) {
@@ -535,10 +536,17 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
     // Calculate position based on button location
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      // Check if opening downward would overflow the screen
+      const spaceBelow = viewportHeight - rect.top;
+      const openUpward = spaceBelow < SUBMENU_MAX_HEIGHT && rect.top > SUBMENU_MAX_HEIGHT;
+      
       setMenuPosition({
-        top: rect.top,
+        top: openUpward ? rect.bottom : rect.top,
         left: rect.right + SUBMENU_GAP,
         buttonHeight: rect.height,
+        openUpward,
       });
     }
     setIsOpen(true);
@@ -650,7 +658,9 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
           style={{ 
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(96, 165, 250, 0.1)',
             zIndex: 9999,
-            top: `${menuPosition.top}px`,
+            ...(menuPosition.openUpward 
+              ? { bottom: `${window.innerHeight - menuPosition.top}px` }
+              : { top: `${menuPosition.top}px` }),
             left: `${menuPosition.left}px`,
           }}
           onMouseEnter={handleSubmenuEnter}
@@ -2374,6 +2384,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
   const [isPanning, setIsPanning] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
+  const [hoveredIncident, setHoveredIncident] = useState<{
+    x: number;
+    y: number;
+    type: 'fire' | 'crime';
+    crimeType?: 'robbery' | 'burglary' | 'disturbance' | 'traffic';
+    screenX: number;
+    screenY: number;
+  } | null>(null);
   const [zoom, setZoom] = useState(isMobile ? 0.6 : 1);
   const carsRef = useRef<Car[]>([]);
   const carIdRef = useRef(0);
@@ -4576,6 +4594,156 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     ctx.restore();
   }, []);
 
+  // Animation time ref for incident indicator pulsing
+  const incidentAnimTimeRef = useRef(0);
+  
+  // Draw incident indicators (fires and crimes) with pulsing effect
+  const drawIncidentIndicators = useCallback((ctx: CanvasRenderingContext2D, delta: number) => {
+    const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    const canvas = ctx.canvas;
+    const dpr = window.devicePixelRatio || 1;
+    
+    if (!currentGrid || currentGridSize <= 0) return;
+    
+    // Update animation time
+    incidentAnimTimeRef.current += delta;
+    const animTime = incidentAnimTimeRef.current;
+    
+    ctx.save();
+    ctx.scale(dpr * currentZoom, dpr * currentZoom);
+    ctx.translate(currentOffset.x / currentZoom, currentOffset.y / currentZoom);
+    
+    const viewWidth = canvas.width / (dpr * currentZoom);
+    const viewHeight = canvas.height / (dpr * currentZoom);
+    const viewLeft = -currentOffset.x / currentZoom - TILE_WIDTH * 2;
+    const viewTop = -currentOffset.y / currentZoom - TILE_HEIGHT * 4;
+    const viewRight = viewWidth - currentOffset.x / currentZoom + TILE_WIDTH * 2;
+    const viewBottom = viewHeight - currentOffset.y / currentZoom + TILE_HEIGHT * 4;
+    
+    // Draw crime incident indicators
+    activeCrimeIncidentsRef.current.forEach((crime) => {
+      const { screenX, screenY } = gridToScreen(crime.x, crime.y, 0, 0);
+      const centerX = screenX + TILE_WIDTH / 2;
+      const centerY = screenY + TILE_HEIGHT / 2;
+      
+      // View culling
+      if (centerX < viewLeft || centerX > viewRight || centerY < viewTop || centerY > viewBottom) {
+        return;
+      }
+      
+      // Pulsing effect
+      const pulse = Math.sin(animTime * 4) * 0.3 + 0.7;
+      const outerPulse = Math.sin(animTime * 3) * 0.5 + 0.5;
+      
+      // Outer glow ring (expanding pulse) - smaller
+      ctx.beginPath();
+      ctx.arc(centerX, centerY - 8, 18 + outerPulse * 6, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(59, 130, 246, ${0.25 * (1 - outerPulse)})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Inner pulsing glow (smaller)
+      const gradient = ctx.createRadialGradient(centerX, centerY - 8, 0, centerX, centerY - 8, 14 * pulse);
+      gradient.addColorStop(0, `rgba(59, 130, 246, ${0.5 * pulse})`);
+      gradient.addColorStop(0.5, `rgba(59, 130, 246, ${0.2 * pulse})`);
+      gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+      ctx.beginPath();
+      ctx.arc(centerX, centerY - 8, 14 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      
+      // Crime icon (small shield with exclamation)
+      ctx.save();
+      ctx.translate(centerX, centerY - 12);
+      
+      // Shield background (smaller)
+      ctx.fillStyle = `rgba(30, 64, 175, ${0.9 * pulse})`;
+      ctx.beginPath();
+      ctx.moveTo(0, -7);
+      ctx.lineTo(6, -4);
+      ctx.lineTo(6, 2);
+      ctx.quadraticCurveTo(0, 8, 0, 8);
+      ctx.quadraticCurveTo(0, 8, -6, 2);
+      ctx.lineTo(-6, -4);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Shield border
+      ctx.strokeStyle = `rgba(147, 197, 253, ${pulse})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      // Exclamation mark (smaller)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-1, -4, 2, 5);
+      ctx.beginPath();
+      ctx.arc(0, 4, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.restore();
+    });
+    
+    // Draw fire indicators (for tiles on fire without visual fire effect already)
+    for (let y = 0; y < currentGridSize; y++) {
+      for (let x = 0; x < currentGridSize; x++) {
+        const tile = currentGrid[y][x];
+        if (!tile.building.onFire) continue;
+        
+        const { screenX, screenY } = gridToScreen(x, y, 0, 0);
+        const centerX = screenX + TILE_WIDTH / 2;
+        const centerY = screenY + TILE_HEIGHT / 2;
+        
+        // View culling
+        if (centerX < viewLeft || centerX > viewRight || centerY < viewTop || centerY > viewBottom) {
+          continue;
+        }
+        
+        // Pulsing effect for fire (faster)
+        const pulse = Math.sin(animTime * 6) * 0.3 + 0.7;
+        const outerPulse = Math.sin(animTime * 4) * 0.5 + 0.5;
+        
+        // Outer glow ring (expanding pulse) - red/orange
+        ctx.beginPath();
+        ctx.arc(centerX, centerY - 12, 22 + outerPulse * 8, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${0.3 * (1 - outerPulse)})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Inner danger icon (smaller)
+        ctx.save();
+        ctx.translate(centerX, centerY - 15);
+        
+        // Warning triangle background (smaller)
+        ctx.fillStyle = `rgba(220, 38, 38, ${0.9 * pulse})`;
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(8, 5);
+        ctx.lineTo(-8, 5);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Triangle border
+        ctx.strokeStyle = `rgba(252, 165, 165, ${pulse})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // Fire flame icon inside (smaller)
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.moveTo(0, -3);
+        ctx.quadraticCurveTo(2.5, 0, 2, 2.5);
+        ctx.quadraticCurveTo(0.5, 1.5, 0, 2.5);
+        ctx.quadraticCurveTo(-0.5, 1.5, -2, 2.5);
+        ctx.quadraticCurveTo(-2.5, 0, 0, -3);
+        ctx.fill();
+        
+        ctx.restore();
+      }
+    }
+    
+    ctx.restore();
+  }, []);
+
   // Load sprite sheet on mount and when sprite pack changes
   useEffect(() => {
     // Load the sprite sheet with background color filtering
@@ -6354,12 +6522,13 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       drawPedestrians(ctx); // Draw pedestrians (zoom-gated)
       drawBoats(ctx); // Draw boats on water
       drawEmergencyVehicles(ctx); // Draw emergency vehicles!
+      drawIncidentIndicators(ctx, delta); // Draw fire/crime incident indicators!
       drawAirplanes(ctx); // Draw airplanes above everything
     };
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateBoats, drawBoats]);
+  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateBoats, drawBoats, drawIncidentIndicators]);
   
   // Day/Night cycle lighting rendering
   useEffect(() => {
@@ -6752,6 +6921,35 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         // Only update hovered tile if it actually changed to avoid unnecessary re-renders
         setHoveredTile(prev => (prev?.x === gridX && prev?.y === gridY) ? prev : { x: gridX, y: gridY });
         
+        // Check for fire or crime incidents at this tile for tooltip display
+        const tile = grid[gridY]?.[gridX];
+        const crimeKey = `${gridX},${gridY}`;
+        const crimeIncident = activeCrimeIncidentsRef.current.get(crimeKey);
+        
+        if (tile?.building.onFire) {
+          // Fire incident
+          setHoveredIncident({
+            x: gridX,
+            y: gridY,
+            type: 'fire',
+            screenX: e.clientX,
+            screenY: e.clientY,
+          });
+        } else if (crimeIncident) {
+          // Crime incident
+          setHoveredIncident({
+            x: gridX,
+            y: gridY,
+            type: 'crime',
+            crimeType: crimeIncident.type,
+            screenX: e.clientX,
+            screenY: e.clientY,
+          });
+        } else {
+          // No incident at this tile
+          setHoveredIncident(null);
+        }
+        
         // Update drag rectangle end point for zoning tools
         if (isDragging && showsDragGrid && dragStartTile) {
           setDragEndTile({ x: gridX, y: gridY });
@@ -6802,7 +7000,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         }
       }
     }
-  }, [isPanning, dragStart, offset, zoom, gridSize, isDragging, showsDragGrid, dragStartTile, selectedTool, roadDrawDirection, supportsDragPlace, placeAtTile, clampOffset]);
+  }, [isPanning, dragStart, offset, zoom, gridSize, isDragging, showsDragGrid, dragStartTile, selectedTool, roadDrawDirection, supportsDragPlace, placeAtTile, clampOffset, grid]);
   
   const handleMouseUp = useCallback(() => {
     // Check for road connection when dragging off edge
@@ -7156,6 +7354,60 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
                 {supportsDragPlace && !showsDragGrid && ' - Drag to place'}
               </>
             )}
+          </div>
+        );
+      })()}
+      
+      {/* Incident Tooltip - shows when hovering over fire or crime */}
+      {hoveredIncident && (() => {
+        // Calculate position to avoid overflow
+        const tooltipWidth = 200;
+        const padding = 16;
+        const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+        
+        // Check if tooltip would overflow right edge
+        const wouldOverflowRight = hoveredIncident.screenX + padding + tooltipWidth > viewportWidth - padding;
+        const left = wouldOverflowRight 
+          ? hoveredIncident.screenX - tooltipWidth - padding 
+          : hoveredIncident.screenX + padding;
+        
+        return (
+          <div 
+            className="fixed pointer-events-none z-[100]"
+            style={{ left, top: hoveredIncident.screenY - 8 }}
+          >
+            <div className="bg-sidebar border border-sidebar-border rounded-md shadow-lg px-3 py-2 w-[200px]">
+              {/* Header */}
+              <div className="flex items-center gap-2 mb-1">
+                {hoveredIncident.type === 'fire' ? (
+                  <FireIcon size={14} className="text-red-400" />
+                ) : (
+                  <SafetyIcon size={14} className="text-blue-400" />
+                )}
+                <span className="text-xs font-semibold text-sidebar-foreground">
+                  {hoveredIncident.type === 'fire' ? 'Fire' : 
+                   hoveredIncident.crimeType === 'robbery' ? 'Robbery' :
+                   hoveredIncident.crimeType === 'burglary' ? 'Burglary' :
+                   hoveredIncident.crimeType === 'disturbance' ? 'Disturbance' :
+                   'Traffic Incident'}
+                </span>
+              </div>
+              
+              {/* Description */}
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                {hoveredIncident.type === 'fire' 
+                  ? 'Building on fire. Fire trucks responding.'
+                  : hoveredIncident.crimeType === 'robbery' ? 'Armed robbery in progress.'
+                  : hoveredIncident.crimeType === 'burglary' ? 'Break-in detected.'
+                  : hoveredIncident.crimeType === 'disturbance' ? 'Public disturbance reported.'
+                  : 'Traffic violation in progress.'}
+              </p>
+              
+              {/* Location */}
+              <div className="mt-1.5 pt-1.5 border-t border-sidebar-border/50 text-[10px] text-muted-foreground/60 font-mono">
+                ({hoveredIncident.x}, {hoveredIncident.y})
+              </div>
+            </div>
           </div>
         );
       })()}
