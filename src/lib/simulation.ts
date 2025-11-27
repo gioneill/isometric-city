@@ -1709,7 +1709,7 @@ const BUILDING_SIZES: Partial<Record<BuildingType, { width: number; height: numb
   go_kart_track: { width: 2, height: 2 },
   amphitheater: { width: 2, height: 2 },
   greenhouse_garden: { width: 2, height: 2 },
-  pier_large: { width: 2, height: 2 },
+  marina_docks_small: { width: 2, height: 2 },
   roller_coaster_small: { width: 2, height: 2 },
   mountain_lodge: { width: 2, height: 2 },
   mountain_trailhead: { width: 3, height: 3 },
