@@ -88,7 +88,7 @@ export interface SpritePack {
 // ============================================================================
 const SPRITE_PACK_SPRITES4: SpritePack = {
   id: 'sprites4',
-  name: 'Sprites 4',
+  name: 'Default Theme',
   src: '/assets/sprites_red_water_new.png',
   constructionSrc: '/assets/sprites_red_water_new_construction.png',
   abandonedSrc: '/assets/sprites_red_water_new_abandoned.png',
@@ -372,6 +372,38 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
 };
 
 // ============================================================================
+// SPRITE PACK: SPRITES4 HARRY POTTER (Harry Potter themed variant)
+// ============================================================================
+// Same layout and configuration as SPRITES4, but with Harry Potter themed artwork
+const SPRITE_PACK_SPRITES4_HARRY: SpritePack = {
+  ...SPRITE_PACK_SPRITES4,
+  id: 'sprites4-harry',
+  name: 'Harry Potter Theme',
+  src: '/assets/sprites_red_water_new_harry.png',
+  // Note: Uses same construction, abandoned, dense, and parks sheets as the default
+  // If you have Harry Potter themed variants for those, update these paths:
+  // constructionSrc: '/assets/sprites_red_water_new_harry_construction.png',
+  // abandonedSrc: '/assets/sprites_red_water_new_harry_abandoned.png',
+  // denseSrc: '/assets/sprites_red_water_new_harry_dense.png',
+};
+
+// ============================================================================
+// SPRITE PACK: SPRITES4 CHINA (Chinese themed variant)
+// ============================================================================
+// Same layout and configuration as SPRITES4, but with Chinese themed artwork
+const SPRITE_PACK_SPRITES4_CHINA: SpritePack = {
+  ...SPRITE_PACK_SPRITES4,
+  id: 'sprites4-china',
+  name: 'Chinese Theme',
+  src: '/assets/sprites_red_water_new_china.png',
+  // Note: Uses same construction, abandoned, dense, and parks sheets as the default
+  // If you have Chinese themed variants for those, update these paths:
+  // constructionSrc: '/assets/sprites_red_water_new_china_construction.png',
+  // abandonedSrc: '/assets/sprites_red_water_new_china_abandoned.png',
+  // denseSrc: '/assets/sprites_red_water_new_china_dense.png',
+};
+
+// ============================================================================
 // SPRITE PACKS REGISTRY
 // ============================================================================
 // Add new sprite packs here. Each pack can have completely different
@@ -379,6 +411,8 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
 // ============================================================================
 export const SPRITE_PACKS: SpritePack[] = [
   SPRITE_PACK_SPRITES4,
+  SPRITE_PACK_SPRITES4_HARRY,
+  SPRITE_PACK_SPRITES4_CHINA,
 ];
 
 // Default sprite pack ID
