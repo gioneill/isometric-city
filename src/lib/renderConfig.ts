@@ -353,19 +353,14 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   farmsCols: 5,
   farmsRows: 6,
   farmsVariants: {
-    // All 30 farm sprites (6 rows × 5 cols) as variants for 1x1 low-density industrial (factory_small only)
+    // Farm sprites for 1x1 low-density industrial (factory_small only)
+    // Excluding rows 2, 3, 4 which have clipping issues (assets bleed from row above)
     factory_small: [
-      // Row 0
+      // Row 0 (top row - no clipping possible)
       { row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }, { row: 0, col: 3 }, { row: 0, col: 4 },
-      // Row 1
+      // Row 1 (verified OK)
       { row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 }, { row: 1, col: 3 }, { row: 1, col: 4 },
-      // Row 2
-      { row: 2, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 }, { row: 2, col: 3 }, { row: 2, col: 4 },
-      // Row 3
-      { row: 3, col: 0 }, { row: 3, col: 1 }, { row: 3, col: 2 }, { row: 3, col: 3 }, { row: 3, col: 4 },
-      // Row 4
-      { row: 4, col: 0 }, { row: 4, col: 1 }, { row: 4, col: 2 }, { row: 4, col: 3 }, { row: 4, col: 4 },
-      // Row 5
+      // Row 5 (bottom row)
       { row: 5, col: 0 }, { row: 5, col: 1 }, { row: 5, col: 2 }, { row: 5, col: 3 }, { row: 5, col: 4 },
     ],
   },
