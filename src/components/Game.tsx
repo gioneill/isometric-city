@@ -12,46 +12,21 @@ import {
   PlayIcon,
   PauseIcon,
   FastForwardIcon,
-  CloseIcon,
-  RoadIcon,
-  SubwayIcon,
-  TreeIcon,
   FireIcon,
-  PowerIcon,
-  WaterIcon,
-  PopulationIcon,
-  JobsIcon,
-  MoneyIcon,
   HappyIcon,
   HealthIcon,
   EducationIcon,
   SafetyIcon,
-  MedicalCrossIcon,
   EnvironmentIcon,
-  ChartIcon,
-  TrophyIcon,
-  AdvisorIcon,
-  AlertIcon,
-  InfoIcon,
-  BudgetIcon,
-  SettingsIcon,
 } from './ui/Icons';
 import { getSpriteCoords, BUILDING_TO_SPRITE, SPRITE_VERTICAL_OFFSETS, SPRITE_HORIZONTAL_OFFSETS, SPRITE_ORDER, SpritePack, getActiveSpritePack } from '@/lib/renderConfig';
 
 // Import shadcn components
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Switch } from '@/components/ui/switch';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCheatCodes } from '@/hooks/useCheatCodes';
 import { VinnieDialog } from '@/components/VinnieDialog';
 import { CommandMenu } from '@/components/ui/CommandMenu';
@@ -64,28 +39,13 @@ import {
   Car,
   CarDirection,
   Airplane,
-  AirplaneState,
-  ContrailParticle,
   Helicopter,
-  HelicopterState,
-  RotorWashParticle,
   EmergencyVehicle,
   EmergencyVehicleType,
-  EmergencyVehicleState,
-  Pedestrian,
-  PedestrianDestType,
   Boat,
-  BoatState,
-  WakeParticle,
   TourWaypoint,
-  Firework,
-  FireworkState,
-  FireworkParticle,
-  SmogParticle,
   FactorySmog,
   DirectionMeta,
-  WorldRenderState,
-  OverlayMode,
 } from '@/components/game/types';
 import {
   CAR_COLORS,
@@ -114,7 +74,6 @@ import {
   FIREWORK_SPAWN_INTERVAL_MAX,
   FIREWORK_SHOW_DURATION,
   FIREWORK_SHOW_CHANCE,
-  SMOG_BUILDINGS,
   SMOG_PARTICLE_MAX_AGE,
   SMOG_PARTICLE_MAX_AGE_MOBILE,
   SMOG_SPAWN_INTERVAL_MEDIUM,
@@ -357,12 +316,6 @@ function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string
     </div>
   );
 }
-
-// MiniMap moved to @/components/game/MiniMap.tsx
-
-// TileInfoPanel moved to @/components/game/panels/TileInfoPanel.tsx
-// Image loading utilities moved to @/components/game/imageLoader.ts
-// Placeholder colors moved to @/components/game/placeholders.ts
 
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
 function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMobile = false, navigationTarget, onNavigationComplete, onViewportChange }: {
