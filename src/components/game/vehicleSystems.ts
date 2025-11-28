@@ -6,6 +6,7 @@ import { findResidentialBuildings, findPedestrianDestinations, findStations, fin
 import { drawPedestrians as drawPedestriansUtil } from './drawPedestrians';
 import { BuildingType, Tile } from '@/types/game';
 import { getTrafficLightState, canProceedThroughIntersection, TRAFFIC_LIGHT_TIMING } from './trafficSystem';
+import { CrimeType, getRandomCrimeType, getCrimeDuration } from './incidentData';
 
 export interface VehicleSystemRefs {
   carsRef: React.MutableRefObject<Car[]>;
@@ -16,7 +17,7 @@ export interface VehicleSystemRefs {
   emergencyDispatchTimerRef: React.MutableRefObject<number>;
   activeFiresRef: React.MutableRefObject<Set<string>>;
   activeCrimesRef: React.MutableRefObject<Set<string>>;
-  activeCrimeIncidentsRef: React.MutableRefObject<Map<string, { x: number; y: number; type: 'robbery' | 'burglary' | 'disturbance' | 'traffic'; timeRemaining: number }>>;
+  activeCrimeIncidentsRef: React.MutableRefObject<Map<string, { x: number; y: number; type: CrimeType; timeRemaining: number }>>;
   crimeSpawnTimerRef: React.MutableRefObject<number>;
   pedestriansRef: React.MutableRefObject<Pedestrian[]>;
   pedestrianIdRef: React.MutableRefObject<number>;
@@ -237,9 +238,8 @@ export function useVehicleSystems(
       const target = weightedTiles[Math.floor(Math.random() * weightedTiles.length)];
       const key = `${target.x},${target.y}`;
       
-      const crimeTypes: Array<'robbery' | 'burglary' | 'disturbance' | 'traffic'> = ['robbery', 'burglary', 'disturbance', 'traffic'];
-      const crimeType = crimeTypes[Math.floor(Math.random() * crimeTypes.length)];
-      const duration = crimeType === 'traffic' ? 15 : crimeType === 'disturbance' ? 20 : 30;
+      const crimeType = getRandomCrimeType();
+      const duration = getCrimeDuration(crimeType);
       
       activeCrimeIncidentsRef.current.set(key, {
         x: target.x,

@@ -132,6 +132,7 @@ import {
   ROAD_CONFIG,
   TRAFFIC_LIGHT_TIMING,
 } from '@/components/game/trafficSystem';
+import { CrimeType, getCrimeName, getCrimeDescription, getFireDescriptionForTile, getFireNameForTile } from '@/components/game/incidentData';
 
 // Props interface for CanvasIsometricGrid
 export interface CanvasIsometricGridProps {
@@ -165,7 +166,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     x: number;
     y: number;
     type: 'fire' | 'crime';
-    crimeType?: 'robbery' | 'burglary' | 'disturbance' | 'traffic';
+    crimeType?: CrimeType;
     screenX: number;
     screenY: number;
   } | null>(null);
@@ -178,7 +179,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const emergencyDispatchTimerRef = useRef(0);
   const activeFiresRef = useRef<Set<string>>(new Set()); // Track fires that already have a truck dispatched
   const activeCrimesRef = useRef<Set<string>>(new Set()); // Track crimes that already have a car dispatched
-  const activeCrimeIncidentsRef = useRef<Map<string, { x: number; y: number; type: 'robbery' | 'burglary' | 'disturbance' | 'traffic'; timeRemaining: number }>>(new Map()); // Persistent crime incidents
+  const activeCrimeIncidentsRef = useRef<Map<string, { x: number; y: number; type: CrimeType; timeRemaining: number }>>(new Map()); // Persistent crime incidents
   const crimeSpawnTimerRef = useRef(0); // Timer for spawning new crime incidents
   
   // Pedestrian system refs
@@ -4348,7 +4349,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             className="fixed pointer-events-none z-[100]"
             style={{ left, top: hoveredIncident.screenY - 8 }}
           >
-            <div className="bg-sidebar border border-sidebar-border rounded-md shadow-lg px-3 py-2 w-[200px]">
+            <div className="bg-sidebar border border-sidebar-border rounded-md shadow-lg px-3 py-2 w-[220px]">
               {/* Header */}
               <div className="flex items-center gap-2 mb-1">
                 {hoveredIncident.type === 'fire' ? (
@@ -4357,22 +4358,21 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
                   <SafetyIcon size={14} className="text-blue-400" />
                 )}
                 <span className="text-xs font-semibold text-sidebar-foreground">
-                  {hoveredIncident.type === 'fire' ? 'Fire' : 
-                   hoveredIncident.crimeType === 'robbery' ? 'Robbery' :
-                   hoveredIncident.crimeType === 'burglary' ? 'Burglary' :
-                   hoveredIncident.crimeType === 'disturbance' ? 'Disturbance' :
-                   'Traffic Incident'}
+                  {hoveredIncident.type === 'fire' 
+                    ? getFireNameForTile(hoveredIncident.x, hoveredIncident.y)
+                    : hoveredIncident.crimeType 
+                      ? getCrimeName(hoveredIncident.crimeType)
+                      : 'Incident'}
                 </span>
               </div>
               
               {/* Description */}
               <p className="text-[11px] text-muted-foreground leading-tight">
                 {hoveredIncident.type === 'fire' 
-                  ? 'Building on fire. Fire trucks responding.'
-                  : hoveredIncident.crimeType === 'robbery' ? 'Armed robbery in progress.'
-                  : hoveredIncident.crimeType === 'burglary' ? 'Break-in detected.'
-                  : hoveredIncident.crimeType === 'disturbance' ? 'Public disturbance reported.'
-                  : 'Traffic violation in progress.'}
+                  ? getFireDescriptionForTile(hoveredIncident.x, hoveredIncident.y)
+                  : hoveredIncident.crimeType 
+                    ? getCrimeDescription(hoveredIncident.crimeType)
+                    : 'Incident reported.'}
               </p>
               
               {/* Location */}
