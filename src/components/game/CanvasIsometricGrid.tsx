@@ -3146,6 +3146,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
                 sourceH = tileHeight * 0.8; // Reduce height by 20% to avoid row below clipping
               } else if (buildingType === 'amphitheater') {
                 sourceY += tileHeight * 0.1; // Shift down 10% to avoid row above clipping
+              } else if (buildingType === 'cabin_house') {
+                sourceY += tileHeight * 0.1; // Shift down 10% to avoid row above clipping
               } else if (buildingType === 'go_kart_track') {
                 sourceY += tileHeight * 0.1; // Shift down 10% to avoid row above clipping
               }

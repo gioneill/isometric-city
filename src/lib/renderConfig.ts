@@ -209,7 +209,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     fire_station: -0.2, // Shifted up to match police station
     police_station: -0.1, // Shifted down from previous position
     hospital: -0.5, // Shift up (reduced from previous)
-    school: -0.4, // Shift down a tiny bit
+    school: -0.35, // Shifted down 0.05 tiles from -0.4
     power_plant: -0.3, // Shift up
     park: -0.15, // Perfect position
     park_large: -0.85, // Shift up significantly (almost an entire tile)
