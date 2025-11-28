@@ -412,7 +412,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const placeAtTile = useCallback((x: number, y: number, onPlace?: (tool: Tool) => void) => {
+  const placeAtTile = useCallback((x: number, y: number) => {
     setState((prev) => {
       const tool = prev.selectedTool;
       if (tool === 'select') return prev;
@@ -445,17 +445,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         const nextState = placeSubway(prev, x, y);
         if (nextState === prev) return prev;
         
-        const finalState = {
+        return {
           ...nextState,
           stats: { ...nextState.stats, money: nextState.stats.money - cost },
         };
-        
-        // Call callback after state update
-        if (onPlace) {
-          setTimeout(() => onPlace(tool), 0);
-        }
-        
-        return finalState;
       }
 
       let nextState: GameState;
@@ -477,11 +470,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           ...nextState,
           stats: { ...nextState.stats, money: nextState.stats.money - cost },
         };
-      }
-
-      // Call callback after successful placement
-      if (onPlace) {
-        setTimeout(() => onPlace(tool), 0);
       }
 
       return nextState;
