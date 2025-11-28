@@ -14,6 +14,7 @@ import exampleState from '@/resources/example_state.json';
 import exampleState2 from '@/resources/example_state_2.json';
 import exampleState3 from '@/resources/example_state_3.json';
 import exampleState4 from '@/resources/example_state_4.json';
+import exampleState5 from '@/resources/example_state_5.json';
 
 export function SettingsPanel() {
   const { state, setActivePanel, setDisastersEnabled, newGame, loadState, exportState, currentSpritePack, availableSpritePacks, setSpritePack } = useGame();
@@ -306,6 +307,15 @@ export function SettingsPanel() {
             >
               Load Example State 4
             </Button>
+            <Button
+              variant="outline"
+              className="w-full mt-2"
+              onClick={() => {
+                loadState(JSON.stringify(exampleState5));
+                setActivePanel('none');
+              }}
+            >
+              Load Example State 5
           </div>
         </div>
       </DialogContent>

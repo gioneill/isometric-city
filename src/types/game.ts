@@ -294,6 +294,7 @@ export interface AdjacentCity {
   name: string;
   direction: 'north' | 'south' | 'east' | 'west';
   connected: boolean;
+  discovered: boolean; // City becomes discovered when a road reaches its edge
 }
 
 export interface WaterBody {

@@ -16,6 +16,7 @@ import {
   placeBuilding,
   placeSubway,
   simulateTick,
+  checkForDiscoverableCities,
 } from '@/lib/simulation';
 import {
   SPRITE_PACKS,
@@ -37,6 +38,8 @@ type GameContextValue = {
   setBudgetFunding: (key: keyof Budget, funding: number) => void;
   placeAtTile: (x: number, y: number) => void;
   connectToCity: (cityId: string) => void;
+  discoverCity: (cityId: string) => void;
+  checkAndDiscoverCities: (onDiscover?: (city: { id: string; direction: 'north' | 'south' | 'east' | 'west'; name: string }) => void) => void;
   setDisastersEnabled: (enabled: boolean) => void;
   newGame: (name?: string, size?: number) => void;
   loadState: (stateString: string) => boolean;
@@ -147,6 +150,13 @@ function loadGameState(): GameState | null {
         // Ensure adjacentCities and waterBodies exist for backward compatibility
         if (!parsed.adjacentCities) {
           parsed.adjacentCities = [];
+        }
+        // Migrate adjacentCities to have 'discovered' property
+        for (const city of parsed.adjacentCities) {
+          if (city.discovered === undefined) {
+            // Old cities that exist are implicitly discovered (they were visible in the old system)
+            city.discovered = true;
+          }
         }
         if (!parsed.waterBodies) {
           parsed.waterBodies = [];
@@ -493,9 +503,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const city = prev.adjacentCities.find(c => c.id === cityId);
       if (!city || city.connected) return prev;
 
-      // Mark city as connected and add trade income
+      // Mark city as connected (and discovered if not already) and add trade income
       const updatedCities = prev.adjacentCities.map(c =>
-        c.id === cityId ? { ...c, connected: true } : c
+        c.id === cityId ? { ...c, connected: true, discovered: true } : c
       );
 
       // Add trade income bonus (one-time bonus + monthly income)
@@ -520,6 +530,66 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           },
           ...prev.notifications.slice(0, 9), // Keep only 10 most recent
         ],
+      };
+    });
+  }, []);
+
+  const discoverCity = useCallback((cityId: string) => {
+    setState((prev) => {
+      const city = prev.adjacentCities.find(c => c.id === cityId);
+      if (!city || city.discovered) return prev;
+
+      // Mark city as discovered
+      const updatedCities = prev.adjacentCities.map(c =>
+        c.id === cityId ? { ...c, discovered: true } : c
+      );
+
+      return {
+        ...prev,
+        adjacentCities: updatedCities,
+        notifications: [
+          {
+            id: `city-discover-${Date.now()}`,
+            title: 'City Discovered!',
+            description: `Your road has reached the ${city.direction} border! You can now connect to ${city.name}.`,
+            icon: 'road',
+            timestamp: Date.now(),
+          },
+          ...prev.notifications.slice(0, 9), // Keep only 10 most recent
+        ],
+      };
+    });
+  }, []);
+
+  // Check for cities that should be discovered based on roads reaching edges
+  // Calls onDiscover callback with city info if a new city was discovered
+  const checkAndDiscoverCities = useCallback((onDiscover?: (city: { id: string; direction: 'north' | 'south' | 'east' | 'west'; name: string }) => void): void => {
+    setState((prev) => {
+      const newlyDiscovered = checkForDiscoverableCities(prev.grid, prev.gridSize, prev.adjacentCities);
+      
+      if (newlyDiscovered.length === 0) return prev;
+      
+      // Discover the first city found
+      const cityToDiscover = newlyDiscovered[0];
+      
+      const updatedCities = prev.adjacentCities.map(c =>
+        c.id === cityToDiscover.id ? { ...c, discovered: true } : c
+      );
+      
+      // Call the callback after state update is scheduled
+      if (onDiscover) {
+        setTimeout(() => {
+          onDiscover({
+            id: cityToDiscover.id,
+            direction: cityToDiscover.direction,
+            name: cityToDiscover.name,
+          });
+        }, 0);
+      }
+      
+      return {
+        ...prev,
+        adjacentCities: updatedCities,
       };
     });
   }, []);
@@ -556,6 +626,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         // Ensure new fields exist for backward compatibility
         if (!parsed.adjacentCities) {
           parsed.adjacentCities = [];
+        }
+        // Migrate adjacentCities to have 'discovered' property
+        for (const city of parsed.adjacentCities) {
+          if (city.discovered === undefined) {
+            // Old cities that exist are implicitly discovered (they were visible in the old system)
+            city.discovered = true;
+          }
         }
         if (!parsed.waterBodies) {
           parsed.waterBodies = [];
@@ -633,6 +710,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setBudgetFunding,
     placeAtTile,
     connectToCity,
+    discoverCity,
+    checkAndDiscoverCities,
     setDisastersEnabled,
     newGame,
     loadState,

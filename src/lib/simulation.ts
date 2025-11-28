@@ -388,22 +388,13 @@ function generateOceans(grid: Tile[][], size: number, seed: number): WaterBody[]
   return waterBodies;
 }
 
-// Generate adjacent cities (sometimes, not always)
+// Generate adjacent cities - always create one for each direction (undiscovered until road reaches edge)
 function generateAdjacentCities(): AdjacentCity[] {
   const cities: AdjacentCity[] = [];
-  const cityChance = 0.7; // 70% chance of having at least one adjacent city
-  
-  if (Math.random() > cityChance) {
-    return cities; // No adjacent cities this time
-  }
-  
   const directions: Array<'north' | 'south' | 'east' | 'west'> = ['north', 'south', 'east', 'west'];
-  const numCities = 1 + Math.floor(Math.random() * 3); // 1-3 adjacent cities
-  const selectedDirections = directions.sort(() => Math.random() - 0.5).slice(0, numCities);
-  
   const usedNames = new Set<string>();
   
-  for (const direction of selectedDirections) {
+  for (const direction of directions) {
     let name: string;
     do {
       name = generateCityName();
@@ -411,14 +402,87 @@ function generateAdjacentCities(): AdjacentCity[] {
     usedNames.add(name);
     
     cities.push({
-      id: `city-${cities.length}`,
+      id: `city-${direction}`,
       name,
       direction,
       connected: false,
+      discovered: false, // Cities are discovered when a road reaches their edge
     });
   }
   
   return cities;
+}
+
+// Check if there's a road tile at any edge of the map in a given direction
+export function hasRoadAtEdge(grid: Tile[][], gridSize: number, direction: 'north' | 'south' | 'east' | 'west'): boolean {
+  switch (direction) {
+    case 'north':
+      // Check top edge (y = 0)
+      for (let x = 0; x < gridSize; x++) {
+        if (grid[0][x].building.type === 'road') return true;
+      }
+      return false;
+    case 'south':
+      // Check bottom edge (y = gridSize - 1)
+      for (let x = 0; x < gridSize; x++) {
+        if (grid[gridSize - 1][x].building.type === 'road') return true;
+      }
+      return false;
+    case 'east':
+      // Check right edge (x = gridSize - 1)
+      for (let y = 0; y < gridSize; y++) {
+        if (grid[y][gridSize - 1].building.type === 'road') return true;
+      }
+      return false;
+    case 'west':
+      // Check left edge (x = 0)
+      for (let y = 0; y < gridSize; y++) {
+        if (grid[y][0].building.type === 'road') return true;
+      }
+      return false;
+  }
+}
+
+// Check all edges and return cities that can be connected (have roads reaching them)
+// Returns: { newlyDiscovered: cities just discovered, connectableExisting: already discovered but not connected }
+export function checkForDiscoverableCities(
+  grid: Tile[][],
+  gridSize: number,
+  adjacentCities: AdjacentCity[]
+): AdjacentCity[] {
+  const citiesToShow: AdjacentCity[] = [];
+  
+  for (const city of adjacentCities) {
+    if (!city.connected && hasRoadAtEdge(grid, gridSize, city.direction)) {
+      // Include both undiscovered cities (they'll be discovered) and discovered-but-unconnected cities
+      if (!city.discovered) {
+        // This is a new discovery
+        citiesToShow.push(city);
+      }
+      // Note: We only return undiscovered cities here. For already-discovered cities,
+      // the UI can show them in a different way (e.g., a persistent indicator)
+    }
+  }
+  
+  return citiesToShow;
+}
+
+// Check for cities that are discovered, have roads at their edge, but are not yet connected
+// This can be used to remind players they can connect to a city
+export function getConnectableCities(
+  grid: Tile[][],
+  gridSize: number,
+  adjacentCities: AdjacentCity[]
+): AdjacentCity[] {
+  const connectable: AdjacentCity[] = [];
+  
+  for (const city of adjacentCities) {
+    if (city.discovered && !city.connected && hasRoadAtEdge(grid, gridSize, city.direction)) {
+      connectable.push(city);
+    }
+  }
+  
+  return connectable;
 }
 
 // Generate terrain - grass with scattered trees, lakes, and oceans

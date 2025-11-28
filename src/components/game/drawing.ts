@@ -83,6 +83,14 @@ export const BEACH_COLORS = {
   curb: '#b8956a',
 } as const;
 
+/** Dirt/foundation plot colors for construction phase 1 */
+export const FOUNDATION_COLORS: TileColorScheme = {
+  top: '#a67c52',     // Sandy brown top
+  left: '#8b6914',    // Darker ochre left face
+  right: '#c4a35a',   // Lighter tan right face
+  stroke: '#6b4423',  // Dark brown stroke
+};
+
 // ============================================================================
 // Geometry Helpers
 // ============================================================================
@@ -208,6 +216,70 @@ export function drawGreyBaseTile(
     drawStroke: currentZoom >= 0.6,
     strokeWidth: 0.5,
   });
+}
+
+/**
+ * Draw a foundation/dirt plot tile for construction phase 1.
+ * This shows a flat dirt tile to indicate construction preparation.
+ */
+export function drawFoundationPlot(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  currentZoom: number
+): void {
+  // Calculate corners for the isometric tile (flat, no height)
+  const topX = x + w / 2;
+  const topY = y;
+  const rightX = x + w;
+  const rightY = y + h / 2;
+  const bottomX = x + w / 2;
+  const bottomY = y + h;
+  const leftX = x;
+  const leftY = y + h / 2;
+  
+  // Draw flat top face of the dirt plot
+  ctx.fillStyle = FOUNDATION_COLORS.top;
+  ctx.beginPath();
+  ctx.moveTo(topX, topY);
+  ctx.lineTo(rightX, rightY);
+  ctx.lineTo(bottomX, bottomY);
+  ctx.lineTo(leftX, leftY);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Add some texture/detail to the dirt (small dots/pebbles) when zoomed in
+  if (currentZoom >= 0.8) {
+    ctx.fillStyle = '#8b6914';
+    const dotCount = 10;
+    for (let i = 0; i < dotCount; i++) {
+      // Use deterministic positions based on coordinates
+      const seed = (x * 17 + y * 31 + i * 7) % 100;
+      const offsetX = (seed % 40 - 20) / 100 * w;
+      const offsetY = ((seed * 3) % 40 - 20) / 100 * h;
+      const dotX = x + w / 2 + offsetX;
+      const dotY = y + h / 2 + offsetY;
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, 0.67, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  // Draw stroke around the tile if zoomed in enough
+  if (currentZoom >= 0.6) {
+    ctx.strokeStyle = FOUNDATION_COLORS.stroke;
+    ctx.lineWidth = 0.5;
+    
+    ctx.beginPath();
+    ctx.moveTo(topX, topY);
+    ctx.lineTo(rightX, rightY);
+    ctx.lineTo(bottomX, bottomY);
+    ctx.lineTo(leftX, leftY);
+    ctx.closePath();
+    ctx.stroke();
+  }
 }
 
 // ============================================================================

@@ -88,6 +88,7 @@ import {
   drawGreenBaseTile,
   drawGreyBaseTile,
   drawBeachOnWater,
+  drawFoundationPlot,
 } from '@/components/game/drawing';
 import {
   getOverlayFillStyle,
@@ -132,7 +133,7 @@ export interface CanvasIsometricGridProps {
 
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
 export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMobile = false, navigationTarget, onNavigationComplete, onViewportChange }: CanvasIsometricGridProps) {
-  const { state, placeAtTile, connectToCity, currentSpritePack } = useGame();
+  const { state, placeAtTile, connectToCity, checkAndDiscoverCities, currentSpritePack } = useGame();
   const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, hour } = state;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const carsCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -4086,6 +4087,37 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           const isUnderConstruction = tile.building.constructionProgress !== undefined &&
                                        tile.building.constructionProgress < 100;
           
+          // Construction has two phases:
+          // Phase 1 (0-50%): Foundation/dirt plot phase - just show a dirt mound
+          // Phase 2 (50-100%): Construction scaffolding phase - show construction sprite
+          const constructionProgress = tile.building.constructionProgress ?? 100;
+          const isFoundationPhase = isUnderConstruction && constructionProgress < 50;
+          const isConstructionPhase = isUnderConstruction && constructionProgress >= 50;
+          
+          // If in foundation phase, draw the foundation plot and skip sprite rendering
+          if (isFoundationPhase) {
+            // Get building size to handle multi-tile foundations
+            const buildingSize = getBuildingSize(buildingType);
+            
+            // For multi-tile buildings, we only draw the foundation from the origin tile
+            // (the other tiles are 'empty' and won't have this building type)
+            if (buildingSize.width > 1 || buildingSize.height > 1) {
+              // Draw foundation plots for each tile in the footprint
+              for (let dy = 0; dy < buildingSize.height; dy++) {
+                for (let dx = 0; dx < buildingSize.width; dx++) {
+                  const plotX = x + (dx - dy) * (w / 2);
+                  const plotY = y + (dx + dy) * (h / 2);
+                  drawFoundationPlot(ctx, plotX, plotY, w, h, zoom);
+                }
+              }
+            } else {
+              // Single-tile building - just draw one foundation
+              drawFoundationPlot(ctx, x, y, w, h, zoom);
+            }
+            // Skip the sprite rendering for this tile (foundation plot is already drawn)
+            return;
+          }
+          
           // Check if building is abandoned
           const isAbandoned = tile.building.abandoned === true;
 
@@ -4099,11 +4131,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           // Check if this is a parks building first
           const isParksBuilding = activePack.parksBuildings && activePack.parksBuildings[buildingType];
           
-          if (isUnderConstruction && isParksBuilding && activePack.parksConstructionSrc) {
-            // Parks building under construction - use parks construction sheet
+          if (isConstructionPhase && isParksBuilding && activePack.parksConstructionSrc) {
+            // Parks building under construction (phase 2) - use parks construction sheet
             useParksBuilding = activePack.parksBuildings![buildingType];
             spriteSource = activePack.parksConstructionSrc;
-          } else if (isUnderConstruction && activePack.constructionSrc) {
+          } else if (isConstructionPhase && activePack.constructionSrc) {
+            // Regular building under construction (phase 2) - use construction sheet
             spriteSource = activePack.constructionSrc;
           } else if (isAbandoned && activePack.abandonedSrc) {
             spriteSource = activePack.abandonedSrc;
@@ -4299,8 +4332,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               if (isParksBuilding && activePack.parksScales && buildingType in activePack.parksScales) {
                 scaleMultiplier *= activePack.parksScales[buildingType];
               }
-              // Apply construction-specific scale if building is under construction and has custom scale
-              if (isUnderConstruction && activePack.constructionScales && buildingType in activePack.constructionScales) {
+              // Apply construction-specific scale if building is in construction phase (phase 2) and has custom scale
+              if (isConstructionPhase && activePack.constructionScales && buildingType in activePack.constructionScales) {
                 scaleMultiplier *= activePack.constructionScales[buildingType];
               }
               // Apply abandoned-specific scale if building is abandoned and has custom scale
@@ -4344,10 +4377,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               // Use state-specific offset if available, then fall back to building-type or sprite-key offsets
               // Priority: parks-construction > construction > abandoned > parks > dense > building-type > sprite-key
               let extraOffset = 0;
-              if (isUnderConstruction && isParksBuilding && activePack.parksConstructionVerticalOffsets && buildingType in activePack.parksConstructionVerticalOffsets) {
-                // Parks building under construction - use parks construction offset
+              if (isConstructionPhase && isParksBuilding && activePack.parksConstructionVerticalOffsets && buildingType in activePack.parksConstructionVerticalOffsets) {
+                // Parks building in construction phase (phase 2) - use parks construction offset
                 extraOffset = activePack.parksConstructionVerticalOffsets[buildingType] * h;
-              } else if (isUnderConstruction && activePack.constructionVerticalOffsets && buildingType in activePack.constructionVerticalOffsets) {
+              } else if (isConstructionPhase && activePack.constructionVerticalOffsets && buildingType in activePack.constructionVerticalOffsets) {
+                // Regular building in construction phase (phase 2) - use construction offset
                 extraOffset = activePack.constructionVerticalOffsets[buildingType] * h;
               } else if (isAbandoned && activePack.abandonedVerticalOffsets && buildingType in activePack.abandonedVerticalOffsets) {
                 // Abandoned buildings may need different positioning than normal
@@ -5245,31 +5279,6 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   }, [isPanning, dragStart, offset, zoom, gridSize, isDragging, showsDragGrid, dragStartTile, selectedTool, roadDrawDirection, supportsDragPlace, placeAtTile, clampOffset, grid]);
   
   const handleMouseUp = useCallback(() => {
-    // Check for road connection when dragging off edge
-    if (isDragging && selectedTool === 'road' && dragStartTile && dragEndTile) {
-      // Determine which edge we dragged off (use dragEndTile)
-      let direction: 'north' | 'south' | 'east' | 'west' | null = null;
-      if (dragEndTile.x < 0) direction = 'west';
-      else if (dragEndTile.x >= gridSize) direction = 'east';
-      else if (dragEndTile.y < 0) direction = 'north';
-      else if (dragEndTile.y >= gridSize) direction = 'south';
-      
-      if (direction) {
-        // Check if there's an unconnected city in this direction
-        const city = adjacentCities.find(c => c.direction === direction && !c.connected);
-        if (city) {
-          setCityConnectionDialog({ direction });
-          // Don't clear drag state yet - dialog will handle it
-          setIsPanning(false);
-          setIsDragging(false);
-          setLastPlacedTile(null);
-          setRoadDrawDirection(null);
-          placedRoadTilesRef.current.clear();
-          return;
-        }
-      }
-    }
-    
     // Fill the drag rectangle when mouse is released (only for zoning tools)
     if (isDragging && dragStartTile && dragEndTile && showsDragGrid) {
       const minX = Math.min(dragStartTile.x, dragEndTile.x);
@@ -5284,6 +5293,18 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       }
     }
     
+    // After placing roads, check if any cities should be discovered
+    // This happens after any road placement (drag or click) reaches an edge
+    if (isDragging && selectedTool === 'road') {
+      // Use setTimeout to allow state to update first, then check for discoverable cities
+      setTimeout(() => {
+        checkAndDiscoverCities((discoveredCity) => {
+          // Show dialog for the newly discovered city
+          setCityConnectionDialog({ direction: discoveredCity.direction });
+        });
+      }, 50);
+    }
+    
     // Clear drag state
     setIsDragging(false);
     setDragStartTile(null);
@@ -5296,7 +5317,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     if (!containerRef.current) {
       setHoveredTile(null);
     }
-  }, [isDragging, gridSize, showsDragGrid, dragStartTile, placeAtTile, selectedTool, dragEndTile, adjacentCities]);
+  }, [isDragging, showsDragGrid, dragStartTile, placeAtTile, selectedTool, dragEndTile, checkAndDiscoverCities]);
   
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -5509,7 +5530,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       {/* City Connection Dialog */}
       {cityConnectionDialog && (() => {
-        const city = adjacentCities.find(c => c.direction === cityConnectionDialog.direction && !c.connected);
+        // Find a discovered but not connected city in this direction
+        const city = adjacentCities.find(c => c.direction === cityConnectionDialog.direction && c.discovered && !c.connected);
         if (!city) return null;
         
         return (
@@ -5520,9 +5542,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           }}>
             <DialogContent className="max-w-[400px]">
               <DialogHeader>
-                <DialogTitle>Connect to City</DialogTitle>
+                <DialogTitle>City Discovered!</DialogTitle>
                 <DialogDescription>
-                  You&apos;ve dragged a road to the {cityConnectionDialog.direction} edge of the map. Connect to a nearby city to enable trade.
+                  Your road has reached the {cityConnectionDialog.direction} border! You&apos;ve discovered {city.name}.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-4 mt-4">
@@ -5542,7 +5564,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
                       setDragEndTile(null);
                     }}
                   >
-                    Cancel
+                    Maybe Later
                   </Button>
                   <Button
                     onClick={() => {
