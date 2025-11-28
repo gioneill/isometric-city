@@ -808,11 +808,11 @@ export function createInitialGameState(size: number = 60, cityName: string = 'Ne
 
 // Service building configuration - defined once, reused across calls
 const SERVICE_CONFIG = {
-  police_station: { range: 10, rangeSquared: 100, type: 'police' as const },
-  fire_station: { range: 14, rangeSquared: 196, type: 'fire' as const },
+  police_station: { range: 13, rangeSquared: 169, type: 'police' as const },
+  fire_station: { range: 18, rangeSquared: 324, type: 'fire' as const },
   hospital: { range: 12, rangeSquared: 144, type: 'health' as const },
-  school: { range: 8, rangeSquared: 64, type: 'education' as const },
-  university: { range: 15, rangeSquared: 225, type: 'education' as const },
+  school: { range: 11, rangeSquared: 121, type: 'education' as const },
+  university: { range: 19, rangeSquared: 361, type: 'education' as const },
   power_plant: { range: 15, rangeSquared: 225 },
   water_tower: { range: 12, rangeSquared: 144 },
 } as const;
