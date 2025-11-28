@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { openCommandMenu } from '@/components/ui/CommandMenu';
 
 // Hover Submenu Component for collapsible tool categories
 // Implements triangle-rule safe zone for forgiving cursor navigation
@@ -277,8 +278,24 @@ export const Sidebar = React.memo(function Sidebar() {
   return (
     <div className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col h-full relative z-40">
       <div className="px-4 py-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
           <span className="text-sidebar-foreground font-bold tracking-tight">ISOCITY</span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={openCommandMenu}
+            title="Search (⌘K)"
+            className="h-7 w-7 text-muted-foreground hover:text-sidebar-foreground"
+          >
+            <svg 
+              className="w-4 h-4" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </Button>
         </div>
       </div>
       

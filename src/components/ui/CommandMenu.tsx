@@ -10,6 +10,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 
+// Global callback to open the command menu
+let openCommandMenuCallback: (() => void) | null = null;
+
+export function openCommandMenu() {
+  openCommandMenuCallback?.();
+}
+
 // Define all menu items with categories
 interface MenuItem {
   id: string;
@@ -236,6 +243,14 @@ export function CommandMenu() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Register global callback to open the menu
+  useEffect(() => {
+    openCommandMenuCallback = () => setOpen(true);
+    return () => {
+      openCommandMenuCallback = null;
+    };
+  }, []);
 
   // Filter items based on search
   const filteredItems = useMemo(() => {

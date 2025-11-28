@@ -814,6 +814,11 @@ function canSpawnMultiTileBuilding(
   return true;
 }
 
+// PERF: Pre-allocated arrays for hasRoadAccess BFS to avoid GC pressure
+// Queue stores [x, y, dist] tuples as flat array (3 values per entry)
+const roadAccessQueue = new Int16Array(3 * 256); // Max 256 tiles to check (8*8*4 directions)
+const roadAccessVisited = new Uint8Array(128 * 128); // Max 128x128 grid, reused between calls
+
 // Check if a tile has road access by looking for a path through the same zone
 // within a limited distance. This allows large contiguous zones to develop even
 // when only the perimeter touches a road.
@@ -829,26 +834,47 @@ function hasRoadAccess(
     return false;
   }
 
-  const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-  const visited = new Set<string>();
-  const queue: { x: number; y: number; dist: number }[] = [{ x, y, dist: 0 }];
-  visited.add(`${x},${y}`);
+  // PERF: Use typed array for visited flags instead of Set<string>
+  // Clear only the area we'll actually use (maxDistance radius)
+  const minClearX = Math.max(0, x - maxDistance);
+  const maxClearX = Math.min(size - 1, x + maxDistance);
+  const minClearY = Math.max(0, y - maxDistance);
+  const maxClearY = Math.min(size - 1, y + maxDistance);
+  for (let cy = minClearY; cy <= maxClearY; cy++) {
+    for (let cx = minClearX; cx <= maxClearX; cx++) {
+      roadAccessVisited[cy * size + cx] = 0;
+    }
+  }
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (current.dist >= maxDistance) {
+  // BFS using flat queue array [x0, y0, dist0, x1, y1, dist1, ...]
+  let queueHead = 0;
+  let queueTail = 3;
+  roadAccessQueue[0] = x;
+  roadAccessQueue[1] = y;
+  roadAccessQueue[2] = 0;
+  roadAccessVisited[y * size + x] = 1;
+
+  while (queueHead < queueTail) {
+    const cx = roadAccessQueue[queueHead];
+    const cy = roadAccessQueue[queueHead + 1];
+    const dist = roadAccessQueue[queueHead + 2];
+    queueHead += 3;
+    
+    if (dist >= maxDistance) {
       continue;
     }
 
-    for (const [dx, dy] of directions) {
-      const nx = current.x + dx;
-      const ny = current.y + dy;
-
+    // Check all 4 directions: [-1,0], [1,0], [0,-1], [0,1]
+    const neighbors = [
+      [cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]
+    ];
+    
+    for (const [nx, ny] of neighbors) {
       if (nx < 0 || nx >= size || ny < 0 || ny >= size) continue;
 
-      const key = `${nx},${ny}`;
-      if (visited.has(key)) continue;
-      visited.add(key);
+      const idx = ny * size + nx;
+      if (roadAccessVisited[idx]) continue;
+      roadAccessVisited[idx] = 1;
 
       const neighbor = grid[ny][nx];
 
@@ -857,8 +883,11 @@ function hasRoadAccess(
       }
 
       const isPassableZone = neighbor.zone === startZone && neighbor.building.type !== 'water';
-      if (isPassableZone) {
-        queue.push({ x: nx, y: ny, dist: current.dist + 1 });
+      if (isPassableZone && queueTail < roadAccessQueue.length - 3) {
+        roadAccessQueue[queueTail] = nx;
+        roadAccessQueue[queueTail + 1] = ny;
+        roadAccessQueue[queueTail + 2] = dist + 1;
+        queueTail += 3;
       }
     }
   }
@@ -1483,7 +1512,7 @@ export function simulateTick(state: GameState): GameState {
       const originalBuilding = originalTile.building;
       
       // Fast path: skip tiles that definitely won't change
-      // Water tiles and unzoned grass without pollution are static
+      // Water tiles are completely static
       if (originalBuilding.type === 'water') {
         continue;
       }
@@ -1494,12 +1523,29 @@ export function simulateTick(state: GameState): GameState {
       const needsPowerWaterUpdate = originalBuilding.powered !== newPowered ||
                                     originalBuilding.watered !== newWatered;
       
+      // PERF: Roads are static unless bulldozed - skip if no utility update needed
+      if (originalBuilding.type === 'road' && !needsPowerWaterUpdate) {
+        continue;
+      }
+      
       // Unzoned grass/trees with no pollution change - skip
       if (originalTile.zone === 'none' && 
           (originalBuilding.type === 'grass' || originalBuilding.type === 'tree') &&
           !needsPowerWaterUpdate &&
           originalTile.pollution < 0.01 &&
           (BUILDING_STATS[originalBuilding.type]?.pollution || 0) === 0) {
+        continue;
+      }
+      
+      // PERF: Completed service/park buildings with no state changes can skip heavy processing
+      // They only need utility updates and pollution decay
+      const isCompletedServiceBuilding = originalTile.zone === 'none' && 
+          originalBuilding.constructionProgress === 100 &&
+          !originalBuilding.onFire &&
+          originalBuilding.type !== 'grass' && 
+          originalBuilding.type !== 'tree' &&
+          originalBuilding.type !== 'empty';
+      if (isCompletedServiceBuilding && !needsPowerWaterUpdate && originalTile.pollution < 0.01) {
         continue;
       }
       

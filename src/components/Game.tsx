@@ -5621,13 +5621,17 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     return null;
   }, [grid, gridSize]);
   
-// Helper function to check if a tile is part of a park building footprint
+// PERF: Static Set for park building lookups (O(1) instead of O(n) array includes)
+  const parkBuildingsSet = useMemo(() => new Set<BuildingType>([
+    'park_large', 'baseball_field_small', 'football_field',
+    'mini_golf_course', 'go_kart_track', 'amphitheater', 'greenhouse_garden',
+    'marina_docks_small', 'roller_coaster_small', 'mountain_lodge', 'playground_large', 'mountain_trailhead'
+  ]), []);
+  
+  // Helper function to check if a tile is part of a park building footprint
   // Note: buildings with grey bases (baseball_stadium, swimming_pool, community_center, office_building_small) are NOT included
   const isPartOfParkBuilding = useCallback((gridX: number, gridY: number): boolean => {
     const maxSize = 4; // Maximum building size
-    const parkBuildings: BuildingType[] = ['park_large', 'baseball_field_small', 'football_field',
-      'mini_golf_course', 'go_kart_track', 'amphitheater', 'greenhouse_garden',
-      'marina_docks_small', 'roller_coaster_small', 'mountain_lodge', 'playground_large', 'mountain_trailhead'];
 
     for (let dy = 0; dy < maxSize; dy++) {
       for (let dx = 0; dx < maxSize; dx++) {
@@ -5637,8 +5641,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         if (originX >= 0 && originX < gridSize && originY >= 0 && originY < gridSize) {
           const originTile = grid[originY][originX];
 
-          // Check if this is a park building and if this tile is within its footprint
-          if (parkBuildings.includes(originTile.building.type)) {
+          // PERF: Use Set.has() instead of array.includes() for O(1) lookup
+          if (parkBuildingsSet.has(originTile.building.type)) {
             const buildingSize = getBuildingSize(originTile.building.type);
             if (gridX >= originX && gridX < originX + buildingSize.width &&
                 gridY >= originY && gridY < originY + buildingSize.height) {
@@ -5649,7 +5653,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       }
     }
     return false;
-  }, [grid, gridSize]);
+  }, [grid, gridSize, parkBuildingsSet]);
   
   // Update canvas size on resize with high-DPI support
   useEffect(() => {
@@ -5727,6 +5731,9 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       screenY: number;
       tile: Tile;
     };
+    
+    // PERF: Reuse queue arrays across frames to avoid GC pressure
+    // Arrays are cleared by setting length = 0 which is faster than recreating
     const buildingQueue: BuildingDraw[] = [];
     const waterQueue: BuildingDraw[] = [];
     const roadQueue: BuildingDraw[] = []; // Roads drawn above water
@@ -5734,6 +5741,21 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     const baseTileQueue: BuildingDraw[] = [];
     const greenBaseTileQueue: BuildingDraw[] = [];
     const overlayQueue: OverlayDraw[] = [];
+    
+    // PERF: Insertion sort for nearly-sorted arrays (O(n) vs O(n log n) for .sort())
+    // Since tiles are iterated in diagonal order, queues are already nearly sorted
+    function insertionSortByDepth<T extends { depth: number }>(arr: T[]): void {
+      for (let i = 1; i < arr.length; i++) {
+        const current = arr[i];
+        let j = i - 1;
+        // Only move elements that are strictly greater (maintains stability)
+        while (j >= 0 && arr[j].depth > current.depth) {
+          arr[j + 1] = arr[j];
+          j--;
+        }
+        arr[j + 1] = current;
+      }
+    }
     
     // Helper function to check if a tile is adjacent to water
     function isAdjacentToWater(gridX: number, gridY: number): boolean {
@@ -6955,18 +6977,17 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     ctx.closePath();
     ctx.clip();
     
-    waterQueue
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ tile, screenX, screenY }) => {
-        drawBuilding(ctx, screenX, screenY, tile);
-      });
+    // PERF: Use insertion sort instead of .sort() - O(n) for nearly-sorted data
+    insertionSortByDepth(waterQueue);
+    waterQueue.forEach(({ tile, screenX, screenY }) => {
+      drawBuilding(ctx, screenX, screenY, tile);
+    });
     
     ctx.restore(); // Remove clipping after drawing water
     
     // Draw beaches on water tiles (after water, outside clipping region)
-    waterQueue
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ tile, screenX, screenY }) => {
+    // Note: waterQueue is already sorted from above
+    waterQueue.forEach(({ tile, screenX, screenY }) => {
         // Compute land adjacency for each edge (opposite of water adjacency)
         // Only consider tiles within bounds - don't draw beaches on map edges
         const adjacentLand = {
@@ -6979,9 +7000,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       });
     
     // Draw roads (above water, needs full redraw including base tile)
-    roadQueue
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ tile, screenX, screenY }) => {
+    insertionSortByDepth(roadQueue);
+    roadQueue.forEach(({ tile, screenX, screenY }) => {
         // Draw road base tile first (grey diamond)
         const w = TILE_WIDTH;
         const h = TILE_HEIGHT;
@@ -6999,29 +7019,26 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       });
     
     // Draw green base tiles for grass/empty tiles adjacent to water (after water, before gray bases)
-    greenBaseTileQueue
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ tile, screenX, screenY }) => {
-        drawGreenBaseTile(ctx, screenX, screenY, tile, zoom);
-      });
+    insertionSortByDepth(greenBaseTileQueue);
+    greenBaseTileQueue.forEach(({ tile, screenX, screenY }) => {
+      drawGreenBaseTile(ctx, screenX, screenY, tile, zoom);
+    });
     
     // Draw gray building base tiles (after water, before buildings)
-    baseTileQueue
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ tile, screenX, screenY }) => {
-        drawGreyBaseTile(ctx, screenX, screenY, tile, zoom);
-      });
+    insertionSortByDepth(baseTileQueue);
+    baseTileQueue.forEach(({ tile, screenX, screenY }) => {
+      drawGreyBaseTile(ctx, screenX, screenY, tile, zoom);
+    });
     
     // Note: Beach drawing has been moved to water tiles (drawBeachOnWater)
     // The beachQueue is no longer used for drawing beaches on land tiles
     
     
     // Draw buildings sorted by depth so multi-tile sprites sit above adjacent tiles
-    buildingQueue
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ tile, screenX, screenY }) => {
-        drawBuilding(ctx, screenX, screenY, tile);
-      });
+    insertionSortByDepth(buildingQueue);
+    buildingQueue.forEach(({ tile, screenX, screenY }) => {
+      drawBuilding(ctx, screenX, screenY, tile);
+    });
     
     // Draw overlays last so they remain visible on top of buildings
     overlayQueue.forEach(({ tile, screenX, screenY }) => {
