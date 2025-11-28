@@ -36,9 +36,10 @@ import {
   BudgetIcon,
   SettingsIcon,
 } from './ui/Icons';
-import { SPRITE_SHEET, getSpriteCoords, BUILDING_TO_SPRITE, SPRITE_VERTICAL_OFFSETS, SPRITE_HORIZONTAL_OFFSETS, SPRITE_ORDER, SpritePack, getActiveSpritePack } from '@/lib/renderConfig';
+import { getSpriteCoords, BUILDING_TO_SPRITE, SPRITE_VERTICAL_OFFSETS, SPRITE_HORIZONTAL_OFFSETS, SPRITE_ORDER, SpritePack, getActiveSpritePack } from '@/lib/renderConfig';
 import exampleState from '@/resources/example_state.json';
 import exampleState2 from '@/resources/example_state_2.json';
+import exampleState3 from '@/resources/example_state_3.json';
 
 // Import shadcn components
 import { Button } from '@/components/ui/button';
@@ -1144,6 +1145,16 @@ function SettingsPanel() {
               }}
             >
               Load Example State 2
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full mt-2"
+              onClick={() => {
+                loadState(JSON.stringify(exampleState3));
+                setActivePanel('none');
+              }}
+            >
+              Load Example State 3
             </Button>
           </div>
         </div>

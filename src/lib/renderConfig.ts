@@ -546,9 +546,11 @@ export function getSpriteCoords(
     row = Math.floor(index / activePack.cols);
   }
   
-  // Special handling for sprites4 pack: rows 1-4 include content from rows above, shift source Y down
+  // Special handling for sprites4-based packs: rows 1-4 include content from rows above, shift source Y down
+  // This applies to sprites4 and all its themed variants (harry, china, etc.)
+  const isSprites4Based = activePack.id.startsWith('sprites4');
   let sy = row * tileHeight;
-  if (activePack.id === 'sprites4' && row > 0 && row <= 4) {
+  if (isSprites4Based && row > 0 && row <= 4) {
     if (row <= 2) {
       // Rows 1-2: small cumulative shift
       const overlapAmount = tileHeight * 0.1;
@@ -563,9 +565,9 @@ export function getSpriteCoords(
   }
   // Row 5: no shift to avoid cross-contamination
   
-  // Special handling for sprites4 pack: adjust source height for certain sprites
+  // Special handling for sprites4-based packs: adjust source height for certain sprites
   let sh = tileHeight;
-  if (activePack.id === 'sprites4') {
+  if (isSprites4Based) {
     if (spriteKey === 'residential' || spriteKey === 'commercial') {
       sh = tileHeight * 1.1; // Add 10% more height at bottom
     }
