@@ -545,18 +545,20 @@ const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: {
 function TileInfoPanel({ 
   tile, 
   services, 
-  onClose 
+  onClose,
+  isMobile = false
 }: { 
   tile: Tile; 
   services: { police: number[][]; fire: number[][]; health: number[][]; education: number[][]; power: boolean[][]; water: boolean[][] };
   onClose: () => void;
+  isMobile?: boolean;
 }) {
   const { x, y } = tile;
   
   return (
-    <Card className="absolute top-4 right-4 w-72">
+    <Card className={`${isMobile ? 'fixed left-0 right-0 w-full rounded-none border-x-0 border-t border-b z-30' : 'absolute top-4 right-4 w-72'}`} style={isMobile ? { top: 'calc(72px + env(safe-area-inset-top, 0px))' } : undefined}>
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm">Tile ({x}, {y})</CardTitle>
+        <CardTitle className="text-sm font-sans">Tile ({x}, {y})</CardTitle>
         <Button variant="ghost" size="icon-sm" onClick={onClose}>
           <CloseIcon size={14} />
         </Button>
