@@ -876,7 +876,7 @@ export function useVehicleSystems(
     }
     
     pedestriansRef.current = updatedPedestrians;
-  }, [worldStateRef, gridVersionRef, cachedRoadTileCountRef, pedestriansRef, pedestrianSpawnTimerRef, spawnPedestrian, isMobile]);
+  }, [worldStateRef, gridVersionRef, cachedRoadTileCountRef, pedestriansRef, pedestrianSpawnTimerRef, spawnPedestrian, isMobile, trafficLightTimerRef]);
 
   const drawCars = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;

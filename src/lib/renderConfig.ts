@@ -378,6 +378,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   },
   parksScales: {
     baseball_stadium: 0.81,  // 10% smaller than 0.90
+    baseball_field_small: 0.95,  // scaled down 5%
     swimming_pool: 0.90,  // scaled down 10% total (5% more from 0.95)
     soccer_field_small: 0.95,  // scaled down 5%
     go_kart_track: 0.92,  // scaled down 8%

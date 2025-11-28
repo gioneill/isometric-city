@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useGame, DayNightMode } from '@/context/GameContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -120,12 +121,14 @@ export function SettingsPanel() {
                         : 'border-border hover:border-muted-foreground/50 text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
-                      <img 
+                    <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0 relative">
+                      <Image 
                         src={pack.src} 
                         alt={pack.name}
-                        className="w-full h-full object-cover object-top"
+                        fill
+                        className="object-cover object-top"
                         style={{ imageRendering: 'pixelated' }}
+                        unoptimized
                       />
                     </div>
                     <div className="flex-1 min-w-0">
