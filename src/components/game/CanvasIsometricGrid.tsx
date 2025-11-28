@@ -4376,10 +4376,16 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               const defaultMirroredBuildings = ['marina_docks_small', 'pier_large'];
               const isDefaultMirrored = defaultMirroredBuildings.includes(buildingType);
               
+              // Check if this is a waterfront asset - don't apply random mirroring to these
+              const isWaterfrontAsset = requiresWaterAdjacency(buildingType);
+              
               // Add 50% random mirroring for visual variety (deterministic based on tile position)
-              // Use a different seed than dense variants to get independent randomness
-              const mirrorSeed = (tile.x * 47 + tile.y * 83) % 100;
-              const shouldRandomMirror = mirrorSeed < 50;
+              // Skip random mirroring for waterfront assets to preserve their orientation
+              const shouldRandomMirror = isWaterfrontAsset ? false : (() => {
+                // Use a different seed than dense variants to get independent randomness
+                const mirrorSeed = (tile.x * 47 + tile.y * 83) % 100;
+                return mirrorSeed < 50;
+              })();
               
               // Final flip decision: combine default mirror state, explicit flip flag, and random mirror
               const baseFlipped = isDefaultMirrored ? !tile.building.flipped : tile.building.flipped === true;
