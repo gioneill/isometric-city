@@ -132,6 +132,7 @@ import {
   drawLaneMarkings,
   drawRoadArrow,
   getTrafficFlowDirection,
+  drawCrosswalks,
   ROAD_COLORS,
   ROAD_CONFIG,
   TRAFFIC_LIGHT_TIMING,
@@ -2659,83 +2660,17 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         // ============================================
         // DRAW CROSSWALKS (on tiles adjacent to real intersections with traffic lights)
         // ============================================
-        // Real crosswalks: stripes run PARALLEL to traffic, spaced ACROSS the road width
-        if (currentZoom >= 0.75) {
-          const isAdjacentIntersection = (adjX: number, adjY: number): boolean => {
-            if (!hasRoad(adjX, adjY)) return false;
-            const adjNorth = hasRoad(adjX - 1, adjY);
-            const adjEast = hasRoad(adjX, adjY - 1);
-            const adjSouth = hasRoad(adjX + 1, adjY);
-            const adjWest = hasRoad(adjX, adjY + 1);
-            return [adjNorth, adjEast, adjSouth, adjWest].filter(Boolean).length >= 3;
-          };
-          
-          const northAdj = north && isAdjacentIntersection(gridX - 1, gridY);
-          const eastAdj = east && isAdjacentIntersection(gridX, gridY - 1);
-          const southAdj = south && isAdjacentIntersection(gridX + 1, gridY);
-          const westAdj = west && isAdjacentIntersection(gridX, gridY + 1);
-          
-          if (northAdj || eastAdj || southAdj || westAdj) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.lineWidth = 0.7;
-            ctx.setLineDash([]);
-            
-            // Tile edge directions for perpendicular spacing
-            const nwDx = topCorner.x - leftCorner.x;
-            const nwDy = topCorner.y - leftCorner.y;
-            const nwLen = Math.hypot(nwDx, nwDy);
-            const neDx = rightCorner.x - topCorner.x;
-            const neDy = rightCorner.y - topCorner.y;
-            const neLen = Math.hypot(neDx, neDy);
-            
-            // Crosswalk parameters
-            const crosswalkPos = 0.85; // Position along road (toward intersection)
-            const stripeLen = roadW * 0.22; // Short stripes parallel to traffic
-            const numStripes = 10;
-            const stripeSpacing = roadW * 0.30; // 15% smaller spacing
-            
-            // Helper to draw crosswalk for a road direction
-            const drawCrosswalk = (
-              edgeX: number, edgeY: number,
-              dirDx: number, dirDy: number,  // Direction toward edge (traffic flow)
-              perpDx: number, perpDy: number  // Perpendicular (across road)
-            ) => {
-              // Center of crosswalk
-              const cwX = cx + (edgeX - cx) * crosswalkPos;
-              const cwY = cy + (edgeY - cy) * crosswalkPos;
-              
-              // Draw stripes spaced across the road width
-              for (let i = 0; i < numStripes; i++) {
-                const offset = (i - (numStripes - 1) / 2) * stripeSpacing;
-                const stripeX = cwX + perpDx * offset;
-                const stripeY = cwY + perpDy * offset;
-                
-                // Each stripe runs parallel to traffic direction
-                ctx.beginPath();
-                ctx.moveTo(stripeX - dirDx * stripeLen, stripeY - dirDy * stripeLen);
-                ctx.lineTo(stripeX + dirDx * stripeLen, stripeY + dirDy * stripeLen);
-                ctx.stroke();
-              }
-            };
-            
-            // North road - traffic flows along north direction, stripes spaced along NW edge
-            if (northAdj) {
-              drawCrosswalk(northEdgeX, northEdgeY, northDx, northDy, nwDx / nwLen, nwDy / nwLen);
-            }
-            // East road
-            if (eastAdj) {
-              drawCrosswalk(eastEdgeX, eastEdgeY, eastDx, eastDy, neDx / neLen, neDy / neLen);
-            }
-            // South road
-            if (southAdj) {
-              drawCrosswalk(southEdgeX, southEdgeY, southDx, southDy, nwDx / nwLen, nwDy / nwLen);
-            }
-            // West road
-            if (westAdj) {
-              drawCrosswalk(westEdgeX, westEdgeY, westDx, westDy, neDx / neLen, neDy / neLen);
-            }
-          }
-        }
+        drawCrosswalks({
+          ctx,
+          x,
+          y,
+          gridX,
+          gridY,
+          zoom: currentZoom,
+          roadW,
+          adj: { north, east, south, west },
+          hasRoad,
+        });
         
         // ============================================
         // DRAW TRAFFIC LIGHTS AT INTERSECTIONS

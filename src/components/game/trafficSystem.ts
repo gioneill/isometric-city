@@ -865,3 +865,136 @@ export function drawMergedRoadSegment(
     }
   }
 }
+
+// ============================================================================
+// Crosswalk Drawing
+// ============================================================================
+
+export interface CrosswalkParams {
+  ctx: CanvasRenderingContext2D;
+  x: number;  // Screen x of tile top-left
+  y: number;  // Screen y of tile top-left
+  gridX: number;
+  gridY: number;
+  zoom: number;
+  roadW: number;  // Road width (varies by road type)
+  adj: { north: boolean; east: boolean; south: boolean; west: boolean };
+  hasRoad: (gx: number, gy: number) => boolean;
+}
+
+/**
+ * Draw crosswalks on tiles adjacent to intersections
+ * Stripes run PARALLEL to traffic, spaced ACROSS the road width
+ */
+export function drawCrosswalks(params: CrosswalkParams): void {
+  const { ctx, x, y, gridX, gridY, zoom, roadW, adj, hasRoad } = params;
+  
+  if (zoom < 0.75) return;
+  
+  const w = TILE_WIDTH;
+  const h = TILE_HEIGHT;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  
+  // Tile corner positions
+  const topCorner = { x: cx, y: y };
+  const rightCorner = { x: x + w, y: cy };
+  const bottomCorner = { x: cx, y: y + h };
+  const leftCorner = { x: x, y: cy };
+  
+  // Edge midpoints (where roads connect)
+  const northEdgeX = x + w * 0.25;
+  const northEdgeY = y + h * 0.25;
+  const eastEdgeX = x + w * 0.75;
+  const eastEdgeY = y + h * 0.25;
+  const southEdgeX = x + w * 0.75;
+  const southEdgeY = y + h * 0.75;
+  const westEdgeX = x + w * 0.25;
+  const westEdgeY = y + h * 0.75;
+  
+  // Direction vectors from center to edges
+  const northDx = (northEdgeX - cx) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
+  const northDy = (northEdgeY - cy) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
+  const eastDx = (eastEdgeX - cx) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
+  const eastDy = (eastEdgeY - cy) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
+  const southDx = (southEdgeX - cx) / Math.hypot(southEdgeX - cx, southEdgeY - cy);
+  const southDy = (southEdgeY - cy) / Math.hypot(southEdgeX - cx, southEdgeY - cy);
+  const westDx = (westEdgeX - cx) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
+  const westDy = (westEdgeY - cy) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
+  
+  // Helper to check if adjacent tile is an intersection
+  const isAdjacentIntersection = (adjX: number, adjY: number): boolean => {
+    if (!hasRoad(adjX, adjY)) return false;
+    const adjNorth = hasRoad(adjX - 1, adjY);
+    const adjEast = hasRoad(adjX, adjY - 1);
+    const adjSouth = hasRoad(adjX + 1, adjY);
+    const adjWest = hasRoad(adjX, adjY + 1);
+    return [adjNorth, adjEast, adjSouth, adjWest].filter(Boolean).length >= 3;
+  };
+  
+  const northAdj = adj.north && isAdjacentIntersection(gridX - 1, gridY);
+  const eastAdj = adj.east && isAdjacentIntersection(gridX, gridY - 1);
+  const southAdj = adj.south && isAdjacentIntersection(gridX + 1, gridY);
+  const westAdj = adj.west && isAdjacentIntersection(gridX, gridY + 1);
+  
+  if (!northAdj && !eastAdj && !southAdj && !westAdj) return;
+  
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.lineWidth = 0.7;
+  ctx.setLineDash([]);
+  
+  // Tile edge directions for perpendicular spacing
+  const nwDx = topCorner.x - leftCorner.x;
+  const nwDy = topCorner.y - leftCorner.y;
+  const nwLen = Math.hypot(nwDx, nwDy);
+  const neDx = rightCorner.x - topCorner.x;
+  const neDy = rightCorner.y - topCorner.y;
+  const neLen = Math.hypot(neDx, neDy);
+  
+  // Crosswalk parameters
+  const crosswalkPos = 0.85; // Position along road (toward intersection)
+  const stripeLen = roadW * 0.22; // Short stripes parallel to traffic
+  const numStripes = 10;
+  const stripeSpacing = roadW * 0.30;
+  
+  // Helper to draw crosswalk for a road direction
+  const drawCrosswalk = (
+    edgeX: number, edgeY: number,
+    dirDx: number, dirDy: number,  // Direction toward edge (traffic flow)
+    perpDx: number, perpDy: number  // Perpendicular (across road)
+  ) => {
+    // Center of crosswalk
+    const cwX = cx + (edgeX - cx) * crosswalkPos;
+    const cwY = cy + (edgeY - cy) * crosswalkPos;
+    
+    // Draw stripes spaced across the road width
+    for (let i = 0; i < numStripes; i++) {
+      const offset = (i - (numStripes - 1) / 2) * stripeSpacing;
+      const stripeX = cwX + perpDx * offset;
+      const stripeY = cwY + perpDy * offset;
+      
+      // Each stripe runs parallel to traffic direction
+      ctx.beginPath();
+      ctx.moveTo(stripeX - dirDx * stripeLen, stripeY - dirDy * stripeLen);
+      ctx.lineTo(stripeX + dirDx * stripeLen, stripeY + dirDy * stripeLen);
+      ctx.stroke();
+    }
+  };
+  
+  // North road - traffic flows along north direction, stripes spaced along NW edge
+  if (northAdj) {
+    drawCrosswalk(northEdgeX, northEdgeY, northDx, northDy, nwDx / nwLen, nwDy / nwLen);
+  }
+  // East road
+  if (eastAdj) {
+    drawCrosswalk(eastEdgeX, eastEdgeY, eastDx, eastDy, neDx / neLen, neDy / neLen);
+  }
+  // South road
+  if (southAdj) {
+    drawCrosswalk(southEdgeX, southEdgeY, southDx, southDy, nwDx / nwLen, nwDy / nwLen);
+  }
+  // West road
+  if (westAdj) {
+    drawCrosswalk(westEdgeX, westEdgeY, westDx, westDy, neDx / neLen, neDy / neLen);
+  }
+}
