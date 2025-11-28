@@ -2788,8 +2788,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         strokeColor = '#f59e0b';
       }
       
-      // Skip drawing green base for grass/empty tiles adjacent to water (will be drawn later over water)
-      const shouldSkipDrawing = skipGreenBase && (tile.building.type === 'grass' || tile.building.type === 'empty');
+      // Skip drawing green base for tiles adjacent to water (will be drawn later over water)
+      // This includes grass, empty, and tree tiles - all have green bases
+      const shouldSkipDrawing = skipGreenBase && (tile.building.type === 'grass' || tile.building.type === 'empty' || tile.building.type === 'tree');
       
       // Draw the isometric diamond (top face)
       if (!shouldSkipDrawing) {
@@ -3535,9 +3536,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         const isPartOfBuilding = tile.building.type === 'empty' && isPartOfMultiTileBuilding(x, y);
         const needsGreyBase = (isDirectBuilding || isPartOfBuilding) && !isPark;
         
-        // Check if this is a grass/empty tile adjacent to water (needs green base drawn over water)
-        const isGrassOrEmpty = tile.building.type === 'grass' || tile.building.type === 'empty';
-        const needsGreenBaseOverWater = isGrassOrEmpty && isAdjacentToWater(x, y);
+        // Check if this is a tile with green base adjacent to water (needs green base drawn over water)
+        // This includes grass, empty, and tree tiles - all have green bases that could be covered by water bleed
+        const hasGreenBase = tile.building.type === 'grass' || tile.building.type === 'empty' || tile.building.type === 'tree';
+        const needsGreenBaseOverWater = hasGreenBase && isAdjacentToWater(x, y);
         
         // Check if this is a park that needs a green base tile
         const needsGreenBaseForPark = (tile.building.type === 'park' || tile.building.type === 'park_large') ||
