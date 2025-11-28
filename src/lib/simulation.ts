@@ -1581,7 +1581,23 @@ export function simulateTick(state: GameState): GameState {
         const hasPower = newPowered;
         const hasWater = newWatered;
 
-        if (roadAccess && hasPower && hasWater && Math.random() < 0.05) {
+        // Get zone demand to factor into spawn probability
+        const zoneDemandForSpawn = state.stats.demand ? (
+          tile.zone === 'residential' ? state.stats.demand.residential :
+          tile.zone === 'commercial' ? state.stats.demand.commercial :
+          tile.zone === 'industrial' ? state.stats.demand.industrial : 0
+        ) : 0;
+        
+        // Spawn probability scales with demand:
+        // - At demand >= 50: 5% base chance (normal)
+        // - At demand 0: 2.5% chance (reduced)
+        // - At demand <= -30: 0% chance (no new buildings when oversupplied)
+        // This creates natural market response to taxation and supply/demand
+        const baseSpawnChance = 0.05;
+        const demandFactor = Math.max(0, Math.min(1, (zoneDemandForSpawn + 30) / 80));
+        const spawnChance = baseSpawnChance * demandFactor;
+
+        if (roadAccess && hasPower && hasWater && Math.random() < spawnChance) {
           const buildingList = tile.zone === 'residential' ? RESIDENTIAL_BUILDINGS :
             tile.zone === 'commercial' ? COMMERCIAL_BUILDINGS : INDUSTRIAL_BUILDINGS;
           const candidate = buildingList[0];
