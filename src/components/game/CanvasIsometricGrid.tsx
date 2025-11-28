@@ -153,6 +153,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const [offset, setOffset] = useState({ x: isMobile ? 200 : 620, y: isMobile ? 100 : 160 });
   const [isDragging, setIsDragging] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
+  const isPanningRef = useRef(false); // Ref for animation loop to check panning state
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
   const [hoveredIncident, setHoveredIncident] = useState<{
@@ -348,6 +349,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   useEffect(() => {
     worldStateRef.current.canvasSize = canvasSize;
   }, [canvasSize]);
+
+  // Sync isPanning state to ref for animation loop access
+  useEffect(() => {
+    isPanningRef.current = isPanning;
+  }, [isPanning]);
 
   // Notify parent of viewport changes for minimap
   useEffect(() => {
@@ -2294,7 +2300,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         // ============================================
         // DRAW TRAFFIC LIGHTS AT INTERSECTIONS
         // ============================================
-        if (isIntersection && currentZoom >= 0.6) {
+        // PERF: Skip traffic lights during mobile panning for better performance
+        const skipTrafficLights = isMobile && isPanningRef.current;
+        if (isIntersection && currentZoom >= 0.6 && !skipTrafficLights) {
           const trafficTime = trafficLightTimerRef.current;
           const lightState = getTrafficLightState(trafficTime);
           
@@ -3483,15 +3491,19 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         navLightFlashTimerRef.current += delta * 3; // Update nav light flash timer
         trafficLightTimerRef.current += delta; // Update traffic light cycle timer
       }
-      drawCars(ctx);
-      drawPedestrians(ctx); // Draw pedestrians (zoom-gated)
-      drawBoats(ctx); // Draw boats on water
-      drawSmog(ctx); // Draw factory smog (above ground, below aircraft)
-      drawEmergencyVehicles(ctx); // Draw emergency vehicles!
-      drawIncidentIndicators(ctx, delta); // Draw fire/crime incident indicators!
-      drawHelicopters(ctx); // Draw helicopters (below planes, above ground)
-      drawAirplanes(ctx); // Draw airplanes above everything
-      drawFireworks(ctx); // Draw fireworks above everything (nighttime only)
+      // PERF: Skip drawing animated elements during mobile panning for better performance
+      const skipAnimatedElements = isMobile && isPanningRef.current;
+      if (!skipAnimatedElements) {
+        drawCars(ctx);
+        drawPedestrians(ctx); // Draw pedestrians (zoom-gated)
+        drawBoats(ctx); // Draw boats on water
+        drawSmog(ctx); // Draw factory smog (above ground, below aircraft)
+        drawEmergencyVehicles(ctx); // Draw emergency vehicles!
+        drawIncidentIndicators(ctx, delta); // Draw fire/crime incident indicators!
+        drawHelicopters(ctx); // Draw helicopters (below planes, above ground)
+        drawAirplanes(ctx); // Draw airplanes above everything
+        drawFireworks(ctx); // Draw fireworks above everything (nighttime only)
+      }
     };
     
     animationFrameId = requestAnimationFrame(render);
