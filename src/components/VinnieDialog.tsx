@@ -78,3 +78,4 @@ export function VinnieDialog({ open, onOpenChange }: VinnieDialogProps) {
     </Dialog>
   );
 }
+

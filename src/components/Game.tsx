@@ -6352,13 +6352,16 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
             // This creates a soft blend at the edges instead of hard cuts
             // Passes are spread far apart for wide, gradual feathering
             const aspectRatio = cropH / cropW;
+            
+            // Only allow large feathering toward adjacent water tiles
+            // Scale down if bordered by non-water to prevent bleeding
+            const maxScale = adjacentCount >= 3 ? 3.2 : (adjacentCount >= 2 ? 2.4 : (adjacentCount >= 1 ? 1.8 : 1.2));
+            
             const passes = [
-              { scale: 3.5 + adjacentCount * 0.6, alpha: 0.15 },  // Largest, very faint outer halo
-              { scale: 2.8 + adjacentCount * 0.5, alpha: 0.25 },
-              { scale: 2.2 + adjacentCount * 0.4, alpha: 0.4 },
-              { scale: 1.6 + adjacentCount * 0.3, alpha: 0.6 },
-              { scale: 1.1 + adjacentCount * 0.15, alpha: 0.85 },
-              { scale: 0.85 + adjacentCount * 0.1, alpha: 1.0 }, // Core, fully opaque
+              { scale: Math.min(maxScale, 3.2 + adjacentCount * 0.5), alpha: 0.2 },  // Outer halo
+              { scale: Math.min(maxScale * 0.75, 2.0 + adjacentCount * 0.35), alpha: 0.5 },
+              { scale: Math.min(maxScale * 0.5, 1.3 + adjacentCount * 0.2), alpha: 0.75 },
+              { scale: 0.9 + adjacentCount * 0.08, alpha: 1.0 }, // Core, fully opaque
             ];
             
             const savedAlpha = ctx.globalAlpha;
