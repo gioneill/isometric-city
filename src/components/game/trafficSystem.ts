@@ -53,9 +53,9 @@ export interface TrafficLight {
 
 /** Traffic light timing (in seconds) */
 export const TRAFFIC_LIGHT_TIMING = {
-  GREEN_DURATION: 8.0,    // Time for green light (slower than typical for visual appeal)
-  YELLOW_DURATION: 2.0,   // Time for yellow light
-  TOTAL_CYCLE: 20.0,      // Full cycle time (2 green + 2 yellow)
+  GREEN_DURATION: 3.0,    // Time for green light (faster cycle)
+  YELLOW_DURATION: 0.8,   // Time for yellow light
+  TOTAL_CYCLE: 7.6,       // Full cycle time (2 green + 2 yellow)
 };
 
 /** Road rendering constants */
