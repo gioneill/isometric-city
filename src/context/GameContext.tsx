@@ -29,10 +29,19 @@ import {
 } from '@/lib/renderConfig';
 
 const STORAGE_KEY = 'isocity-game-state';
+const SAVED_CITY_STORAGE_KEY = 'isocity-saved-city'; // For restoring after viewing shared city
 const SPRITE_PACK_STORAGE_KEY = 'isocity-sprite-pack';
 const DAY_NIGHT_MODE_STORAGE_KEY = 'isocity-day-night-mode';
 
 export type DayNightMode = 'auto' | 'day' | 'night';
+
+// Info about a saved city (for restore functionality)
+export type SavedCityInfo = {
+  cityName: string;
+  population: number;
+  money: number;
+  savedAt: number;
+} | null;
 
 type GameContextValue = {
   state: GameState;
@@ -62,6 +71,11 @@ type GameContextValue = {
   dayNightMode: DayNightMode;
   setDayNightMode: (mode: DayNightMode) => void;
   visualHour: number; // The hour to use for rendering (respects day/night mode override)
+  // Save/restore city for shared links
+  saveCurrentCityForRestore: () => void;
+  restoreSavedCity: () => boolean;
+  getSavedCityInfo: () => SavedCityInfo;
+  clearSavedCity: () => void;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -297,6 +311,69 @@ function saveDayNightMode(mode: DayNightMode): void {
     localStorage.setItem(DAY_NIGHT_MODE_STORAGE_KEY, mode);
   } catch (e) {
     console.error('Failed to save day/night mode preference:', e);
+  }
+}
+
+// Save current city for later restoration (when viewing shared cities)
+function saveCityForRestore(state: GameState): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const savedData = {
+      state: state,
+      info: {
+        cityName: state.cityName,
+        population: state.stats.population,
+        money: state.stats.money,
+        savedAt: Date.now(),
+      },
+    };
+    localStorage.setItem(SAVED_CITY_STORAGE_KEY, JSON.stringify(savedData));
+  } catch (e) {
+    console.error('Failed to save city for restore:', e);
+  }
+}
+
+// Load saved city info (just metadata, not full state)
+function loadSavedCityInfo(): SavedCityInfo {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem(SAVED_CITY_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.info) {
+        return parsed.info as SavedCityInfo;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load saved city info:', e);
+  }
+  return null;
+}
+
+// Load full saved city state
+function loadSavedCityState(): GameState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem(SAVED_CITY_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.state && parsed.state.grid && parsed.state.gridSize && parsed.state.stats) {
+        return parsed.state as GameState;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load saved city state:', e);
+  }
+  return null;
+}
+
+// Clear saved city
+function clearSavedCityStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(SAVED_CITY_STORAGE_KEY);
+  } catch (e) {
+    console.error('Failed to clear saved city:', e);
   }
 }
 
@@ -777,6 +854,33 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Save current city for restore (when viewing shared cities)
+  const saveCurrentCityForRestore = useCallback(() => {
+    saveCityForRestore(state);
+  }, [state]);
+
+  // Restore saved city
+  const restoreSavedCity = useCallback((): boolean => {
+    const savedState = loadSavedCityState();
+    if (savedState) {
+      skipNextSaveRef.current = true;
+      setState(savedState);
+      clearSavedCityStorage();
+      return true;
+    }
+    return false;
+  }, []);
+
+  // Get saved city info
+  const getSavedCityInfo = useCallback((): SavedCityInfo => {
+    return loadSavedCityInfo();
+  }, []);
+
+  // Clear saved city
+  const clearSavedCity = useCallback(() => {
+    clearSavedCityStorage();
+  }, []);
+
   const value: GameContextValue = {
     state,
     setTool,
@@ -805,6 +909,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     dayNightMode,
     setDayNightMode,
     visualHour,
+    // Save/restore city for shared links
+    saveCurrentCityForRestore,
+    restoreSavedCity,
+    getSavedCityInfo,
+    clearSavedCity,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

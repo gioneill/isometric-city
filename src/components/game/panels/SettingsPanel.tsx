@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { SpriteTestPanel } from './SpriteTestPanel';
 
 export function SettingsPanel() {
-  const { state, setActivePanel, setDisastersEnabled, newGame, loadState, exportState, generateRandomCity, currentSpritePack, availableSpritePacks, setSpritePack, dayNightMode, setDayNightMode } = useGame();
+  const { state, setActivePanel, setDisastersEnabled, newGame, loadState, exportState, generateRandomCity, currentSpritePack, availableSpritePacks, setSpritePack, dayNightMode, setDayNightMode, getSavedCityInfo, restoreSavedCity, clearSavedCity } = useGame();
   const { disastersEnabled, cityName, gridSize } = state;
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -23,6 +23,12 @@ export function SettingsPanel() {
   const [exportCopied, setExportCopied] = useState(false);
   const [importError, setImportError] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
+  const [savedCityInfo, setSavedCityInfo] = useState(getSavedCityInfo());
+  
+  // Refresh saved city info when panel opens
+  React.useEffect(() => {
+    setSavedCityInfo(getSavedCityInfo());
+  }, [getSavedCityInfo]);
   
   // Initialize showSpriteTest from query parameter
   const spriteTestFromUrl = searchParams.get('spriteTest') === 'true';
@@ -174,6 +180,38 @@ export function SettingsPanel() {
           </div>
           
           <Separator />
+          
+          {/* Restore saved city button - shown if there's a saved city from before viewing a shared city */}
+          {savedCityInfo && (
+            <div className="space-y-2">
+              <Button
+                variant="default"
+                className="w-full"
+                onClick={() => {
+                  restoreSavedCity();
+                  setSavedCityInfo(null);
+                  setActivePanel('none');
+                }}
+              >
+                Restore {savedCityInfo.cityName}
+              </Button>
+              <p className="text-muted-foreground text-xs text-center">
+                Your city was saved before viewing a shared city
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+                onClick={() => {
+                  clearSavedCity();
+                  setSavedCityInfo(null);
+                }}
+              >
+                Dismiss
+              </Button>
+              <Separator />
+            </div>
+          )}
           
           {!showNewGameConfirm ? (
             <Button
