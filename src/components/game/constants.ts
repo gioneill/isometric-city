@@ -92,3 +92,8 @@ export const OPPOSITE_DIRECTION: Record<CarDirection, CarDirection> = {
   south: 'north',
   west: 'east',
 };
+
+// Traffic light timing constants (slower for visual appeal)
+export const TRAFFIC_LIGHT_GREEN_DURATION = 8.0;   // Seconds
+export const TRAFFIC_LIGHT_YELLOW_DURATION = 2.0;  // Seconds
+export const TRAFFIC_LIGHT_CYCLE = 20.0;           // Full cycle time
