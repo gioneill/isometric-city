@@ -21,12 +21,14 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
   selectedTool,
   money,
   onSelectTool,
+  forceOpenUpward = false,
 }: {
   label: string;
   tools: Tool[];
   selectedTool: Tool;
   money: number;
   onSelectTool: (tool: Tool) => void;
+  forceOpenUpward?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, buttonHeight: 0, openUpward: false });
@@ -55,7 +57,7 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
       
       // Check if opening downward would overflow the screen
       const spaceBelow = viewportHeight - rect.top;
-      const openUpward = spaceBelow < SUBMENU_MAX_HEIGHT && rect.top > SUBMENU_MAX_HEIGHT;
+      const openUpward = forceOpenUpward || (spaceBelow < SUBMENU_MAX_HEIGHT && rect.top > SUBMENU_MAX_HEIGHT);
       
       setMenuPosition({
         top: openUpward ? rect.bottom : rect.top,
@@ -262,12 +264,14 @@ export const Sidebar = React.memo(function Sidebar() {
     { 
       key: 'utilities', 
       label: 'Utilities', 
-      tools: ['power_plant', 'water_tower', 'subway_station'] as Tool[]
+      tools: ['power_plant', 'water_tower', 'subway_station'] as Tool[],
+      forceOpenUpward: true
     },
     { 
       key: 'special', 
       label: 'Special', 
-      tools: ['stadium', 'museum', 'airport', 'space_program', 'city_hall', 'amusement_park'] as Tool[]
+      tools: ['stadium', 'museum', 'airport', 'space_program', 'city_hall', 'amusement_park'] as Tool[],
+      forceOpenUpward: true
     },
   ], []);
   
@@ -325,7 +329,7 @@ export const Sidebar = React.memo(function Sidebar() {
         
         {/* Submenu categories */}
         <div className="px-2 flex flex-col gap-0.5">
-          {submenuCategories.map(({ key, label, tools }) => (
+          {submenuCategories.map(({ key, label, tools, forceOpenUpward }) => (
             <HoverSubmenu
               key={key}
               label={label}
@@ -333,6 +337,7 @@ export const Sidebar = React.memo(function Sidebar() {
               selectedTool={selectedTool}
               money={stats.money}
               onSelectTool={setTool}
+              forceOpenUpward={forceOpenUpward}
             />
           ))}
         </div>
