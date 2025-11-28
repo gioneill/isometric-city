@@ -32,6 +32,13 @@ function isFarmBuilding(x: number, y: number, buildingType: string): boolean {
   return seed < 50;
 }
 
+// Check if a building is a "starter" type that can operate without utilities
+// This includes farms, small houses, and small shops
+function isStarterBuilding(x: number, y: number, buildingType: string): boolean {
+  if (buildingType === 'house_small' || buildingType === 'shop_small') return true;
+  return isFarmBuilding(x, y, buildingType);
+}
+
 // Perlin-like noise for terrain generation
 function noise2D(x: number, y: number, seed: number = 42): number {
   const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453123;
@@ -896,10 +903,10 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
   const hasWater = building.watered;
   const landValue = tile.landValue;
   
-  // Farms (factory_small at certain positions) don't require power/water
-  const isFarm = isFarmBuilding(x, y, building.type);
+  // Starter buildings (farms, house_small, shop_small) don't require power/water
+  const isStarter = isStarterBuilding(x, y, building.type);
 
-  if (!isFarm && (!hasPower || !hasWater)) {
+  if (!isStarter && (!hasPower || !hasWater)) {
     return building;
   }
 
@@ -980,8 +987,8 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
     // At demand -40, ~0.5% chance per tick; at demand -100, ~2% chance
     const abandonmentChance = Math.min(0.02, Math.abs(zoneDemandValue + 20) / 4000);
 
-    // Buildings without power/water are slightly more likely to be abandoned (except farms)
-    const utilityPenalty = isFarm ? 0 : ((!hasPower ? 0.005 : 0) + (!hasWater ? 0.005 : 0));
+    // Buildings without power/water are slightly more likely to be abandoned (except starter buildings)
+    const utilityPenalty = isStarter ? 0 : ((!hasPower ? 0.005 : 0) + (!hasWater ? 0.005 : 0));
 
     // Lower-level buildings are slightly more likely to be abandoned
     const levelPenalty = building.level <= 2 ? 0.003 : 0;
@@ -1068,8 +1075,11 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
 
   // Attempt to upgrade footprint/density when the tile is mature enough
   // Keep consistent age requirement to prevent sudden mass consolidation
+  // Consolidation ALWAYS requires utilities (power and water) - no farm exemption
+  // because consolidation upgrades buildings to larger types that need utilities
   const ageRequirement = 12;
-  if (building.age > ageRequirement && (targetLevel > building.level || targetType !== building.type) && Math.random() < consolidationChance) {
+  const hasUtilitiesForConsolidation = hasPower && hasWater;
+  if (hasUtilitiesForConsolidation && building.age > ageRequirement && (targetLevel > building.level || targetType !== building.type) && Math.random() < consolidationChance) {
     const size = getBuildingSize(targetType);
     const footprint = findFootprintIncludingTile(grid, x, y, size.width, size.height, zone, grid.length, allowBuildingConsolidation);
 
@@ -1627,14 +1637,14 @@ export function simulateTick(state: GameState): GameState {
         const demandFactor = Math.max(0, Math.min(1, (zoneDemandForSpawn + 30) / 80));
         const spawnChance = baseSpawnChance * demandFactor;
 
-        // Farms (factory_small at certain positions) can spawn without power/water
-        const wouldBeFarm = tile.zone === 'industrial' && isFarmBuilding(x, y, 'factory_small');
+        // Starter buildings (house_small, shop_small, farms) can spawn without power/water
+        const buildingList = tile.zone === 'residential' ? RESIDENTIAL_BUILDINGS :
+          tile.zone === 'commercial' ? COMMERCIAL_BUILDINGS : INDUSTRIAL_BUILDINGS;
+        const candidate = buildingList[0];
+        const wouldBeStarter = isStarterBuilding(x, y, candidate);
         const hasUtilities = hasPower && hasWater;
         
-        if (roadAccess && (hasUtilities || wouldBeFarm) && Math.random() < spawnChance) {
-          const buildingList = tile.zone === 'residential' ? RESIDENTIAL_BUILDINGS :
-            tile.zone === 'commercial' ? COMMERCIAL_BUILDINGS : INDUSTRIAL_BUILDINGS;
-          const candidate = buildingList[0];
+        if (roadAccess && (hasUtilities || wouldBeStarter) && Math.random() < spawnChance) {
           const candidateSize = getBuildingSize(candidate);
           if (canSpawnMultiTileBuilding(newGrid, x, y, candidateSize.width, candidateSize.height, tile.zone, size)) {
             // Pre-clone all rows that will be modified by the building footprint
@@ -2314,31 +2324,31 @@ export function getDevelopmentBlockers(
     });
   }
   
-  // Farms (industrial zone at certain positions) don't require power/water
-  const wouldBeFarm = tile.zone === 'industrial' && isFarmBuilding(x, y, 'factory_small');
+  // Check if multi-tile building can spawn here
+  const buildingList = tile.zone === 'residential' ? RESIDENTIAL_BUILDINGS :
+    tile.zone === 'commercial' ? COMMERCIAL_BUILDINGS : INDUSTRIAL_BUILDINGS;
+  const candidate = buildingList[0];
   
-  // Check power (not required for farms)
+  // Starter buildings (house_small, shop_small, farms) don't require power/water
+  const wouldBeStarter = isStarterBuilding(x, y, candidate);
+  
+  // Check power (not required for starter buildings)
   const hasPower = state.services.power[y][x];
-  if (!hasPower && !wouldBeFarm) {
+  if (!hasPower && !wouldBeStarter) {
     blockers.push({
       reason: 'No power',
       details: 'Build a power plant nearby to provide electricity'
     });
   }
   
-  // Check water (not required for farms)
+  // Check water (not required for starter buildings)
   const hasWater = state.services.water[y][x];
-  if (!hasWater && !wouldBeFarm) {
+  if (!hasWater && !wouldBeStarter) {
     blockers.push({
       reason: 'No water',
       details: 'Build a water tower nearby to provide water'
     });
   }
-  
-  // Check if multi-tile building can spawn here
-  const buildingList = tile.zone === 'residential' ? RESIDENTIAL_BUILDINGS :
-    tile.zone === 'commercial' ? COMMERCIAL_BUILDINGS : INDUSTRIAL_BUILDINGS;
-  const candidate = buildingList[0];
   const candidateSize = getBuildingSize(candidate);
   
   if (candidateSize.width > 1 || candidateSize.height > 1) {
@@ -2373,10 +2383,12 @@ export function getDevelopmentBlockers(
   
   // If no blockers found, it's just waiting for RNG
   const hasUtilities = hasPower && hasWater;
-  if (blockers.length === 0 && roadAccess && (hasUtilities || wouldBeFarm)) {
+  if (blockers.length === 0 && roadAccess && (hasUtilities || wouldBeStarter)) {
     blockers.push({
       reason: 'Waiting for development',
-      details: wouldBeFarm ? 'Farm can develop here! (5% chance per tick)' : 'All conditions met! Building will spawn soon (5% chance per tick)'
+      details: wouldBeStarter && !hasUtilities 
+        ? 'Starter building can develop here without utilities! (5% chance per tick)' 
+        : 'All conditions met! Building will spawn soon (5% chance per tick)'
     });
   }
   
