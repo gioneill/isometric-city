@@ -89,7 +89,7 @@ export function useVehicleSystems(
         progress: Math.random() * 0.8,
         speed: (0.35 + Math.random() * 0.35) * 0.7,
         age: 0,
-        maxAge: 1800 + Math.random() * 2700,
+        maxAge: Infinity, // Cars never time out - they only disappear if they can't find a valid road
         color: CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)],
         laneOffset: laneSign * baseLaneOffset,
       });
@@ -658,27 +658,58 @@ export function useVehicleSystems(
       while (car.progress >= 1 && guard < 4) {
         guard++;
         const meta = DIRECTION_META[car.direction];
-        car.tileX += meta.step.x;
-        car.tileY += meta.step.y;
+        const newTileX = car.tileX + meta.step.x;
+        const newTileY = car.tileY + meta.step.y;
         
-        if (!isRoadTile(currentGrid, currentGridSize, car.tileX, car.tileY)) {
-          alive = false;
-          break;
+        // Check if next tile is a valid road
+        if (!isRoadTile(currentGrid, currentGridSize, newTileX, newTileY)) {
+          // Try to turn around instead of dying - find any valid direction from current tile
+          const options = getDirectionOptions(currentGrid, currentGridSize, car.tileX, car.tileY);
+          if (options.length > 0) {
+            // Pick a random valid direction (preferring not going back the way we came)
+            const otherOptions = options.filter(d => d !== car.direction);
+            const newDir = otherOptions.length > 0 
+              ? otherOptions[Math.floor(Math.random() * otherOptions.length)]
+              : options[Math.floor(Math.random() * options.length)];
+            car.direction = newDir;
+            car.progress = 0.1; // Reset progress to start of tile
+            const baseLaneOffset = 4 + Math.random() * 2;
+            const laneSign = (newDir === 'north' || newDir === 'east') ? 1 : -1;
+            car.laneOffset = laneSign * baseLaneOffset;
+            break;
+          } else {
+            alive = false;
+            break;
+          }
         }
         
+        car.tileX = newTileX;
+        car.tileY = newTileY;
         car.progress -= 1;
+        
         const nextDirection = pickNextDirection(car.direction, currentGrid, currentGridSize, car.tileX, car.tileY);
         if (!nextDirection) {
-          alive = false;
-          break;
+          // Try to find any valid direction instead of dying
+          const options = getDirectionOptions(currentGrid, currentGridSize, car.tileX, car.tileY);
+          if (options.length > 0) {
+            const newDir = options[Math.floor(Math.random() * options.length)];
+            car.direction = newDir;
+            const baseLaneOffset = 4 + Math.random() * 2;
+            const laneSign = (newDir === 'north' || newDir === 'east') ? 1 : -1;
+            car.laneOffset = laneSign * baseLaneOffset;
+          } else {
+            alive = false;
+            break;
+          }
+        } else {
+          // Update lane offset when direction changes to maintain proper lane
+          if (nextDirection !== car.direction) {
+            const baseLaneOffset = 4 + Math.random() * 2;
+            const laneSign = (nextDirection === 'north' || nextDirection === 'east') ? 1 : -1;
+            car.laneOffset = laneSign * baseLaneOffset;
+          }
+          car.direction = nextDirection;
         }
-        // Update lane offset when direction changes to maintain proper lane
-        if (nextDirection !== car.direction) {
-          const baseLaneOffset = 4 + Math.random() * 2;
-          const laneSign = (nextDirection === 'north' || nextDirection === 'east') ? 1 : -1;
-          car.laneOffset = laneSign * baseLaneOffset;
-        }
-        car.direction = nextDirection;
       }
       
       if (alive) {
