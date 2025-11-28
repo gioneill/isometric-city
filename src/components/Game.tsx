@@ -6993,7 +6993,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
 }
 
 export default function Game() {
-  const { state, setTool, setActivePanel, addMoney, addNotification } = useGame();
+  const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<{ x: number; y: number } | null>(null);
@@ -7102,12 +7102,17 @@ export default function Game() {
       } else if (e.key === 'b' || e.key === 'B') {
         e.preventDefault();
         setTool('bulldoze');
+      } else if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        // Toggle pause/unpause: if paused (speed 0), resume to normal (speed 1)
+        // If running, pause (speed 0)
+        setSpeed(state.speed === 0 ? 1 : 0);
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [state.activePanel, state.selectedTool, selectedTile, setActivePanel, setTool, overlayMode]);
+  }, [state.activePanel, state.selectedTool, state.speed, selectedTile, setActivePanel, setTool, setSpeed, overlayMode]);
 
   // Debug logging for zone growth issues
   useEffect(() => {

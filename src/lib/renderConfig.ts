@@ -214,12 +214,12 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     apartment_high: -0.4, // Construction apartment_high shifted up 3 tiles from previous (2.6 - 3.0 = -0.4)
     apartment_low: 0.3, // Construction apartment_low shifted down 1.3 tiles from normal (-1.0 + 1.3 = 0.3)
     mall: -1.0, // Construction mall shifted up 0.8 tiles from previous (-0.2 - 0.8 = -1.0)
-    office_high: 0.3, // Construction office_high shifted down 2.5 tiles from normal (-0.7 + 2.5 = 1.8)
+    office_high: -0.2, // Construction office_high shifted up 0.5 tiles from previous (0.3 - 0.5 = -0.2)
     office_low: -0.4, // Construction office_low shifted down 0.1 tiles from previous (-0.5 + 0.1 = -0.4)
   },
   constructionScales: {
     mall: 0.92, // Construction mall scaled down 8%
-    office_high: 0.90, // Construction office_high scaled down 10%
+    office_high: 0.80, // Construction office_high scaled down 20%
     apartment_high: 0.65, // Construction apartment_high scaled down 35%
     apartment_low: 0.95, // Construction apartment_low scaled down 5%
   },
@@ -230,14 +230,15 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     house_medium: -0.05, // Normal is -0.05, abandoned matches normal position (moved up 0.5 tiles from 0.35, then down 0.1 tiles)
     house_small: -0.05, // Normal is -0.2, abandoned shifted up 0.15 tiles to match house_medium adjustment
     mansion: -0.25, // Normal is -0.35, abandoned shifted down 0.1 tiles (-0.35 + 0.1 = -0.25)
+    office_high: -0.2, // Normal is -0.7, abandoned shifted down 0.5 tiles (-0.7 + 0.5 = -0.2)
   },
   abandonedScales: {
     // Abandoned factory_large needs to be scaled down 30%
     factory_large: 0.7,
   },
   denseVerticalOffsets: {
-    // Dense apartment_high shifted down 0.2 tiles from -0.80
-    apartment_high: -0.60, // Moved down 0.2 tiles from -0.80
+    // Dense apartment_high shifted up 0.2 tiles from -0.60
+    apartment_high: -0.80, // Shifted up 0.2 tiles from -0.60
     factory_large: -1.2, // Dense variant shifted up 0.2
   },
   denseScales: {
