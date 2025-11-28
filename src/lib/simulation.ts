@@ -623,6 +623,75 @@ export function getWaterAdjacency(
   return { hasWater, shouldFlip };
 }
 
+// Check if a building footprint is adjacent to roads and determine flip direction
+// Similar to getWaterAdjacency but for roads - makes buildings face the road
+export function getRoadAdjacency(
+  grid: Tile[][],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  gridSize: number
+): { hasRoad: boolean; shouldFlip: boolean } {
+  // In isometric view (looking from SE toward NW):
+  // - The default sprite faces toward the "front" (south-east in world coords)
+  // - To face the opposite direction, we flip horizontally
+  
+  // Check all four edges and track which sides have roads
+  let roadOnSouthOrEast = false; // "Front" sides - no flip needed
+  let roadOnNorthOrWest = false; // "Back" sides - flip needed
+  
+  // Check south edge (y + height) - front-right in isometric view
+  for (let dx = 0; dx < width; dx++) {
+    const checkX = x + dx;
+    const checkY = y + height;
+    if (checkY < gridSize && grid[checkY]?.[checkX]?.building.type === 'road') {
+      roadOnSouthOrEast = true;
+      break;
+    }
+  }
+  
+  // Check east edge (x + width) - front-left in isometric view
+  if (!roadOnSouthOrEast) {
+    for (let dy = 0; dy < height; dy++) {
+      const checkX = x + width;
+      const checkY = y + dy;
+      if (checkX < gridSize && grid[checkY]?.[checkX]?.building.type === 'road') {
+        roadOnSouthOrEast = true;
+        break;
+      }
+    }
+  }
+  
+  // Check north edge (y - 1) - back-left in isometric view
+  for (let dx = 0; dx < width; dx++) {
+    const checkX = x + dx;
+    const checkY = y - 1;
+    if (checkY >= 0 && grid[checkY]?.[checkX]?.building.type === 'road') {
+      roadOnNorthOrWest = true;
+      break;
+    }
+  }
+  
+  // Check west edge (x - 1) - back-right in isometric view
+  if (!roadOnNorthOrWest) {
+    for (let dy = 0; dy < height; dy++) {
+      const checkX = x - 1;
+      const checkY = y + dy;
+      if (checkX >= 0 && grid[checkY]?.[checkX]?.building.type === 'road') {
+        roadOnNorthOrWest = true;
+        break;
+      }
+    }
+  }
+  
+  const hasRoad = roadOnSouthOrEast || roadOnNorthOrWest;
+  // Only flip if road is on the back sides and NOT on the front sides
+  const shouldFlip = hasRoad && roadOnNorthOrWest && !roadOnSouthOrEast;
+  
+  return { hasRoad, shouldFlip };
+}
+
 function createTile(x: number, y: number, buildingType: BuildingType = 'grass'): Tile {
   return {
     x,
@@ -1872,8 +1941,9 @@ function getConstructionSpeed(buildingType: BuildingType): number {
   // - 2x2 (4 tiles): 12-18% per tick → ~6-8 ticks
   // - 3x3 (9 tiles): 8-12% per tick → ~9-12 ticks
   // - 4x4 (16 tiles): 6-9% per tick → ~11-16 ticks
+  // Construction takes 30% longer overall (speed reduced by 1/1.3)
   const baseSpeed = 24 + Math.random() * 12;
-  return baseSpeed / Math.sqrt(area);
+  return (baseSpeed / Math.sqrt(area)) / 1.3;
 }
 
 // Check if a multi-tile building can be placed at the given position

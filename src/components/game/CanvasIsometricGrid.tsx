@@ -3,7 +3,7 @@
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useGame } from '@/context/GameContext';
 import { Tool, TOOL_INFO, Tile, BuildingType, AdjacentCity } from '@/types/game';
-import { getBuildingSize, requiresWaterAdjacency, getWaterAdjacency } from '@/lib/simulation';
+import { getBuildingSize, requiresWaterAdjacency, getWaterAdjacency, getRoadAdjacency } from '@/lib/simulation';
 import { FireIcon, SafetyIcon } from '@/components/ui/Icons';
 import { getSpriteCoords, BUILDING_TO_SPRITE, SPRITE_VERTICAL_OFFSETS, SPRITE_HORIZONTAL_OFFSETS, getActiveSpritePack } from '@/lib/renderConfig';
 
@@ -2792,11 +2792,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
                                        tile.building.constructionProgress < 100;
           
           // Construction has two phases:
-          // Phase 1 (0-50%): Foundation/dirt plot phase - just show a dirt mound
-          // Phase 2 (50-100%): Construction scaffolding phase - show construction sprite
+          // Phase 1 (0-40%): Foundation/dirt plot phase - just show a dirt mound
+          // Phase 2 (40-100%): Construction scaffolding phase - show construction sprite
           const constructionProgress = tile.building.constructionProgress ?? 100;
-          const isFoundationPhase = isUnderConstruction && constructionProgress < 50;
-          const isConstructionPhase = isUnderConstruction && constructionProgress >= 50;
+          const isFoundationPhase = isUnderConstruction && constructionProgress < 40;
+          const isConstructionPhase = isUnderConstruction && constructionProgress >= 40;
           
           // If in foundation phase, draw the foundation plot and skip sprite rendering
           if (isFoundationPhase) {
@@ -3171,20 +3171,28 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               const defaultMirroredBuildings = ['marina_docks_small', 'pier_large'];
               const isDefaultMirrored = defaultMirroredBuildings.includes(buildingType);
               
-              // Check if this is a waterfront asset - don't apply random mirroring to these
+              // Check if this is a waterfront asset - these use water-facing logic set at build time
               const isWaterfrontAsset = requiresWaterAdjacency(buildingType);
               
-              // Add 50% random mirroring for visual variety (deterministic based on tile position)
-              // Skip random mirroring for waterfront assets to preserve their orientation
-              const shouldRandomMirror = isWaterfrontAsset ? false : (() => {
-                // Use a different seed than dense variants to get independent randomness
+              // Determine flip based on road adjacency for non-waterfront buildings
+              // Buildings should face roads when possible, otherwise fall back to random
+              const shouldRoadMirror = (() => {
+                if (isWaterfrontAsset) return false; // Waterfront buildings use water-facing logic
+                
+                const roadCheck = getRoadAdjacency(grid, tile.x, tile.y, buildingSize.width, buildingSize.height, gridSize);
+                if (roadCheck.hasRoad) {
+                  // Face the road
+                  return roadCheck.shouldFlip;
+                }
+                
+                // No road adjacent - fall back to deterministic random mirroring for visual variety
                 const mirrorSeed = (tile.x * 47 + tile.y * 83) % 100;
                 return mirrorSeed < 50;
               })();
               
-              // Final flip decision: combine default mirror state, explicit flip flag, and random mirror
+              // Final flip decision: combine default mirror state, explicit flip flag, and road/random mirror
               const baseFlipped = isDefaultMirrored ? !tile.building.flipped : tile.building.flipped === true;
-              const isFlipped = baseFlipped !== shouldRandomMirror; // XOR: if both true or both false, no flip; if one true, flip
+              const isFlipped = baseFlipped !== shouldRoadMirror; // XOR: if both true or both false, no flip; if one true, flip
               
               if (isFlipped) {
                 // Apply horizontal flip around the center of the sprite
