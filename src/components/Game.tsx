@@ -4305,36 +4305,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         if (boat.wakeSpawnProgress >= wakeSpawnInterval) {
           boat.wakeSpawnProgress -= wakeSpawnInterval;
 
-          // Add wake particles behind the boat
-          const perpAngle = boat.angle + Math.PI / 2;
-          const wakeOffset = 3;
+          // Add single wake particle behind the boat
           const behindBoat = -6; // Position behind the boat
-
-          if (isMobile) {
-            // Single centered wake particle on mobile
-            boat.wake.push({
-              x: boat.x + Math.cos(boat.angle) * behindBoat,
-              y: boat.y + Math.sin(boat.angle) * behindBoat,
-              age: 0,
-              opacity: 1
-            });
-          } else {
-            // Two trails like plane contrails on desktop
-            boat.wake.push(
-              {
-                x: boat.x + Math.cos(boat.angle) * behindBoat + Math.cos(perpAngle) * wakeOffset,
-                y: boat.y + Math.sin(boat.angle) * behindBoat + Math.sin(perpAngle) * wakeOffset,
-                age: 0,
-                opacity: 1
-              },
-              {
-                x: boat.x + Math.cos(boat.angle) * behindBoat - Math.cos(perpAngle) * wakeOffset,
-                y: boat.y + Math.sin(boat.angle) * behindBoat - Math.sin(perpAngle) * wakeOffset, 
-                age: 0, 
-                opacity: 1 
-              }
-            );
-          }
+          boat.wake.push({
+            x: boat.x + Math.cos(boat.angle) * behindBoat,
+            y: boat.y + Math.sin(boat.angle) * behindBoat,
+            age: 0,
+            opacity: 1
+          });
         }
       }
       
