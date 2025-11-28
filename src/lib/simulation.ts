@@ -1645,13 +1645,16 @@ export function simulateTick(state: GameState): GameState {
   if (newTick >= 30) {
     newTick = 0;
     newDay++;
+    // Weekly income/expense (deposit every 7 days at 1/4 monthly rate)
+    // Only deposit when day changes to a multiple of 7
+    if (newDay % 7 === 0) {
+      newStats.money += Math.floor((newStats.income - newStats.expenses) / 4);
+    }
   }
 
   if (newDay > 30) {
     newDay = 1;
     newMonth++;
-    // Monthly income/expense
-    newStats.money += newStats.income - newStats.expenses;
   }
 
   if (newMonth > 12) {

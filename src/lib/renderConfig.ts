@@ -202,7 +202,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     power_plant: -0.3, // Shift up
     park: -0.15, // Perfect position
     park_large: -0.85, // Shift up significantly (almost an entire tile)
-    tennis: -0.1, // Shift up a bit
+    tennis: -0.2, // Shifted up 0.1 tiles from -0.1
     city_hall: -0.6, // Shift up about 0.2 tiles
     amusement_park: -1.5, // Shift up about 1 tile
     space_program: -0.6, // Shift down a bit
@@ -234,6 +234,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     office_high: -0.5, // Construction office_high shifted up 0.5 tiles from previous (0.3 - 0.5 = -0.2), moved up 0.3 tiles
     office_low: -0.4, // Construction office_low shifted down 0.1 tiles from previous (-0.5 + 0.1 = -0.4)
     hospital: -0.7, // Construction hospital shifted up 0.8 tiles
+    tennis: -0.2, // Construction tennis shifted up 0.1 tiles from normal -0.1
   },
   constructionScales: {
     mall: 0.92, // Construction mall scaled down 8%

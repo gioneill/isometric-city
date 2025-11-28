@@ -314,6 +314,12 @@ export function MobileTopBar({
                 <span className="text-sm text-muted-foreground">Monthly Expenses</span>
                 <span className="text-sm font-mono text-red-400">${stats.expenses.toLocaleString()}</span>
               </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Weekly Net</span>
+                <span className={`text-sm font-mono ${stats.income - stats.expenses >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  ${Math.floor((stats.income - stats.expenses) / 4).toLocaleString()}
+                </span>
+              </div>
             </div>
 
             <Separator />

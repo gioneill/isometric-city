@@ -57,6 +57,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCheatCodes } from '@/hooks/useCheatCodes';
 import { VinnieDialog } from '@/components/VinnieDialog';
+import { CommandMenu } from '@/components/ui/CommandMenu';
 
 // Import extracted game components, types, and utilities
 import {
@@ -150,6 +151,7 @@ import {
   drawGreenBaseTile,
   drawGreyBaseTile,
   drawBeach,
+  drawBeachOnWater,
 } from '@/components/game/drawing';
 import {
   getOverlayFillStyle,
@@ -234,9 +236,10 @@ const TimeOfDayIcon = ({ hour }: { hour: number }) => {
 // Memoized TopBar Component
 const TopBar = React.memo(function TopBar() {
   const { state, setSpeed, setTaxRate, isSaving } = useGame();
-  const { stats, year, month, hour, speed, taxRate, cityName } = state;
+  const { stats, year, month, day, hour, speed, taxRate, cityName } = state;
   
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const formattedDate = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}-${year}`;
   
   return (
     <div className="h-14 bg-card border-b border-border flex items-center justify-between px-4">
@@ -249,7 +252,14 @@ const TopBar = React.memo(function TopBar() {
             )}
           </div>
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-mono tabular-nums">
-            <span>{monthNames[month - 1]} {year}</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>{monthNames[month - 1]} {year}</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{formattedDate}</p>
+              </TooltipContent>
+            </Tooltip>
             <TimeOfDayIcon hour={hour} />
           </div>
         </div>
@@ -862,9 +872,9 @@ function StatisticsPanel() {
               <div className="font-mono tabular-nums font-semibold text-amber-400">${stats.money.toLocaleString()}</div>
             </Card>
             <Card className="p-3">
-              <div className="text-muted-foreground text-xs mb-1">Monthly</div>
+              <div className="text-muted-foreground text-xs mb-1">Weekly</div>
               <div className={`font-mono tabular-nums font-semibold ${stats.income - stats.expenses >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                ${(stats.income - stats.expenses).toLocaleString()}
+                ${Math.floor((stats.income - stats.expenses) / 4).toLocaleString()}
               </div>
             </Card>
           </div>
@@ -6859,7 +6869,9 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
                                       (tile.building.type === 'empty' && isPartOfParkBuilding(x, y));
         
         // Draw base tile for all tiles (including water), but skip gray bases for buildings and green bases for grass/empty adjacent to water or parks
-        drawIsometricTile(ctx, screenX, screenY, tile, !!(isHovered || isSelected || isInDragRect), zoom, true, needsGreenBaseOverWater || needsGreenBaseForPark);
+        // Highlight subway stations when subway overlay is active
+        const isSubwayStationHighlight = overlayMode === 'subway' && tile.building.type === 'subway_station';
+        drawIsometricTile(ctx, screenX, screenY, tile, !!(isHovered || isSelected || isInDragRect || isSubwayStationHighlight), zoom, true, needsGreenBaseOverWater || needsGreenBaseForPark);
         
         if (needsGreyBase) {
           baseTileQueue.push({ screenX, screenY, tile, depth: x + y });
@@ -6945,6 +6957,21 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     
     ctx.restore(); // Remove clipping after drawing water
     
+    // Draw beaches on water tiles (after water, outside clipping region)
+    waterQueue
+      .sort((a, b) => a.depth - b.depth)
+      .forEach(({ tile, screenX, screenY }) => {
+        // Compute land adjacency for each edge (opposite of water adjacency)
+        // Only consider tiles within bounds - don't draw beaches on map edges
+        const adjacentLand = {
+          north: (tile.x - 1 >= 0 && tile.x - 1 < gridSize && tile.y >= 0 && tile.y < gridSize) && !isWater(tile.x - 1, tile.y),
+          east: (tile.x >= 0 && tile.x < gridSize && tile.y - 1 >= 0 && tile.y - 1 < gridSize) && !isWater(tile.x, tile.y - 1),
+          south: (tile.x + 1 >= 0 && tile.x + 1 < gridSize && tile.y >= 0 && tile.y < gridSize) && !isWater(tile.x + 1, tile.y),
+          west: (tile.x >= 0 && tile.x < gridSize && tile.y + 1 >= 0 && tile.y + 1 < gridSize) && !isWater(tile.x, tile.y + 1),
+        };
+        drawBeachOnWater(ctx, screenX, screenY, adjacentLand);
+      });
+    
     // Draw roads (above water, needs full redraw including base tile)
     roadQueue
       .sort((a, b) => a.depth - b.depth)
@@ -6979,19 +7006,8 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         drawGreyBaseTile(ctx, screenX, screenY, tile, zoom);
       });
     
-    // Draw beach tiles (below buildings but above water)
-    beachQueue
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ tile, screenX, screenY }) => {
-        // Compute water adjacency for each edge
-        const adjacentWater = {
-          north: isWater(tile.x - 1, tile.y),
-          east: isWater(tile.x, tile.y - 1),
-          south: isWater(tile.x + 1, tile.y),
-          west: isWater(tile.x, tile.y + 1),
-        };
-        drawBeach(ctx, screenX, screenY, adjacentWater);
-      });
+    // Note: Beach drawing has been moved to water tiles (drawBeachOnWater)
+    // The beachQueue is no longer used for drawing beaches on land tiles
     
     
     // Draw buildings sorted by depth so multi-tile sprites sit above adjacent tiles
@@ -8424,6 +8440,7 @@ export default function Game() {
         {state.activePanel === 'settings' && <SettingsPanel />}
         
         <VinnieDialog open={showVinnieDialog} onOpenChange={setShowVinnieDialog} />
+        <CommandMenu />
       </div>
     </TooltipProvider>
   );
