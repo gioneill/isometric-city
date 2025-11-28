@@ -6374,46 +6374,51 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
             const aspectRatio = cropH / cropW;
             const savedAlpha = ctx.globalAlpha;
             
-            // For tiles with more water neighbors, draw multiple blended passes
+            // Jitter for variety
+            const jitterX = (seedX - 0.5) * w * 0.3;
+            const jitterY = (seedY - 0.5) * h * 0.3;
+            
+            // For tiles with more water neighbors, draw blended passes
             if (adjacentCount >= 2) {
-              // Multiple passes with varying size and opacity for soft blending
-              const passes = [
-                { scale: 2.2, alpha: 0.25 },
-                { scale: 1.6, alpha: 0.45 },
-                { scale: 1.2, alpha: 0.7 },
-                { scale: 1.0, alpha: 1.0 },
-              ];
+              // Two passes: large soft outer, smaller solid core
+              // Outer pass - large, semi-transparent for blending
+              const outerScale = 2.0 + adjacentCount * 0.3;
+              const outerWidth = w * outerScale;
+              const outerHeight = outerWidth * aspectRatio;
+              ctx.globalAlpha = 0.35;
+              ctx.drawImage(
+                waterImage,
+                srcX, srcY, cropW, cropH,
+                Math.round(tileCenterX - outerWidth / 2 + jitterX),
+                Math.round(tileCenterY - outerHeight / 2 + jitterY),
+                Math.round(outerWidth),
+                Math.round(outerHeight)
+              );
               
-              // Jitter for variety
-              const jitterX = (seedX - 0.5) * w * 0.25;
-              const jitterY = (seedY - 0.5) * h * 0.25;
-              
-              for (const pass of passes) {
-                const destWidth = w * pass.scale;
-                const destHeight = destWidth * aspectRatio;
-                
-                ctx.globalAlpha = pass.alpha;
-                ctx.drawImage(
-                  waterImage,
-                  srcX, srcY, cropW, cropH,
-                  Math.round(tileCenterX - destWidth / 2 + jitterX),
-                  Math.round(tileCenterY - destHeight / 2 + jitterY),
-                  Math.round(destWidth),
-                  Math.round(destHeight)
-                );
-              }
+              // Core pass - full opacity
+              const coreScale = 1.1;
+              const coreWidth = w * coreScale;
+              const coreHeight = coreWidth * aspectRatio;
+              ctx.globalAlpha = 0.9;
+              ctx.drawImage(
+                waterImage,
+                srcX, srcY, cropW, cropH,
+                Math.round(tileCenterX - coreWidth / 2 + jitterX * 0.5),
+                Math.round(tileCenterY - coreHeight / 2 + jitterY * 0.5),
+                Math.round(coreWidth),
+                Math.round(coreHeight)
+              );
             } else {
               // Edge tile with few water neighbors - single contained draw
               const destWidth = w * 1.15;
               const destHeight = destWidth * aspectRatio;
-              const jitterX = (seedX - 0.5) * w * 0.15;
-              const jitterY = (seedY - 0.5) * h * 0.15;
               
+              ctx.globalAlpha = 0.95;
               ctx.drawImage(
                 waterImage,
                 srcX, srcY, cropW, cropH,
-                Math.round(tileCenterX - destWidth / 2 + jitterX),
-                Math.round(tileCenterY - destHeight / 2 + jitterY),
+                Math.round(tileCenterX - destWidth / 2 + jitterX * 0.3),
+                Math.round(tileCenterY - destHeight / 2 + jitterY * 0.3),
                 Math.round(destWidth),
                 Math.round(destHeight)
               );
