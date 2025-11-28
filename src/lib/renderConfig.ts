@@ -212,7 +212,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   constructionVerticalOffsets: {
     water_tower: 0.0, // Construction water tower shifted down 0.5 tiles from normal (-0.5 + 0.5 = 0.0)
     apartment_high: -0.4, // Construction apartment_high shifted up 3 tiles from previous (2.6 - 3.0 = -0.4)
-    apartment_low: 0.3, // Construction apartment_low shifted down 1.3 tiles from normal (-1.0 + 1.3 = 0.3)
+    apartment_low: -0.2, // Construction apartment_low shifted up 0.5 tiles from previous (0.3 - 0.5 = -0.2)
     mall: -1.0, // Construction mall shifted up 0.8 tiles from previous (-0.2 - 0.8 = -1.0)
     office_high: -0.2, // Construction office_high shifted up 0.5 tiles from previous (0.3 - 0.5 = -0.2)
     office_low: -0.4, // Construction office_low shifted down 0.1 tiles from previous (-0.5 + 0.1 = -0.4)
@@ -221,7 +221,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     mall: 0.92, // Construction mall scaled down 8%
     office_high: 0.80, // Construction office_high scaled down 20%
     apartment_high: 0.65, // Construction apartment_high scaled down 35%
-    apartment_low: 0.95, // Construction apartment_low scaled down 5%
+    apartment_low: 0.80, // Construction apartment_low scaled down 20%
   },
   abandonedVerticalOffsets: {
     // Abandoned apartments need different positioning than normal
