@@ -37,6 +37,7 @@ export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: Min
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gridImageRef = useRef<ImageData | null>(null);
   const lastGridRenderTickRef = useRef(-1);
+  const lastGridRef = useRef<typeof grid | null>(null);
   
   // Pre-compute color map for faster lookups
   const serviceBuildings = useMemo(() => SERVICE_BUILDINGS, []);
@@ -52,10 +53,15 @@ export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: Min
     const size = 140;
     const scale = size / gridSize;
     
-    // Only re-render grid portion every 10 ticks (or on first render)
-    // This significantly reduces CPU usage while keeping minimap responsive
+    // Track if grid reference changed (indicates building placement or other grid modification)
+    const gridChanged = lastGridRef.current !== grid;
+    lastGridRef.current = grid;
+    
+    // Re-render grid portion every 10 ticks OR when grid changes (building placed, etc.)
+    // This ensures immediate updates when user places buildings while keeping CPU usage low
     const shouldRenderGrid = lastGridRenderTickRef.current === -1 || 
-                             tick - lastGridRenderTickRef.current >= 10;
+                             tick - lastGridRenderTickRef.current >= 10 ||
+                             gridChanged;
     
     if (shouldRenderGrid) {
       lastGridRenderTickRef.current = tick;

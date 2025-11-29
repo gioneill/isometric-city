@@ -119,8 +119,8 @@ export function MobileTopBar({
             </button>
           </div>
 
-          {/* Center: Key stats with compact speed controls */}
-          <div className="flex items-center gap-2">
+          {/* Center: Pop/Funds stats */}
+          <div className="flex items-center gap-2 mr-auto ml-2">
             <div className="flex flex-col items-end">
               <span className="text-[9px] text-muted-foreground">Pop</span>
               <span className="text-xs font-mono font-semibold text-foreground">
@@ -133,33 +133,37 @@ export function MobileTopBar({
                 ${stats.money >= 1000000 ? `${(stats.money / 1000000).toFixed(1)}M` : stats.money >= 1000 ? `${(stats.money / 1000).toFixed(0)}k` : stats.money}
               </span>
             </div>
-            
-            {/* Compact Speed controls */}
-            <div className="flex items-center gap-0.5 bg-secondary rounded p-0.5 ml-1">
-              <Button
-                onClick={() => setSpeed(speed === 0 ? 1 : 0)}
-                variant={speed === 0 ? 'default' : 'ghost'}
-                size="icon"
-                className="h-6 w-6"
-              >
-                {speed === 0 ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
-              </Button>
-              <Button
-                onClick={() => setSpeed(speed === 3 ? 1 : speed === 0 ? 2 : (speed + 1) as 1 | 2 | 3)}
-                variant={speed >= 2 ? 'default' : 'ghost'}
-                size="icon"
-                className="h-6 w-6"
-              >
-                {speed === 3 ? (
-                  <div className="flex items-center -space-x-0.5">
-                    <PlayIcon size={6} />
-                    <PlayIcon size={6} />
-                  </div>
-                ) : (
-                  <FastForwardIcon size={10} />
-                )}
-              </Button>
-            </div>
+          </div>
+
+          {/* Speed controls: Pause / Play / 2x */}
+          <div className="flex items-center gap-0.5 bg-secondary rounded p-0.5">
+            <Button
+              onClick={() => setSpeed(0)}
+              variant={speed === 0 ? 'default' : 'ghost'}
+              size="icon"
+              className="h-6 w-6"
+              title="Pause"
+            >
+              <PauseIcon size={10} />
+            </Button>
+            <Button
+              onClick={() => setSpeed(1)}
+              variant={speed === 1 ? 'default' : 'ghost'}
+              size="icon"
+              className="h-6 w-6"
+              title="Normal speed"
+            >
+              <PlayIcon size={10} />
+            </Button>
+            <Button
+              onClick={() => setSpeed(2)}
+              variant={speed === 2 ? 'default' : 'ghost'}
+              size="icon"
+              className="h-6 w-6"
+              title="2x speed"
+            >
+              <FastForwardIcon size={10} />
+            </Button>
           </div>
 
           {/* Right: Share button */}
