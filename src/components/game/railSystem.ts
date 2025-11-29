@@ -123,8 +123,8 @@ export const PASSENGER_COLORS = [
 /** Track gauge (width between rails) as ratio of tile width - smaller for double track */
 export const TRACK_GAUGE_RATIO = 0.06;
 
-/** Ballast width as ratio of tile width - smaller for double track */
-export const BALLAST_WIDTH_RATIO = 0.14;
+/** Ballast width as ratio of tile width - wider for visibility */
+export const BALLAST_WIDTH_RATIO = 0.18;
 
 /** Number of ties per tile */
 export const TIES_PER_TILE = 5;
@@ -384,10 +384,12 @@ function drawBallast(
       drawDoubleCurvedBallast(northEdge, eastEdge, center, ISO_EW, ISO_NS, { x: 0, y: 1 });
       break;
     case 'curve_nw':
-      drawDoubleCurvedBallast(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, { x: -1, y: 0 });
+      // Both perps have +x, so curvePerp should point right (+x)
+      drawDoubleCurvedBallast(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, { x: 1, y: 0 });
       break;
     case 'curve_se':
-      drawDoubleCurvedBallast(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, { x: 1, y: 0 });
+      // Both perps have -x, so curvePerp should point left (-x)
+      drawDoubleCurvedBallast(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, { x: -1, y: 0 });
       break;
     case 'curve_sw':
       drawDoubleCurvedBallast(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS, { x: 0, y: -1 });
@@ -575,10 +577,10 @@ function drawTies(
       drawDoubleCurveTies(northEdge, eastEdge, center, ISO_EW, ISO_NS, ISO_EW, ISO_NS, { x: 0, y: 1 }, TIES_PER_TILE);
       break;
     case 'curve_nw':
-      drawDoubleCurveTies(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, NEG_ISO_EW, ISO_NS, { x: -1, y: 0 }, TIES_PER_TILE);
+      drawDoubleCurveTies(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, NEG_ISO_EW, ISO_NS, { x: 1, y: 0 }, TIES_PER_TILE);
       break;
     case 'curve_se':
-      drawDoubleCurveTies(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, ISO_EW, NEG_ISO_NS, { x: 1, y: 0 }, TIES_PER_TILE);
+      drawDoubleCurveTies(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, ISO_EW, NEG_ISO_NS, { x: -1, y: 0 }, TIES_PER_TILE);
       break;
     case 'curve_sw':
       drawDoubleCurveTies(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS, NEG_ISO_EW, NEG_ISO_NS, { x: 0, y: -1 }, TIES_PER_TILE);
@@ -777,10 +779,10 @@ function drawRails(
       drawDoubleCurvedRails(northEdge, eastEdge, center, ISO_EW, ISO_NS, { x: 0, y: 1 });
       break;
     case 'curve_nw':
-      drawDoubleCurvedRails(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, { x: -1, y: 0 });
+      drawDoubleCurvedRails(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, { x: 1, y: 0 });
       break;
     case 'curve_se':
-      drawDoubleCurvedRails(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, { x: 1, y: 0 });
+      drawDoubleCurvedRails(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, { x: -1, y: 0 });
       break;
     case 'curve_sw':
       drawDoubleCurvedRails(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS, { x: 0, y: -1 });
