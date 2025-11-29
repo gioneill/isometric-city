@@ -321,9 +321,15 @@ function drawBallast(
     ctx.fill();
   };
 
+  // Negated perpendiculars for counter-clockwise curves
+  const NEG_ISO_EW = { x: -ISO_EW.x, y: -ISO_EW.y };
+  const NEG_ISO_NS = { x: -ISO_NS.x, y: -ISO_NS.y };
+
   // Draw ballast based on track type
   // N-S tracks use E-W perpendicular, E-W tracks use N-S perpendicular
-  // For curves, interpolate between the perpendiculars at each end
+  // For curves, the perpendicular rotation must match the curve direction:
+  // - Clockwise curves (NE, SW): use ISO_EW → ISO_NS (both point downward-ish)
+  // - Counter-clockwise curves (NW, SE): use negated perps to rotate the other way
   switch (trackType) {
     case 'straight_ns':
       drawStraightBallast(northEdge, southEdge, ISO_EW);
@@ -332,19 +338,19 @@ function drawBallast(
       drawStraightBallast(eastEdge, westEdge, ISO_NS);
       break;
     case 'curve_ne':
-      // North (N-S track, perp=EW) to East (E-W track, perp=NS)
+      // Clockwise curve: N→E, perps rotate SW→SE (clockwise) ✓
       drawCurvedBallast(northEdge, eastEdge, center, ISO_EW, ISO_NS);
       break;
     case 'curve_nw':
-      // North (N-S track, perp=EW) to West (E-W track, perp=NS)
-      drawCurvedBallast(northEdge, westEdge, center, ISO_EW, ISO_NS);
+      // Counter-clockwise curve: N→W, need perps to rotate NE→NW (CCW)
+      drawCurvedBallast(northEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS);
       break;
     case 'curve_se':
-      // South (N-S track, perp=EW) to East (E-W track, perp=NS)
-      drawCurvedBallast(southEdge, eastEdge, center, ISO_EW, ISO_NS);
+      // Counter-clockwise curve: S→E, need perps to rotate NE→NW (CCW)
+      drawCurvedBallast(southEdge, eastEdge, center, NEG_ISO_EW, NEG_ISO_NS);
       break;
     case 'curve_sw':
-      // South (N-S track, perp=EW) to West (E-W track, perp=NS)
+      // Clockwise curve: S→W, perps rotate SW→SE (clockwise) ✓
       drawCurvedBallast(southEdge, westEdge, center, ISO_EW, ISO_NS);
       break;
     case 'junction_t_n':
@@ -498,8 +504,13 @@ function drawTies(
     }
   };
 
+  // Negated perpendiculars for counter-clockwise curves
+  const NEG_ISO_EW = { x: -ISO_EW.x, y: -ISO_EW.y };
+  const NEG_ISO_NS = { x: -ISO_NS.x, y: -ISO_NS.y };
+
   // Draw ties based on track type
   // For N-S tracks, ties run along E-W; for E-W tracks, ties run along N-S
+  // For curves, match the perpendicular rotation to the curve direction
   const tiesHalf = Math.ceil(TIES_PER_TILE / 2);
 
   switch (trackType) {
@@ -510,15 +521,19 @@ function drawTies(
       drawTiesAlongSegment(eastEdge, westEdge, ISO_NS, TIES_PER_TILE);
       break;
     case 'curve_ne':
+      // Clockwise curve
       drawTiesAlongCurve(northEdge, eastEdge, center, ISO_EW, ISO_NS, TIES_PER_TILE);
       break;
     case 'curve_nw':
-      drawTiesAlongCurve(northEdge, westEdge, center, ISO_EW, ISO_NS, TIES_PER_TILE);
+      // Counter-clockwise curve - use negated perps
+      drawTiesAlongCurve(northEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS, TIES_PER_TILE);
       break;
     case 'curve_se':
-      drawTiesAlongCurve(southEdge, eastEdge, center, ISO_EW, ISO_NS, TIES_PER_TILE);
+      // Counter-clockwise curve - use negated perps
+      drawTiesAlongCurve(southEdge, eastEdge, center, NEG_ISO_EW, NEG_ISO_NS, TIES_PER_TILE);
       break;
     case 'curve_sw':
+      // Clockwise curve
       drawTiesAlongCurve(southEdge, westEdge, center, ISO_EW, ISO_NS, TIES_PER_TILE);
       break;
     case 'junction_t_n':
@@ -722,8 +737,13 @@ function drawRails(
     }
   };
 
+  // Negated perpendiculars for counter-clockwise curves
+  const NEG_ISO_EW = { x: -ISO_EW.x, y: -ISO_EW.y };
+  const NEG_ISO_NS = { x: -ISO_NS.x, y: -ISO_NS.y };
+
   // Draw rails based on track type
   // N-S tracks use E-W perpendicular, E-W tracks use N-S perpendicular
+  // For curves, match the perpendicular rotation to the curve direction
   switch (trackType) {
     case 'straight_ns':
       drawStraightRailPair(northEdge, southEdge, ISO_EW);
@@ -732,15 +752,19 @@ function drawRails(
       drawStraightRailPair(eastEdge, westEdge, ISO_NS);
       break;
     case 'curve_ne':
+      // Clockwise curve
       drawCurvedRailPair(northEdge, eastEdge, center, ISO_EW, ISO_NS);
       break;
     case 'curve_nw':
-      drawCurvedRailPair(northEdge, westEdge, center, ISO_EW, ISO_NS);
+      // Counter-clockwise curve - use negated perps
+      drawCurvedRailPair(northEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS);
       break;
     case 'curve_se':
-      drawCurvedRailPair(southEdge, eastEdge, center, ISO_EW, ISO_NS);
+      // Counter-clockwise curve - use negated perps
+      drawCurvedRailPair(southEdge, eastEdge, center, NEG_ISO_EW, NEG_ISO_NS);
       break;
     case 'curve_sw':
+      // Clockwise curve
       drawCurvedRailPair(southEdge, westEdge, center, ISO_EW, ISO_NS);
       break;
     case 'junction_t_n':
