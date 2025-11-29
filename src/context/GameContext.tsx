@@ -6,6 +6,7 @@ import {
   Budget,
   BuildingType,
   GameState,
+  SavedCityMeta,
   Tool,
   TOOL_INFO,
   ZoneType,
@@ -30,6 +31,8 @@ import {
 
 const STORAGE_KEY = 'isocity-game-state';
 const SAVED_CITY_STORAGE_KEY = 'isocity-saved-city'; // For restoring after viewing shared city
+const SAVED_CITIES_INDEX_KEY = 'isocity-saved-cities-index'; // Index of all saved cities
+const SAVED_CITY_PREFIX = 'isocity-city-'; // Prefix for individual saved city states
 const SPRITE_PACK_STORAGE_KEY = 'isocity-sprite-pack';
 const DAY_NIGHT_MODE_STORAGE_KEY = 'isocity-day-night-mode';
 
@@ -76,6 +79,12 @@ type GameContextValue = {
   restoreSavedCity: () => boolean;
   getSavedCityInfo: () => SavedCityInfo;
   clearSavedCity: () => void;
+  // Multi-city save system
+  savedCities: SavedCityMeta[];
+  saveCity: () => void;
+  loadSavedCity: (cityId: string) => boolean;
+  deleteSavedCity: (cityId: string) => void;
+  renameSavedCity: (cityId: string, newName: string) => void;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -210,6 +219,10 @@ function loadGameState(): GameState | null {
         // Ensure gameVersion exists for backward compatibility
         if (parsed.gameVersion === undefined) {
           parsed.gameVersion = 0;
+        }
+        // Migrate to include UUID if missing
+        if (!parsed.id) {
+          parsed.id = generateUUID();
         }
         return parsed as GameState;
       } else {
@@ -377,6 +390,93 @@ function clearSavedCityStorage(): void {
   }
 }
 
+// Generate a UUID v4
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for older environments
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// Load saved cities index from localStorage
+function loadSavedCitiesIndex(): SavedCityMeta[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const saved = localStorage.getItem(SAVED_CITIES_INDEX_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed as SavedCityMeta[];
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load saved cities index:', e);
+  }
+  return [];
+}
+
+// Save saved cities index to localStorage
+function saveSavedCitiesIndex(cities: SavedCityMeta[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SAVED_CITIES_INDEX_KEY, JSON.stringify(cities));
+  } catch (e) {
+    console.error('Failed to save cities index:', e);
+  }
+}
+
+// Save a city state to localStorage
+function saveCityState(cityId: string, state: GameState): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const serialized = JSON.stringify(state);
+    // Check if data is too large
+    if (serialized.length > 5 * 1024 * 1024) {
+      console.error('City state too large to save');
+      return;
+    }
+    localStorage.setItem(SAVED_CITY_PREFIX + cityId, serialized);
+  } catch (e) {
+    if (e instanceof DOMException && (e.code === 22 || e.code === 1014)) {
+      console.error('localStorage quota exceeded');
+    } else {
+      console.error('Failed to save city state:', e);
+    }
+  }
+}
+
+// Load a saved city state from localStorage
+function loadCityState(cityId: string): GameState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem(SAVED_CITY_PREFIX + cityId);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.grid && parsed.gridSize && parsed.stats) {
+        return parsed as GameState;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load city state:', e);
+  }
+  return null;
+}
+
+// Delete a saved city from localStorage
+function deleteCityState(cityId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(SAVED_CITY_PREFIX + cityId);
+  } catch (e) {
+    console.error('Failed to delete city state:', e);
+  }
+}
+
 export function GameProvider({ children }: { children: React.ReactNode }) {
   // Start with a default state, we'll load from localStorage after mount
   const [state, setState] = useState<GameState>(() => createInitialGameState(DEFAULT_GRID_SIZE, 'IsoCity'));
@@ -393,6 +493,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   // Day/night mode state
   const [dayNightMode, setDayNightModeState] = useState<DayNightMode>('auto');
   
+  // Saved cities state for multi-city save system
+  const [savedCities, setSavedCities] = useState<SavedCityMeta[]>([]);
+  
   // Load game state and sprite pack from localStorage on mount (client-side only)
   useEffect(() => {
     // Load sprite pack preference
@@ -404,6 +507,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     // Load day/night mode preference
     const savedDayNightMode = loadDayNightMode();
     setDayNightModeState(savedDayNightMode);
+    
+    // Load saved cities index
+    const cities = loadSavedCitiesIndex();
+    setSavedCities(cities);
     
     // Load game state
     const saved = loadGameState();
@@ -881,6 +988,134 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     clearSavedCityStorage();
   }, []);
 
+  // Save current city to the multi-save system
+  const saveCity = useCallback(() => {
+    const cityMeta: SavedCityMeta = {
+      id: state.id,
+      cityName: state.cityName,
+      population: state.stats.population,
+      money: state.stats.money,
+      year: state.year,
+      month: state.month,
+      gridSize: state.gridSize,
+      savedAt: Date.now(),
+    };
+    
+    // Save the city state
+    saveCityState(state.id, state);
+    
+    // Update the index
+    setSavedCities((prev) => {
+      // Check if this city already exists in the list
+      const existingIndex = prev.findIndex((c) => c.id === state.id);
+      let newCities: SavedCityMeta[];
+      
+      if (existingIndex >= 0) {
+        // Update existing entry
+        newCities = [...prev];
+        newCities[existingIndex] = cityMeta;
+      } else {
+        // Add new entry
+        newCities = [...prev, cityMeta];
+      }
+      
+      // Sort by savedAt descending (most recent first)
+      newCities.sort((a, b) => b.savedAt - a.savedAt);
+      
+      // Persist to localStorage
+      saveSavedCitiesIndex(newCities);
+      
+      return newCities;
+    });
+  }, [state]);
+
+  // Load a saved city from the multi-save system
+  const loadSavedCity = useCallback((cityId: string): boolean => {
+    const cityState = loadCityState(cityId);
+    if (!cityState) return false;
+    
+    // Ensure the loaded state has an ID
+    if (!cityState.id) {
+      cityState.id = cityId;
+    }
+    
+    // Perform migrations for backward compatibility
+    if (!cityState.adjacentCities) {
+      cityState.adjacentCities = [];
+    }
+    for (const city of cityState.adjacentCities) {
+      if (city.discovered === undefined) {
+        city.discovered = true;
+      }
+    }
+    if (!cityState.waterBodies) {
+      cityState.waterBodies = [];
+    }
+    if (cityState.effectiveTaxRate === undefined) {
+      cityState.effectiveTaxRate = cityState.taxRate ?? 9;
+    }
+    if (cityState.grid) {
+      for (let y = 0; y < cityState.grid.length; y++) {
+        for (let x = 0; x < cityState.grid[y].length; x++) {
+          if (cityState.grid[y][x]?.building && cityState.grid[y][x].building.constructionProgress === undefined) {
+            cityState.grid[y][x].building.constructionProgress = 100;
+          }
+          if (cityState.grid[y][x]?.building && cityState.grid[y][x].building.abandoned === undefined) {
+            cityState.grid[y][x].building.abandoned = false;
+          }
+        }
+      }
+    }
+    
+    skipNextSaveRef.current = true;
+    setState((prev) => ({
+      ...cityState,
+      gameVersion: (prev.gameVersion ?? 0) + 1,
+    }));
+    
+    // Also update the current game in local storage
+    saveGameState(cityState);
+    
+    return true;
+  }, []);
+
+  // Delete a saved city from the multi-save system
+  const deleteSavedCity = useCallback((cityId: string) => {
+    // Delete the city state
+    deleteCityState(cityId);
+    
+    // Update the index
+    setSavedCities((prev) => {
+      const newCities = prev.filter((c) => c.id !== cityId);
+      saveSavedCitiesIndex(newCities);
+      return newCities;
+    });
+  }, []);
+
+  // Rename a saved city
+  const renameSavedCity = useCallback((cityId: string, newName: string) => {
+    // Load the city state, update the name, and save it back
+    const cityState = loadCityState(cityId);
+    if (cityState) {
+      cityState.cityName = newName;
+      saveCityState(cityId, cityState);
+    }
+    
+    // Update the index
+    setSavedCities((prev) => {
+      const newCities = prev.map((c) =>
+        c.id === cityId ? { ...c, cityName: newName } : c
+      );
+      saveSavedCitiesIndex(newCities);
+      return newCities;
+    });
+    
+    // If the current game is the one being renamed, update its state too
+    if (state.id === cityId) {
+      setState((prev) => ({ ...prev, cityName: newName }));
+    }
+  }, [state.id]);
+
   const value: GameContextValue = {
     state,
     setTool,
@@ -914,6 +1149,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     restoreSavedCity,
     getSavedCityInfo,
     clearSavedCity,
+    // Multi-city save system
+    savedCities,
+    saveCity,
+    loadSavedCity,
+    deleteSavedCity,
+    renameSavedCity,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

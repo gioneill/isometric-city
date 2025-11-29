@@ -307,6 +307,7 @@ export interface WaterBody {
 }
 
 export interface GameState {
+  id: string; // Unique UUID for this game
   grid: Tile[][];
   gridSize: number;
   cityName: string;
@@ -330,6 +331,18 @@ export interface GameState {
   adjacentCities: AdjacentCity[];
   waterBodies: WaterBody[];
   gameVersion: number; // Increments when a new game starts - used to clear transient state like vehicles
+}
+
+// Saved city metadata for the multi-save system
+export interface SavedCityMeta {
+  id: string; // Same as GameState.id
+  cityName: string;
+  population: number;
+  money: number;
+  year: number;
+  month: number;
+  gridSize: number;
+  savedAt: number; // timestamp
 }
 
 // Building evolution paths based on zone and level
