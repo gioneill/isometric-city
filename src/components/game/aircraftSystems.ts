@@ -354,6 +354,10 @@ export function useAircraftSystems(
         // Calculate angle to destination
         const angleToDestination = Math.atan2(destCenterY - originCenterY, destCenterX - originCenterX);
         
+        // Initialize searchlight with randomized sweep pattern
+        const searchlightSweepSpeed = 0.8 + Math.random() * 0.6; // 0.8-1.4 radians per second
+        const searchlightSweepRange = Math.PI / 4 + Math.random() * (Math.PI / 6); // 45-75 degree sweep range
+        
         helicoptersRef.current.push({
           id: helicopterIdRef.current++,
           x: originCenterX,
@@ -375,6 +379,11 @@ export function useAircraftSystems(
           rotorWash: [],
           rotorAngle: 0,
           color: HELICOPTER_COLORS[Math.floor(Math.random() * HELICOPTER_COLORS.length)],
+          // Searchlight starts pointing forward-down, sweeps side to side
+          searchlightAngle: 0,
+          searchlightSweepSpeed,
+          searchlightSweepRange,
+          searchlightBaseAngle: angleToDestination + Math.PI / 2, // Perpendicular to flight path
         });
       }
       
@@ -387,6 +396,11 @@ export function useAircraftSystems(
     for (const heli of helicoptersRef.current) {
       // Update rotor animation
       heli.rotorAngle += delta * 25; // Fast rotor spin
+      
+      // Update searchlight sweep animation (sinusoidal motion)
+      heli.searchlightAngle += delta * heli.searchlightSweepSpeed;
+      // Update base angle to follow helicopter direction for more natural sweep
+      heli.searchlightBaseAngle = heli.angle + Math.PI / 2;
       
       // Update rotor wash particles - shorter duration on mobile
       const washMaxAge = isMobile ? 0.4 : ROTOR_WASH_MAX_AGE;

@@ -847,7 +847,9 @@ function drawCarriage(
   carriage: TrainCarriage,
   zoom: number,
   grid: Tile[][],
-  gridSize: number
+  gridSize: number,
+  visualHour: number,
+  trainId: number
 ): void {
   const { screenX, screenY } = gridToScreen(carriage.tileX, carriage.tileY, 0, 0);
   
@@ -974,7 +976,7 @@ function drawCarriage(
   
   switch (carriage.type) {
     case 'locomotive':
-      drawLocomotive(ctx, carriage.color, scale);
+      drawLocomotive(ctx, carriage.color, scale, visualHour, trainId);
       break;
     case 'passenger':
       drawPassengerCar(ctx, carriage.color, scale);
@@ -997,9 +999,17 @@ function drawCarriage(
 }
 
 /**
+ * Simple seeded random number generator for consistent randomness per train
+ */
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+/**
  * Draw locomotive
  */
-function drawLocomotive(ctx: CanvasRenderingContext2D, color: string, scale: number): void {
+function drawLocomotive(ctx: CanvasRenderingContext2D, color: string, scale: number, visualHour: number, trainId: number): void {
   const len = TRAIN_CAR.LOCOMOTIVE_LENGTH * scale;
   const wid = TRAIN_CAR.CAR_WIDTH * scale;
   
@@ -1023,11 +1033,89 @@ function drawLocomotive(ctx: CanvasRenderingContext2D, color: string, scale: num
   ctx.fillStyle = 'rgba(135, 206, 250, 0.8)';
   ctx.fillRect(-len * 0.35, -wid * 0.5, len * 0.15, wid);
   
+  // Check if it's night time (hour >= 20 || hour < 5)
+  const isNight = visualHour >= 20 || visualHour < 5;
+  
   // Front light
-  ctx.fillStyle = '#ffff00';
-  ctx.beginPath();
-  ctx.arc(len * 0.55, 0, wid * 0.2, 0, Math.PI * 2);
-  ctx.fill();
+  if (isNight) {
+    // Generate consistent random values for this train (based on trainId)
+    // These will vary between trains but stay consistent for each train
+    const glowVariation = seededRandom(trainId);
+    const beamVariation = seededRandom(trainId * 2);
+    const intensityVariation = seededRandom(trainId * 3);
+    
+    // Randomize glow size (0.7x to 1.3x base size)
+    const glowMultiplier = 0.7 + glowVariation * 0.6;
+    // Randomize beam length (0.8x to 1.4x base length)
+    const beamLengthMultiplier = 0.8 + beamVariation * 0.6;
+    // Randomize beam width (0.7x to 1.2x base width)
+    const beamWidthMultiplier = 0.7 + intensityVariation * 0.5;
+    // Randomize opacity (0.4x to 0.7x)
+    const opacityMultiplier = 0.4 + seededRandom(trainId * 4) * 0.3;
+    
+    // Very bright headlight with strong glow effect at night
+    ctx.save();
+    
+    // Large outer glow - very bright and wide (with randomness)
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 40 * scale * glowMultiplier;
+    ctx.fillStyle = '#ffffcc';
+    ctx.beginPath();
+    ctx.arc(len * 0.55, 0, wid * 0.35 * glowMultiplier, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Medium glow layer (with randomness)
+    ctx.shadowBlur = 30 * scale * glowMultiplier;
+    ctx.fillStyle = '#ffffaa';
+    ctx.beginPath();
+    ctx.arc(len * 0.55, 0, wid * 0.28 * glowMultiplier, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Bright inner core (with randomness)
+    ctx.shadowBlur = 15 * scale * glowMultiplier;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(len * 0.55, 0, wid * 0.2 * glowMultiplier, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Intense white center (with randomness)
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(len * 0.55, 0, wid * 0.12 * glowMultiplier, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Bright light beam extending forward - more visible (with randomness)
+    ctx.globalAlpha = 0.5 * opacityMultiplier;
+    ctx.fillStyle = '#ffffcc';
+    ctx.beginPath();
+    ctx.moveTo(len * 0.55, -wid * 0.25 * beamWidthMultiplier);
+    ctx.lineTo(len * 0.55 + len * 1.2 * beamLengthMultiplier, -wid * 0.8 * beamWidthMultiplier);
+    ctx.lineTo(len * 0.55 + len * 1.2 * beamLengthMultiplier, wid * 0.8 * beamWidthMultiplier);
+    ctx.lineTo(len * 0.55, wid * 0.25 * beamWidthMultiplier);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Additional brighter beam layer (with randomness)
+    ctx.globalAlpha = 0.3 * opacityMultiplier;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(len * 0.55, -wid * 0.15 * beamWidthMultiplier);
+    ctx.lineTo(len * 0.55 + len * 0.9 * beamLengthMultiplier, -wid * 0.5 * beamWidthMultiplier);
+    ctx.lineTo(len * 0.55 + len * 0.9 * beamLengthMultiplier, wid * 0.5 * beamWidthMultiplier);
+    ctx.lineTo(len * 0.55, wid * 0.15 * beamWidthMultiplier);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.globalAlpha = 1.0;
+    ctx.restore();
+  } else {
+    // Regular light during day
+    ctx.fillStyle = '#ffff00';
+    ctx.beginPath();
+    ctx.arc(len * 0.55, 0, wid * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
   
   // Wheels
   ctx.fillStyle = '#1f2937';
@@ -1199,7 +1287,8 @@ export function drawTrains(
   zoom: number,
   canvasSize: { width: number; height: number },
   grid: Tile[][],
-  gridSize: number
+  gridSize: number,
+  visualHour: number
 ): void {
   const dpr = window.devicePixelRatio || 1;
   
@@ -1234,7 +1323,7 @@ export function drawTrains(
         continue;
       }
       
-      drawCarriage(ctx, carriage, zoom, grid, gridSize);
+      drawCarriage(ctx, carriage, zoom, grid, gridSize, visualHour, train.id);
     }
   }
   

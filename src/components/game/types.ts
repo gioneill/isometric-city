@@ -104,6 +104,11 @@ export type Helicopter = {
   rotorAngle: number;
   // Helicopter color/style
   color: string;
+  // Searchlight properties (active at night)
+  searchlightAngle: number; // Current angle of the searchlight sweep (radians)
+  searchlightSweepSpeed: number; // How fast the light sweeps (radians per second)
+  searchlightSweepRange: number; // Max angle deviation from center (radians)
+  searchlightBaseAngle: number; // Base direction of the searchlight sweep
 };
 
 // Emergency vehicle types

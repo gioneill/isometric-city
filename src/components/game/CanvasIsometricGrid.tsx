@@ -674,8 +674,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       return;
     }
 
-    drawTrains(ctx, trainsRef.current, currentOffset, currentZoom, size, currentGrid, currentGridSize);
-  }, []);
+    drawTrains(ctx, trainsRef.current, currentOffset, currentZoom, size, currentGrid, currentGridSize, visualHour);
+  }, [visualHour]);
 
   // Fireworks and smog are now handled by useEffectsSystems hook (see above)
 
