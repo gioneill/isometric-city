@@ -12,12 +12,14 @@ import {
   getRailDirectionOptions,
   getAdjacentRail,
   getTrackType,
+  getTrackSide,
   findRailStations,
   countRailTiles,
   LOCOMOTIVE_COLORS,
   FREIGHT_COLORS,
   PASSENGER_COLORS,
   TRAIN_CAR,
+  TRACK_SEPARATION_RATIO,
 } from './railSystem';
 import { gridToScreen } from './utils';
 
@@ -49,8 +51,8 @@ export const TRAIN_CARRIAGE_COUNTS = {
   freight: { min: 4, max: 7 },
 };
 
-/** Carriage spacing (in tile progress units) */
-export const CARRIAGE_SPACING = 0.3;
+/** Carriage spacing (in tile progress units) - smaller for double track */
+export const CARRIAGE_SPACING = 0.22;
 
 // ============================================================================
 // Train Creation Functions
@@ -593,7 +595,7 @@ function updateCarriagePositions(
 // ============================================================================
 
 /**
- * Draw a single train carriage
+ * Draw a single train carriage on the correct track based on direction
  */
 function drawCarriage(
   ctx: CanvasRenderingContext2D,
@@ -605,14 +607,38 @@ function drawCarriage(
   const centerY = screenY + TILE_HEIGHT / 2;
   
   const meta = DIRECTION_META[carriage.direction];
-  const carX = centerX + meta.vec.dx * carriage.progress;
-  const carY = centerY + meta.vec.dy * carriage.progress;
+  
+  // Calculate track offset based on direction (which track the train is on)
+  const trackSide = getTrackSide(carriage.direction);
+  const trackOffset = TILE_WIDTH * TRACK_SEPARATION_RATIO / 2;
+  
+  // Get perpendicular direction for offset based on travel direction
+  // For N-S travel, offset is along E-W axis; for E-W travel, offset is along N-S axis
+  let perpX = 0, perpY = 0;
+  if (carriage.direction === 'north' || carriage.direction === 'south') {
+    // N-S travel: perpendicular is E-W direction (ISO_EW normalized)
+    perpX = -0.894427;
+    perpY = 0.447214;
+  } else {
+    // E-W travel: perpendicular is N-S direction (ISO_NS normalized)
+    perpX = 0.894427;
+    perpY = 0.447214;
+  }
+  
+  // Apply track offset (trackSide 0 = +perp, trackSide 1 = -perp)
+  const offsetMultiplier = trackSide === 0 ? 1 : -1;
+  const offsetX = perpX * trackOffset * offsetMultiplier;
+  const offsetY = perpY * trackOffset * offsetMultiplier;
+  
+  const carX = centerX + meta.vec.dx * carriage.progress + offsetX;
+  const carY = centerY + meta.vec.dy * carriage.progress + offsetY;
   
   ctx.save();
   ctx.translate(carX, carY);
   ctx.rotate(meta.angle);
   
-  const scale = zoom >= 0.8 ? 0.55 : 0.5;
+  // Scale down for double track (trains are smaller)
+  const scale = zoom >= 0.8 ? 0.4 : 0.35;
   
   switch (carriage.type) {
     case 'locomotive':

@@ -120,22 +120,35 @@ export const PASSENGER_COLORS = [
   '#7c3aed', // Purple
 ];
 
-/** Track gauge (width between rails) as ratio of tile width */
-export const TRACK_GAUGE_RATIO = 0.15;
+/** Track gauge (width between rails) as ratio of tile width - smaller for double track */
+export const TRACK_GAUGE_RATIO = 0.06;
 
-/** Ballast width as ratio of tile width */
-export const BALLAST_WIDTH_RATIO = 0.32;
+/** Ballast width as ratio of tile width - smaller for double track */
+export const BALLAST_WIDTH_RATIO = 0.14;
 
 /** Number of ties per tile */
-export const TIES_PER_TILE = 6;
+export const TIES_PER_TILE = 5;
 
-/** Train car dimensions */
+/** Separation between the two parallel tracks as ratio of tile width */
+export const TRACK_SEPARATION_RATIO = 0.22;
+
+/** Train car dimensions - smaller for double track */
 export const TRAIN_CAR = {
-  LOCOMOTIVE_LENGTH: 16,
-  CAR_LENGTH: 14,
-  CAR_WIDTH: 6,
+  LOCOMOTIVE_LENGTH: 12,
+  CAR_LENGTH: 10,
+  CAR_WIDTH: 4,
   CAR_SPACING: 2, // Gap between cars
 };
+
+/** Which track a train uses based on direction (0 = left/inner, 1 = right/outer) */
+export type TrackSide = 0 | 1;
+
+/** Get which track side a train should use based on its direction */
+export function getTrackSide(direction: CarDirection): TrackSide {
+  // Convention: north/east bound trains use track 0, south/west bound use track 1
+  // This creates right-hand traffic (like most railways)
+  return (direction === 'north' || direction === 'east') ? 0 : 1;
+}
 
 // ============================================================================
 // Rail Analysis Functions
@@ -215,21 +228,28 @@ export function getTrackType(connections: RailConnection): TrackType {
 }
 
 // ============================================================================
-// Track Drawing Functions
+// Track Drawing Functions - Double Track System
 // ============================================================================
-
-// Screen-space perpendicular calculation (90° clockwise rotation)
-// Used for curves where we need smooth transitions
-const getScreenPerp = (dx: number, dy: number) => ({ x: dy, y: -dx });
 
 // Isometric axis directions (normalized) - these align with the grid
 // N-S axis: from northEdge to southEdge (top-left to bottom-right on screen)
 const ISO_NS = { x: 0.894427, y: 0.447214 };
 // E-W axis: from eastEdge to westEdge (top-right to bottom-left on screen)  
 const ISO_EW = { x: -0.894427, y: 0.447214 };
+const NEG_ISO_EW = { x: -ISO_EW.x, y: -ISO_EW.y };
+const NEG_ISO_NS = { x: -ISO_NS.x, y: -ISO_NS.y };
+
+/** Offset a point along a perpendicular direction */
+function offsetPoint(
+  pt: { x: number; y: number },
+  perp: { x: number; y: number },
+  amount: number
+): { x: number; y: number } {
+  return { x: pt.x + perp.x * amount, y: pt.y + perp.y * amount };
+}
 
 /**
- * Draw the ballast (gravel bed) foundation for tracks
+ * Draw the ballast (gravel bed) foundation for DOUBLE tracks
  */
 function drawBallast(
   ctx: CanvasRenderingContext2D,
@@ -244,27 +264,23 @@ function drawBallast(
   const cy = y + h / 2;
   const ballastW = w * BALLAST_WIDTH_RATIO;
   const halfW = ballastW / 2;
+  const trackSep = w * TRACK_SEPARATION_RATIO;
+  const halfSep = trackSep / 2;
 
   // Calculate edge midpoints (where tracks meet tile edges)
-  const northEdge = { x: x + w * 0.25, y: y + h * 0.25 };  // top-left edge midpoint
-  const eastEdge = { x: x + w * 0.75, y: y + h * 0.25 };   // top-right edge midpoint
-  const southEdge = { x: x + w * 0.75, y: y + h * 0.75 };  // bottom-right edge midpoint
-  const westEdge = { x: x + w * 0.25, y: y + h * 0.75 };   // bottom-left edge midpoint
+  const northEdge = { x: x + w * 0.25, y: y + h * 0.25 };
+  const eastEdge = { x: x + w * 0.75, y: y + h * 0.25 };
+  const southEdge = { x: x + w * 0.75, y: y + h * 0.75 };
+  const westEdge = { x: x + w * 0.25, y: y + h * 0.75 };
   const center = { x: cx, y: cy };
-
-  // Diamond corners for curve control points
-  const topCorner = { x: x + w / 2, y: y };
-  const rightCorner = { x: x + w, y: y + h / 2 };
-  const bottomCorner = { x: x + w / 2, y: y + h };
-  const leftCorner = { x: x, y: y + h / 2 };
 
   ctx.fillStyle = RAIL_COLORS.BALLAST;
 
-  // Draw a straight ballast segment with explicit isometric perpendicular
-  const drawStraightBallast = (
+  // Draw a straight ballast segment for a single track
+  const drawSingleStraightBallast = (
     from: { x: number; y: number },
     to: { x: number; y: number },
-    perp: { x: number; y: number }  // Isometric perpendicular direction
+    perp: { x: number; y: number }
   ) => {
     ctx.beginPath();
     ctx.moveTo(from.x + perp.x * halfW, from.y + perp.y * halfW);
@@ -275,28 +291,31 @@ function drawBallast(
     ctx.fill();
   };
 
-  // Draw center diamond for intersections/junctions
-  const drawCenterBallast = () => {
-    const size = ballastW * 0.7;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - size * 0.5);
-    ctx.lineTo(cx + size, cy);
-    ctx.lineTo(cx, cy + size * 0.5);
-    ctx.lineTo(cx - size, cy);
-    ctx.closePath();
-    ctx.fill();
+  // Draw double straight ballast (two parallel tracks)
+  const drawDoubleStraightBallast = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    perp: { x: number; y: number }
+  ) => {
+    // Track 0 (offset in +perp direction)
+    const from0 = offsetPoint(from, perp, halfSep);
+    const to0 = offsetPoint(to, perp, halfSep);
+    drawSingleStraightBallast(from0, to0, perp);
+    
+    // Track 1 (offset in -perp direction)
+    const from1 = offsetPoint(from, perp, -halfSep);
+    const to1 = offsetPoint(to, perp, -halfSep);
+    drawSingleStraightBallast(from1, to1, perp);
   };
 
-  // Draw curved ballast using a filled arc shape
-  // Uses isometric perpendiculars at start/end for grid alignment
-  const drawCurvedBallast = (
+  // Draw curved ballast for a single track
+  const drawSingleCurvedBallast = (
     from: { x: number; y: number },
     to: { x: number; y: number },
     control: { x: number; y: number },
     fromPerp: { x: number; y: number },
     toPerp: { x: number; y: number }
   ) => {
-    // Average perpendicular at the curve apex
     const midPerp = {
       x: (fromPerp.x + toPerp.x) / 2,
       y: (fromPerp.y + toPerp.y) / 2
@@ -305,13 +324,11 @@ function drawBallast(
     const normMidPerp = { x: midPerp.x / midLen, y: midPerp.y / midLen };
 
     ctx.beginPath();
-    // Outer edge
     ctx.moveTo(from.x + fromPerp.x * halfW, from.y + fromPerp.y * halfW);
     ctx.quadraticCurveTo(
       control.x + normMidPerp.x * halfW, control.y + normMidPerp.y * halfW,
       to.x + toPerp.x * halfW, to.y + toPerp.y * halfW
     );
-    // Inner edge (reverse)
     ctx.lineTo(to.x - toPerp.x * halfW, to.y - toPerp.y * halfW);
     ctx.quadraticCurveTo(
       control.x - normMidPerp.x * halfW, control.y - normMidPerp.y * halfW,
@@ -321,79 +338,99 @@ function drawBallast(
     ctx.fill();
   };
 
-  // Negated perpendiculars for south curves (SE, SW) where inside points up
-  const NEG_ISO_EW = { x: -ISO_EW.x, y: -ISO_EW.y };
-  const NEG_ISO_NS = { x: -ISO_NS.x, y: -ISO_NS.y };
+  // Draw double curved ballast (two parallel curved tracks)
+  const drawDoubleCurvedBallast = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    control: { x: number; y: number },
+    fromPerp: { x: number; y: number },
+    toPerp: { x: number; y: number },
+    curvePerp: { x: number; y: number } // Direction to offset for parallel curves
+  ) => {
+    // Track 0 (outer curve)
+    const from0 = offsetPoint(from, fromPerp, halfSep);
+    const to0 = offsetPoint(to, toPerp, halfSep);
+    const ctrl0 = offsetPoint(control, curvePerp, halfSep);
+    drawSingleCurvedBallast(from0, to0, ctrl0, fromPerp, toPerp);
+    
+    // Track 1 (inner curve)
+    const from1 = offsetPoint(from, fromPerp, -halfSep);
+    const to1 = offsetPoint(to, toPerp, -halfSep);
+    const ctrl1 = offsetPoint(control, curvePerp, -halfSep);
+    drawSingleCurvedBallast(from1, to1, ctrl1, fromPerp, toPerp);
+  };
 
-  // Draw ballast based on track type
-  // N-S tracks use E-W perpendicular, E-W tracks use N-S perpendicular
-  // For curves, perpendiculars must point consistently toward the inside of the curve:
-  // - curve_ne (top edge): inside points down → ISO_EW, ISO_NS (both +y)
-  // - curve_sw (bottom edge): inside points up → -ISO_EW, -ISO_NS (both -y)
-  // - curve_nw (left edge): inside points right → -ISO_EW, ISO_NS (both +x)
-  // - curve_se (right edge): inside points left → ISO_EW, -ISO_NS (both -x)
+  // Draw center area for junctions (covers both tracks)
+  const drawCenterBallast = () => {
+    const size = (ballastW + trackSep) * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - size * 0.5);
+    ctx.lineTo(cx + size, cy);
+    ctx.lineTo(cx, cy + size * 0.5);
+    ctx.lineTo(cx - size, cy);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // Draw based on track type
   switch (trackType) {
     case 'straight_ns':
-      drawStraightBallast(northEdge, southEdge, ISO_EW);
+      drawDoubleStraightBallast(northEdge, southEdge, ISO_EW);
       break;
     case 'straight_ew':
-      drawStraightBallast(eastEdge, westEdge, ISO_NS);
+      drawDoubleStraightBallast(eastEdge, westEdge, ISO_NS);
       break;
     case 'curve_ne':
-      // Top-edge curve: inside points down, both perps have +y
-      drawCurvedBallast(northEdge, eastEdge, center, ISO_EW, ISO_NS);
+      drawDoubleCurvedBallast(northEdge, eastEdge, center, ISO_EW, ISO_NS, { x: 0, y: 1 });
       break;
     case 'curve_nw':
-      // Left-edge curve: inside points right, both perps have +x
-      drawCurvedBallast(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS);
+      drawDoubleCurvedBallast(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, { x: -1, y: 0 });
       break;
     case 'curve_se':
-      // Right-edge curve: inside points left, both perps have -x
-      drawCurvedBallast(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS);
+      drawDoubleCurvedBallast(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, { x: 1, y: 0 });
       break;
     case 'curve_sw':
-      // Bottom-edge curve: inside points up, both perps have -y
-      drawCurvedBallast(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS);
+      drawDoubleCurvedBallast(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS, { x: 0, y: -1 });
       break;
     case 'junction_t_n':
-      drawStraightBallast(eastEdge, westEdge, ISO_NS);
-      drawStraightBallast(center, southEdge, ISO_EW);
+      drawDoubleStraightBallast(eastEdge, westEdge, ISO_NS);
+      drawDoubleStraightBallast(center, southEdge, ISO_EW);
       drawCenterBallast();
       break;
     case 'junction_t_e':
-      drawStraightBallast(northEdge, southEdge, ISO_EW);
-      drawStraightBallast(center, westEdge, ISO_NS);
+      drawDoubleStraightBallast(northEdge, southEdge, ISO_EW);
+      drawDoubleStraightBallast(center, westEdge, ISO_NS);
       drawCenterBallast();
       break;
     case 'junction_t_s':
-      drawStraightBallast(eastEdge, westEdge, ISO_NS);
-      drawStraightBallast(center, northEdge, ISO_EW);
+      drawDoubleStraightBallast(eastEdge, westEdge, ISO_NS);
+      drawDoubleStraightBallast(center, northEdge, ISO_EW);
       drawCenterBallast();
       break;
     case 'junction_t_w':
-      drawStraightBallast(northEdge, southEdge, ISO_EW);
-      drawStraightBallast(center, eastEdge, ISO_NS);
+      drawDoubleStraightBallast(northEdge, southEdge, ISO_EW);
+      drawDoubleStraightBallast(center, eastEdge, ISO_NS);
       drawCenterBallast();
       break;
     case 'junction_cross':
-      drawStraightBallast(northEdge, southEdge, ISO_EW);
-      drawStraightBallast(eastEdge, westEdge, ISO_NS);
+      drawDoubleStraightBallast(northEdge, southEdge, ISO_EW);
+      drawDoubleStraightBallast(eastEdge, westEdge, ISO_NS);
       drawCenterBallast();
       break;
     case 'terminus_n':
-      drawStraightBallast(center, southEdge, ISO_EW);
+      drawDoubleStraightBallast(center, southEdge, ISO_EW);
       drawCenterBallast();
       break;
     case 'terminus_e':
-      drawStraightBallast(center, westEdge, ISO_NS);
+      drawDoubleStraightBallast(center, westEdge, ISO_NS);
       drawCenterBallast();
       break;
     case 'terminus_s':
-      drawStraightBallast(center, northEdge, ISO_EW);
+      drawDoubleStraightBallast(center, northEdge, ISO_EW);
       drawCenterBallast();
       break;
     case 'terminus_w':
-      drawStraightBallast(center, eastEdge, ISO_NS);
+      drawDoubleStraightBallast(center, eastEdge, ISO_NS);
       drawCenterBallast();
       break;
     case 'single':
@@ -402,9 +439,11 @@ function drawBallast(
   }
 }
 
+/** Screen-space perpendicular (90° clockwise rotation) */
+const getScreenPerp = (dx: number, dy: number) => ({ x: dy, y: -dx });
+
 /**
- * Draw rail ties (sleepers) perpendicular to track direction
- * Ties run along the isometric perpendicular axis for grid alignment
+ * Draw rail ties (sleepers) for DOUBLE tracks
  */
 function drawTies(
   ctx: CanvasRenderingContext2D,
@@ -413,16 +452,17 @@ function drawTies(
   trackType: TrackType,
   zoom: number
 ): void {
-  if (zoom < 0.5) return; // Skip ties at low zoom for performance
+  if (zoom < 0.5) return;
 
   const w = TILE_WIDTH;
   const h = TILE_HEIGHT;
   const cx = x + w / 2;
   const cy = y + h / 2;
-  const tieWidth = w * 0.035;
-  const tieLength = w * BALLAST_WIDTH_RATIO * 0.8;
+  const tieWidth = w * 0.025;
+  const tieLength = w * BALLAST_WIDTH_RATIO * 0.85;
+  const trackSep = w * TRACK_SEPARATION_RATIO;
+  const halfSep = trackSep / 2;
 
-  // Calculate edge midpoints
   const northEdge = { x: x + w * 0.25, y: y + h * 0.25 };
   const eastEdge = { x: x + w * 0.75, y: y + h * 0.25 };
   const southEdge = { x: x + w * 0.75, y: y + h * 0.75 };
@@ -431,36 +471,22 @@ function drawTies(
 
   ctx.fillStyle = RAIL_COLORS.TIE;
 
-  // Draw a single tie at a position - tie runs along the given isometric direction
   const drawTie = (tieX: number, tieY: number, tieDir: { x: number; y: number }) => {
     const halfLen = tieLength / 2;
     const halfWidth = tieWidth / 2;
-    // Perpendicular for thickness (screen-space rotation)
     const perpDir = getScreenPerp(tieDir.x, tieDir.y);
     
     ctx.beginPath();
-    ctx.moveTo(
-      tieX + tieDir.x * halfLen + perpDir.x * halfWidth,
-      tieY + tieDir.y * halfLen + perpDir.y * halfWidth
-    );
-    ctx.lineTo(
-      tieX + tieDir.x * halfLen - perpDir.x * halfWidth,
-      tieY + tieDir.y * halfLen - perpDir.y * halfWidth
-    );
-    ctx.lineTo(
-      tieX - tieDir.x * halfLen - perpDir.x * halfWidth,
-      tieY - tieDir.y * halfLen - perpDir.y * halfWidth
-    );
-    ctx.lineTo(
-      tieX - tieDir.x * halfLen + perpDir.x * halfWidth,
-      tieY - tieDir.y * halfLen + perpDir.y * halfWidth
-    );
+    ctx.moveTo(tieX + tieDir.x * halfLen + perpDir.x * halfWidth, tieY + tieDir.y * halfLen + perpDir.y * halfWidth);
+    ctx.lineTo(tieX + tieDir.x * halfLen - perpDir.x * halfWidth, tieY + tieDir.y * halfLen - perpDir.y * halfWidth);
+    ctx.lineTo(tieX - tieDir.x * halfLen - perpDir.x * halfWidth, tieY - tieDir.y * halfLen - perpDir.y * halfWidth);
+    ctx.lineTo(tieX - tieDir.x * halfLen + perpDir.x * halfWidth, tieY - tieDir.y * halfLen + perpDir.y * halfWidth);
     ctx.closePath();
     ctx.fill();
   };
 
-  // Draw ties along a straight segment with explicit isometric tie direction
-  const drawTiesAlongSegment = (
+  // Draw ties for a single track along a straight segment
+  const drawSingleTrackTies = (
     from: { x: number; y: number },
     to: { x: number; y: number },
     tieDir: { x: number; y: number },
@@ -468,17 +494,32 @@ function drawTies(
   ) => {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
-    
     for (let i = 0; i < numTies; i++) {
       const t = (i + 0.5) / numTies;
-      const tieX = from.x + dx * t;
-      const tieY = from.y + dy * t;
-      drawTie(tieX, tieY, tieDir);
+      drawTie(from.x + dx * t, from.y + dy * t, tieDir);
     }
   };
 
-  // Draw ties along a curve - interpolate isometric tie direction
-  const drawTiesAlongCurve = (
+  // Draw ties for double track along a straight segment
+  const drawDoubleTies = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    tieDir: { x: number; y: number },
+    perp: { x: number; y: number },
+    numTies: number
+  ) => {
+    // Track 0
+    const from0 = offsetPoint(from, perp, halfSep);
+    const to0 = offsetPoint(to, perp, halfSep);
+    drawSingleTrackTies(from0, to0, tieDir, numTies);
+    // Track 1
+    const from1 = offsetPoint(from, perp, -halfSep);
+    const to1 = offsetPoint(to, perp, -halfSep);
+    drawSingleTrackTies(from1, to1, tieDir, numTies);
+  };
+
+  // Draw ties for a single track along a curve
+  const drawSingleCurveTies = (
     from: { x: number; y: number },
     to: { x: number; y: number },
     control: { x: number; y: number },
@@ -489,92 +530,96 @@ function drawTies(
     for (let i = 0; i < numTies; i++) {
       const t = (i + 0.5) / numTies;
       const u = 1 - t;
-      
-      // Position on bezier curve
       const tieX = u * u * from.x + 2 * u * t * control.x + t * t * to.x;
       const tieY = u * u * from.y + 2 * u * t * control.y + t * t * to.y;
-      
-      // Interpolate tie direction between isometric axes
-      const interpDir = {
-        x: fromTieDir.x * u + toTieDir.x * t,
-        y: fromTieDir.y * u + toTieDir.y * t
-      };
+      const interpDir = { x: fromTieDir.x * u + toTieDir.x * t, y: fromTieDir.y * u + toTieDir.y * t };
       const interpLen = Math.hypot(interpDir.x, interpDir.y);
-      const tieDir = { x: interpDir.x / interpLen, y: interpDir.y / interpLen };
-      
-      drawTie(tieX, tieY, tieDir);
+      drawTie(tieX, tieY, { x: interpDir.x / interpLen, y: interpDir.y / interpLen });
     }
   };
 
-  // Negated perpendiculars for south curves (SE, SW) where inside points up
-  const NEG_ISO_EW = { x: -ISO_EW.x, y: -ISO_EW.y };
-  const NEG_ISO_NS = { x: -ISO_NS.x, y: -ISO_NS.y };
+  // Draw ties for double track along a curve
+  const drawDoubleCurveTies = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    control: { x: number; y: number },
+    fromTieDir: { x: number; y: number },
+    toTieDir: { x: number; y: number },
+    fromPerp: { x: number; y: number },
+    toPerp: { x: number; y: number },
+    curvePerp: { x: number; y: number },
+    numTies: number
+  ) => {
+    // Track 0
+    const from0 = offsetPoint(from, fromPerp, halfSep);
+    const to0 = offsetPoint(to, toPerp, halfSep);
+    const ctrl0 = offsetPoint(control, curvePerp, halfSep);
+    drawSingleCurveTies(from0, to0, ctrl0, fromTieDir, toTieDir, numTies);
+    // Track 1
+    const from1 = offsetPoint(from, fromPerp, -halfSep);
+    const to1 = offsetPoint(to, toPerp, -halfSep);
+    const ctrl1 = offsetPoint(control, curvePerp, -halfSep);
+    drawSingleCurveTies(from1, to1, ctrl1, fromTieDir, toTieDir, numTies);
+  };
 
-  // Draw ties based on track type
-  // For N-S tracks, ties run along E-W; for E-W tracks, ties run along N-S
-  // For curves, perpendiculars must point consistently toward the inside of the curve
   const tiesHalf = Math.ceil(TIES_PER_TILE / 2);
 
   switch (trackType) {
     case 'straight_ns':
-      drawTiesAlongSegment(northEdge, southEdge, ISO_EW, TIES_PER_TILE);
+      drawDoubleTies(northEdge, southEdge, ISO_EW, ISO_EW, TIES_PER_TILE);
       break;
     case 'straight_ew':
-      drawTiesAlongSegment(eastEdge, westEdge, ISO_NS, TIES_PER_TILE);
+      drawDoubleTies(eastEdge, westEdge, ISO_NS, ISO_NS, TIES_PER_TILE);
       break;
     case 'curve_ne':
-      // Top-edge curve: inside points down, both perps have +y
-      drawTiesAlongCurve(northEdge, eastEdge, center, ISO_EW, ISO_NS, TIES_PER_TILE);
+      drawDoubleCurveTies(northEdge, eastEdge, center, ISO_EW, ISO_NS, ISO_EW, ISO_NS, { x: 0, y: 1 }, TIES_PER_TILE);
       break;
     case 'curve_nw':
-      // Left-edge curve: inside points right, both perps have +x
-      drawTiesAlongCurve(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, TIES_PER_TILE);
+      drawDoubleCurveTies(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, NEG_ISO_EW, ISO_NS, { x: -1, y: 0 }, TIES_PER_TILE);
       break;
     case 'curve_se':
-      // Right-edge curve: inside points left, both perps have -x
-      drawTiesAlongCurve(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, TIES_PER_TILE);
+      drawDoubleCurveTies(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, ISO_EW, NEG_ISO_NS, { x: 1, y: 0 }, TIES_PER_TILE);
       break;
     case 'curve_sw':
-      // Bottom-edge curve: inside points up, both perps have -y
-      drawTiesAlongCurve(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS, TIES_PER_TILE);
+      drawDoubleCurveTies(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS, NEG_ISO_EW, NEG_ISO_NS, { x: 0, y: -1 }, TIES_PER_TILE);
       break;
     case 'junction_t_n':
-      drawTiesAlongSegment(eastEdge, westEdge, ISO_NS, TIES_PER_TILE);
-      drawTiesAlongSegment(center, southEdge, ISO_EW, tiesHalf);
+      drawDoubleTies(eastEdge, westEdge, ISO_NS, ISO_NS, TIES_PER_TILE);
+      drawDoubleTies(center, southEdge, ISO_EW, ISO_EW, tiesHalf);
       break;
     case 'junction_t_e':
-      drawTiesAlongSegment(northEdge, southEdge, ISO_EW, TIES_PER_TILE);
-      drawTiesAlongSegment(center, westEdge, ISO_NS, tiesHalf);
+      drawDoubleTies(northEdge, southEdge, ISO_EW, ISO_EW, TIES_PER_TILE);
+      drawDoubleTies(center, westEdge, ISO_NS, ISO_NS, tiesHalf);
       break;
     case 'junction_t_s':
-      drawTiesAlongSegment(eastEdge, westEdge, ISO_NS, TIES_PER_TILE);
-      drawTiesAlongSegment(center, northEdge, ISO_EW, tiesHalf);
+      drawDoubleTies(eastEdge, westEdge, ISO_NS, ISO_NS, TIES_PER_TILE);
+      drawDoubleTies(center, northEdge, ISO_EW, ISO_EW, tiesHalf);
       break;
     case 'junction_t_w':
-      drawTiesAlongSegment(northEdge, southEdge, ISO_EW, TIES_PER_TILE);
-      drawTiesAlongSegment(center, eastEdge, ISO_NS, tiesHalf);
+      drawDoubleTies(northEdge, southEdge, ISO_EW, ISO_EW, TIES_PER_TILE);
+      drawDoubleTies(center, eastEdge, ISO_NS, ISO_NS, tiesHalf);
       break;
     case 'junction_cross':
-      drawTiesAlongSegment(northEdge, southEdge, ISO_EW, TIES_PER_TILE);
-      drawTiesAlongSegment(eastEdge, westEdge, ISO_NS, TIES_PER_TILE);
+      drawDoubleTies(northEdge, southEdge, ISO_EW, ISO_EW, TIES_PER_TILE);
+      drawDoubleTies(eastEdge, westEdge, ISO_NS, ISO_NS, TIES_PER_TILE);
       break;
     case 'terminus_n':
-      drawTiesAlongSegment(center, southEdge, ISO_EW, tiesHalf);
+      drawDoubleTies(center, southEdge, ISO_EW, ISO_EW, tiesHalf);
       break;
     case 'terminus_e':
-      drawTiesAlongSegment(center, westEdge, ISO_NS, tiesHalf);
+      drawDoubleTies(center, westEdge, ISO_NS, ISO_NS, tiesHalf);
       break;
     case 'terminus_s':
-      drawTiesAlongSegment(center, northEdge, ISO_EW, tiesHalf);
+      drawDoubleTies(center, northEdge, ISO_EW, ISO_EW, tiesHalf);
       break;
     case 'terminus_w':
-      drawTiesAlongSegment(center, eastEdge, ISO_NS, tiesHalf);
+      drawDoubleTies(center, eastEdge, ISO_NS, ISO_NS, tiesHalf);
       break;
   }
 }
 
 /**
- * Draw the two parallel steel rails
+ * Draw steel rails for DOUBLE tracks
  */
 function drawRails(
   ctx: CanvasRenderingContext2D,
@@ -588,9 +633,10 @@ function drawRails(
   const cx = x + w / 2;
   const cy = y + h / 2;
   const railGauge = w * TRACK_GAUGE_RATIO;
-  const railWidth = zoom >= 0.7 ? 2.5 : 2;
+  const railWidth = zoom >= 0.7 ? 1.5 : 1.2;
+  const trackSep = w * TRACK_SEPARATION_RATIO;
+  const halfSep = trackSep / 2;
 
-  // Calculate edge midpoints
   const northEdge = { x: x + w * 0.25, y: y + h * 0.25 };
   const eastEdge = { x: x + w * 0.75, y: y + h * 0.25 };
   const southEdge = { x: x + w * 0.75, y: y + h * 0.75 };
@@ -599,106 +645,90 @@ function drawRails(
 
   const halfGauge = railGauge / 2;
 
-  // Draw two parallel rails along a straight segment with explicit isometric perpendicular
-  const drawStraightRailPair = (
+  // Draw a single track's rail pair along a straight segment
+  const drawSingleStraightRails = (
     from: { x: number; y: number },
     to: { x: number; y: number },
-    perp: { x: number; y: number }  // Isometric perpendicular direction
+    perp: { x: number; y: number }
   ) => {
-    // Draw shadow rails first
     ctx.strokeStyle = RAIL_COLORS.RAIL_SHADOW;
-    ctx.lineWidth = railWidth + 0.5;
+    ctx.lineWidth = railWidth + 0.3;
     ctx.lineCap = 'round';
 
-    // Left rail shadow
     ctx.beginPath();
-    ctx.moveTo(from.x + perp.x * halfGauge + 0.5, from.y + perp.y * halfGauge + 0.5);
-    ctx.lineTo(to.x + perp.x * halfGauge + 0.5, to.y + perp.y * halfGauge + 0.5);
+    ctx.moveTo(from.x + perp.x * halfGauge + 0.3, from.y + perp.y * halfGauge + 0.3);
+    ctx.lineTo(to.x + perp.x * halfGauge + 0.3, to.y + perp.y * halfGauge + 0.3);
     ctx.stroke();
 
-    // Right rail shadow
     ctx.beginPath();
-    ctx.moveTo(from.x - perp.x * halfGauge + 0.5, from.y - perp.y * halfGauge + 0.5);
-    ctx.lineTo(to.x - perp.x * halfGauge + 0.5, to.y - perp.y * halfGauge + 0.5);
+    ctx.moveTo(from.x - perp.x * halfGauge + 0.3, from.y - perp.y * halfGauge + 0.3);
+    ctx.lineTo(to.x - perp.x * halfGauge + 0.3, to.y - perp.y * halfGauge + 0.3);
     ctx.stroke();
 
-    // Main rails
     ctx.strokeStyle = RAIL_COLORS.RAIL;
     ctx.lineWidth = railWidth;
 
-    // Left rail
     ctx.beginPath();
     ctx.moveTo(from.x + perp.x * halfGauge, from.y + perp.y * halfGauge);
     ctx.lineTo(to.x + perp.x * halfGauge, to.y + perp.y * halfGauge);
     ctx.stroke();
 
-    // Right rail
     ctx.beginPath();
     ctx.moveTo(from.x - perp.x * halfGauge, from.y - perp.y * halfGauge);
     ctx.lineTo(to.x - perp.x * halfGauge, to.y - perp.y * halfGauge);
     ctx.stroke();
-
-    // Rail highlights (for zoom > 0.8)
-    if (zoom >= 0.8) {
-      ctx.strokeStyle = RAIL_COLORS.RAIL_HIGHLIGHT;
-      ctx.lineWidth = 0.5;
-
-      ctx.beginPath();
-      ctx.moveTo(from.x + perp.x * halfGauge - 0.3, from.y + perp.y * halfGauge - 0.3);
-      ctx.lineTo(to.x + perp.x * halfGauge - 0.3, to.y + perp.y * halfGauge - 0.3);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(from.x - perp.x * halfGauge - 0.3, from.y - perp.y * halfGauge - 0.3);
-      ctx.lineTo(to.x - perp.x * halfGauge - 0.3, to.y - perp.y * halfGauge - 0.3);
-      ctx.stroke();
-    }
   };
 
-  // Draw curved rails using quadratic bezier curves with isometric perpendiculars
-  const drawCurvedRailPair = (
+  // Draw double straight rails
+  const drawDoubleStraightRails = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    perp: { x: number; y: number }
+  ) => {
+    const from0 = offsetPoint(from, perp, halfSep);
+    const to0 = offsetPoint(to, perp, halfSep);
+    drawSingleStraightRails(from0, to0, perp);
+
+    const from1 = offsetPoint(from, perp, -halfSep);
+    const to1 = offsetPoint(to, perp, -halfSep);
+    drawSingleStraightRails(from1, to1, perp);
+  };
+
+  // Draw a single track's curved rails
+  const drawSingleCurvedRails = (
     from: { x: number; y: number },
     to: { x: number; y: number },
     control: { x: number; y: number },
     fromPerp: { x: number; y: number },
     toPerp: { x: number; y: number }
   ) => {
-    // Average perpendicular for control point
-    const midPerp = {
-      x: (fromPerp.x + toPerp.x) / 2,
-      y: (fromPerp.y + toPerp.y) / 2
-    };
+    const midPerp = { x: (fromPerp.x + toPerp.x) / 2, y: (fromPerp.y + toPerp.y) / 2 };
     const midLen = Math.hypot(midPerp.x, midPerp.y);
     const ctrlPerp = { x: midPerp.x / midLen, y: midPerp.y / midLen };
 
-    // Draw shadow rails
     ctx.strokeStyle = RAIL_COLORS.RAIL_SHADOW;
-    ctx.lineWidth = railWidth + 0.5;
+    ctx.lineWidth = railWidth + 0.3;
     ctx.lineCap = 'round';
 
-    // Left rail shadow (outer)
     ctx.beginPath();
-    ctx.moveTo(from.x + fromPerp.x * halfGauge + 0.5, from.y + fromPerp.y * halfGauge + 0.5);
+    ctx.moveTo(from.x + fromPerp.x * halfGauge + 0.3, from.y + fromPerp.y * halfGauge + 0.3);
     ctx.quadraticCurveTo(
-      control.x + ctrlPerp.x * halfGauge + 0.5, control.y + ctrlPerp.y * halfGauge + 0.5,
-      to.x + toPerp.x * halfGauge + 0.5, to.y + toPerp.y * halfGauge + 0.5
+      control.x + ctrlPerp.x * halfGauge + 0.3, control.y + ctrlPerp.y * halfGauge + 0.3,
+      to.x + toPerp.x * halfGauge + 0.3, to.y + toPerp.y * halfGauge + 0.3
     );
     ctx.stroke();
 
-    // Right rail shadow (inner)
     ctx.beginPath();
-    ctx.moveTo(from.x - fromPerp.x * halfGauge + 0.5, from.y - fromPerp.y * halfGauge + 0.5);
+    ctx.moveTo(from.x - fromPerp.x * halfGauge + 0.3, from.y - fromPerp.y * halfGauge + 0.3);
     ctx.quadraticCurveTo(
-      control.x - ctrlPerp.x * halfGauge + 0.5, control.y - ctrlPerp.y * halfGauge + 0.5,
-      to.x - toPerp.x * halfGauge + 0.5, to.y - toPerp.y * halfGauge + 0.5
+      control.x - ctrlPerp.x * halfGauge + 0.3, control.y - ctrlPerp.y * halfGauge + 0.3,
+      to.x - toPerp.x * halfGauge + 0.3, to.y - toPerp.y * halfGauge + 0.3
     );
     ctx.stroke();
 
-    // Main rails
     ctx.strokeStyle = RAIL_COLORS.RAIL;
     ctx.lineWidth = railWidth;
 
-    // Left rail (outer)
     ctx.beginPath();
     ctx.moveTo(from.x + fromPerp.x * halfGauge, from.y + fromPerp.y * halfGauge);
     ctx.quadraticCurveTo(
@@ -707,7 +737,6 @@ function drawRails(
     );
     ctx.stroke();
 
-    // Right rail (inner)
     ctx.beginPath();
     ctx.moveTo(from.x - fromPerp.x * halfGauge, from.y - fromPerp.y * halfGauge);
     ctx.quadraticCurveTo(
@@ -715,100 +744,90 @@ function drawRails(
       to.x - toPerp.x * halfGauge, to.y - toPerp.y * halfGauge
     );
     ctx.stroke();
-
-    // Rail highlights (for zoom > 0.8)
-    if (zoom >= 0.8) {
-      ctx.strokeStyle = RAIL_COLORS.RAIL_HIGHLIGHT;
-      ctx.lineWidth = 0.5;
-
-      ctx.beginPath();
-      ctx.moveTo(from.x + fromPerp.x * halfGauge - 0.3, from.y + fromPerp.y * halfGauge - 0.3);
-      ctx.quadraticCurveTo(
-        control.x + ctrlPerp.x * halfGauge - 0.3, control.y + ctrlPerp.y * halfGauge - 0.3,
-        to.x + toPerp.x * halfGauge - 0.3, to.y + toPerp.y * halfGauge - 0.3
-      );
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(from.x - fromPerp.x * halfGauge - 0.3, from.y - fromPerp.y * halfGauge - 0.3);
-      ctx.quadraticCurveTo(
-        control.x - ctrlPerp.x * halfGauge - 0.3, control.y - ctrlPerp.y * halfGauge - 0.3,
-        to.x - toPerp.x * halfGauge - 0.3, to.y - toPerp.y * halfGauge - 0.3
-      );
-      ctx.stroke();
-    }
   };
 
-  // Negated perpendiculars for south curves (SE, SW) where inside points up
-  const NEG_ISO_EW = { x: -ISO_EW.x, y: -ISO_EW.y };
-  const NEG_ISO_NS = { x: -ISO_NS.x, y: -ISO_NS.y };
+  // Draw double curved rails
+  const drawDoubleCurvedRails = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    control: { x: number; y: number },
+    fromPerp: { x: number; y: number },
+    toPerp: { x: number; y: number },
+    curvePerp: { x: number; y: number }
+  ) => {
+    const from0 = offsetPoint(from, fromPerp, halfSep);
+    const to0 = offsetPoint(to, toPerp, halfSep);
+    const ctrl0 = offsetPoint(control, curvePerp, halfSep);
+    drawSingleCurvedRails(from0, to0, ctrl0, fromPerp, toPerp);
 
-  // Draw rails based on track type
-  // N-S tracks use E-W perpendicular, E-W tracks use N-S perpendicular
-  // For curves, perpendiculars must point consistently toward the inside of the curve
+    const from1 = offsetPoint(from, fromPerp, -halfSep);
+    const to1 = offsetPoint(to, toPerp, -halfSep);
+    const ctrl1 = offsetPoint(control, curvePerp, -halfSep);
+    drawSingleCurvedRails(from1, to1, ctrl1, fromPerp, toPerp);
+  };
+
   switch (trackType) {
     case 'straight_ns':
-      drawStraightRailPair(northEdge, southEdge, ISO_EW);
+      drawDoubleStraightRails(northEdge, southEdge, ISO_EW);
       break;
     case 'straight_ew':
-      drawStraightRailPair(eastEdge, westEdge, ISO_NS);
+      drawDoubleStraightRails(eastEdge, westEdge, ISO_NS);
       break;
     case 'curve_ne':
-      // Top-edge curve: inside points down, both perps have +y
-      drawCurvedRailPair(northEdge, eastEdge, center, ISO_EW, ISO_NS);
+      drawDoubleCurvedRails(northEdge, eastEdge, center, ISO_EW, ISO_NS, { x: 0, y: 1 });
       break;
     case 'curve_nw':
-      // Left-edge curve: inside points right, both perps have +x
-      drawCurvedRailPair(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS);
+      drawDoubleCurvedRails(northEdge, westEdge, center, NEG_ISO_EW, ISO_NS, { x: -1, y: 0 });
       break;
     case 'curve_se':
-      // Right-edge curve: inside points left, both perps have -x
-      drawCurvedRailPair(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS);
+      drawDoubleCurvedRails(southEdge, eastEdge, center, ISO_EW, NEG_ISO_NS, { x: 1, y: 0 });
       break;
     case 'curve_sw':
-      // Bottom-edge curve: inside points up, both perps have -y
-      drawCurvedRailPair(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS);
+      drawDoubleCurvedRails(southEdge, westEdge, center, NEG_ISO_EW, NEG_ISO_NS, { x: 0, y: -1 });
       break;
     case 'junction_t_n':
-      drawStraightRailPair(eastEdge, westEdge, ISO_NS);
-      drawStraightRailPair(center, southEdge, ISO_EW);
+      drawDoubleStraightRails(eastEdge, westEdge, ISO_NS);
+      drawDoubleStraightRails(center, southEdge, ISO_EW);
       break;
     case 'junction_t_e':
-      drawStraightRailPair(northEdge, southEdge, ISO_EW);
-      drawStraightRailPair(center, westEdge, ISO_NS);
+      drawDoubleStraightRails(northEdge, southEdge, ISO_EW);
+      drawDoubleStraightRails(center, westEdge, ISO_NS);
       break;
     case 'junction_t_s':
-      drawStraightRailPair(eastEdge, westEdge, ISO_NS);
-      drawStraightRailPair(center, northEdge, ISO_EW);
+      drawDoubleStraightRails(eastEdge, westEdge, ISO_NS);
+      drawDoubleStraightRails(center, northEdge, ISO_EW);
       break;
     case 'junction_t_w':
-      drawStraightRailPair(northEdge, southEdge, ISO_EW);
-      drawStraightRailPair(center, eastEdge, ISO_NS);
+      drawDoubleStraightRails(northEdge, southEdge, ISO_EW);
+      drawDoubleStraightRails(center, eastEdge, ISO_NS);
       break;
     case 'junction_cross':
-      drawStraightRailPair(northEdge, southEdge, ISO_EW);
-      drawStraightRailPair(eastEdge, westEdge, ISO_NS);
+      drawDoubleStraightRails(northEdge, southEdge, ISO_EW);
+      drawDoubleStraightRails(eastEdge, westEdge, ISO_NS);
       break;
     case 'terminus_n':
-      drawStraightRailPair(center, southEdge, ISO_EW);
-      drawBufferStop(ctx, cx, cy, 'north', zoom);
+      drawDoubleStraightRails(center, southEdge, ISO_EW);
+      drawBufferStop(ctx, cx + ISO_EW.x * halfSep, cy + ISO_EW.y * halfSep, 'north', zoom);
+      drawBufferStop(ctx, cx - ISO_EW.x * halfSep, cy - ISO_EW.y * halfSep, 'north', zoom);
       break;
     case 'terminus_e':
-      drawStraightRailPair(center, westEdge, ISO_NS);
-      drawBufferStop(ctx, cx, cy, 'east', zoom);
+      drawDoubleStraightRails(center, westEdge, ISO_NS);
+      drawBufferStop(ctx, cx + ISO_NS.x * halfSep, cy + ISO_NS.y * halfSep, 'east', zoom);
+      drawBufferStop(ctx, cx - ISO_NS.x * halfSep, cy - ISO_NS.y * halfSep, 'east', zoom);
       break;
     case 'terminus_s':
-      drawStraightRailPair(center, northEdge, ISO_EW);
-      drawBufferStop(ctx, cx, cy, 'south', zoom);
+      drawDoubleStraightRails(center, northEdge, ISO_EW);
+      drawBufferStop(ctx, cx + ISO_EW.x * halfSep, cy + ISO_EW.y * halfSep, 'south', zoom);
+      drawBufferStop(ctx, cx - ISO_EW.x * halfSep, cy - ISO_EW.y * halfSep, 'south', zoom);
       break;
     case 'terminus_w':
-      drawStraightRailPair(center, eastEdge, ISO_NS);
-      drawBufferStop(ctx, cx, cy, 'west', zoom);
+      drawDoubleStraightRails(center, eastEdge, ISO_NS);
+      drawBufferStop(ctx, cx + ISO_NS.x * halfSep, cy + ISO_NS.y * halfSep, 'west', zoom);
+      drawBufferStop(ctx, cx - ISO_NS.x * halfSep, cy - ISO_NS.y * halfSep, 'west', zoom);
       break;
     case 'single':
-      // Just draw a small cross in the center for isolated track
       const stubLen = w * 0.15;
-      drawStraightRailPair(
+      drawDoubleStraightRails(
         { x: cx - ISO_NS.x * stubLen, y: cy - ISO_NS.y * stubLen },
         { x: cx + ISO_NS.x * stubLen, y: cy + ISO_NS.y * stubLen },
         ISO_EW
@@ -818,7 +837,7 @@ function drawRails(
 }
 
 /**
- * Draw a buffer stop at track terminus
+ * Draw a buffer stop at track terminus (smaller for double track)
  */
 function drawBufferStop(
   ctx: CanvasRenderingContext2D,
@@ -829,8 +848,8 @@ function drawBufferStop(
 ): void {
   if (zoom < 0.6) return;
 
-  const size = 4;
-  const offset = 2;
+  const size = 2.5;
+  const offset = 1.5;
 
   ctx.save();
   ctx.translate(x, y);
