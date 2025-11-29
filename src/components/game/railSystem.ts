@@ -132,12 +132,12 @@ export const TIES_PER_TILE = 5;
 /** Separation between the two parallel tracks as ratio of tile width */
 export const TRACK_SEPARATION_RATIO = 0.22;
 
-/** Train car dimensions - smaller for double track */
+/** Train car dimensions - sized for visibility on double track */
 export const TRAIN_CAR = {
-  LOCOMOTIVE_LENGTH: 12,
-  CAR_LENGTH: 10,
-  CAR_WIDTH: 4,
-  CAR_SPACING: 2, // Gap between cars
+  LOCOMOTIVE_LENGTH: 20,
+  CAR_LENGTH: 16,
+  CAR_WIDTH: 6,
+  CAR_SPACING: 3, // Gap between cars
 };
 
 /** Which track a train uses based on direction (0 = left/inner, 1 = right/outer) */

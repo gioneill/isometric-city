@@ -20,8 +20,115 @@ import {
   PASSENGER_COLORS,
   TRAIN_CAR,
   TRACK_SEPARATION_RATIO,
+  TrackType,
 } from './railSystem';
 import { gridToScreen } from './utils';
+
+// ============================================================================
+// Curve Interpolation Helpers
+// ============================================================================
+
+/** Isometric axis directions (normalized) */
+const ISO_NS = { x: 0.894427, y: 0.447214 };
+const ISO_EW = { x: -0.894427, y: 0.447214 };
+
+/** Get curve endpoints and control point for a curve track type */
+function getCurveGeometry(
+  trackType: TrackType,
+  screenX: number,
+  screenY: number
+): { from: { x: number; y: number }; to: { x: number; y: number }; control: { x: number; y: number }; fromAngle: number; toAngle: number } | null {
+  const w = TILE_WIDTH;
+  const h = TILE_HEIGHT;
+  const cx = screenX + w / 2;
+  const cy = screenY + h / 2;
+
+  // Edge midpoints (tile corners in isometric view)
+  const northEdge = { x: screenX + w * 0.25, y: screenY + h * 0.25 };
+  const eastEdge = { x: screenX + w * 0.75, y: screenY + h * 0.25 };
+  const southEdge = { x: screenX + w * 0.75, y: screenY + h * 0.75 };
+  const westEdge = { x: screenX + w * 0.25, y: screenY + h * 0.75 };
+  const center = { x: cx, y: cy };
+
+  // Angles for each direction (matching DIRECTION_META)
+  const angles = {
+    north: Math.atan2(-TILE_HEIGHT / 2, -TILE_WIDTH / 2),
+    east: Math.atan2(-TILE_HEIGHT / 2, TILE_WIDTH / 2),
+    south: Math.atan2(TILE_HEIGHT / 2, TILE_WIDTH / 2),
+    west: Math.atan2(TILE_HEIGHT / 2, -TILE_WIDTH / 2),
+  };
+
+  switch (trackType) {
+    case 'curve_ne':
+      return { from: northEdge, to: eastEdge, control: center, fromAngle: angles.south, toAngle: angles.west };
+    case 'curve_nw':
+      return { from: northEdge, to: westEdge, control: center, fromAngle: angles.south, toAngle: angles.east };
+    case 'curve_se':
+      return { from: southEdge, to: eastEdge, control: center, fromAngle: angles.north, toAngle: angles.west };
+    case 'curve_sw':
+      return { from: southEdge, to: westEdge, control: center, fromAngle: angles.north, toAngle: angles.east };
+    default:
+      return null;
+  }
+}
+
+/** Determine which way a train enters and exits a curve based on direction */
+function getCurveTraversalDirection(
+  trackType: TrackType,
+  enterDirection: CarDirection
+): { entryT: number; exitT: number } | null {
+  // Map: which edge the train enters from based on its travel direction
+  // north direction = train came from south edge, heading to north edge
+  // east direction = train came from west edge, heading to east edge
+  // etc.
+  
+  switch (trackType) {
+    case 'curve_ne':
+      // Curve connects north and east edges
+      if (enterDirection === 'north') return { entryT: 1, exitT: 0 }; // Enter from east, exit to north
+      if (enterDirection === 'east') return { entryT: 0, exitT: 1 }; // Enter from north, exit to east
+      break;
+    case 'curve_nw':
+      // Curve connects north and west edges
+      if (enterDirection === 'north') return { entryT: 1, exitT: 0 }; // Enter from west, exit to north
+      if (enterDirection === 'west') return { entryT: 0, exitT: 1 }; // Enter from north, exit to west
+      break;
+    case 'curve_se':
+      // Curve connects south and east edges
+      if (enterDirection === 'south') return { entryT: 1, exitT: 0 }; // Enter from east, exit to south
+      if (enterDirection === 'east') return { entryT: 0, exitT: 1 }; // Enter from south, exit to east
+      break;
+    case 'curve_sw':
+      // Curve connects south and west edges
+      if (enterDirection === 'south') return { entryT: 1, exitT: 0 }; // Enter from west, exit to south
+      if (enterDirection === 'west') return { entryT: 0, exitT: 1 }; // Enter from south, exit to west
+      break;
+  }
+  return null;
+}
+
+/** Calculate position and angle on a quadratic bezier curve */
+function bezierPositionAndAngle(
+  from: { x: number; y: number },
+  control: { x: number; y: number },
+  to: { x: number; y: number },
+  t: number
+): { x: number; y: number; angle: number } {
+  const u = 1 - t;
+  
+  // Position on bezier curve
+  const x = u * u * from.x + 2 * u * t * control.x + t * t * to.x;
+  const y = u * u * from.y + 2 * u * t * control.y + t * t * to.y;
+  
+  // Derivative (tangent direction) at t
+  const dx = 2 * u * (control.x - from.x) + 2 * t * (to.x - control.x);
+  const dy = 2 * u * (control.y - from.y) + 2 * t * (to.y - control.y);
+  
+  // Angle from tangent
+  const angle = Math.atan2(dy, dx);
+  
+  return { x, y, angle };
+}
 
 // ============================================================================
 // Constants
@@ -47,12 +154,12 @@ export const TRAIN_MAX_AGE = 60;
 
 /** Carriage count for train types */
 export const TRAIN_CARRIAGE_COUNTS = {
-  passenger: { min: 3, max: 5 },
-  freight: { min: 4, max: 7 },
+  passenger: { min: 5, max: 8 },
+  freight: { min: 6, max: 10 },
 };
 
-/** Carriage spacing (in tile progress units) - smaller for double track */
-export const CARRIAGE_SPACING = 0.22;
+/** Carriage spacing (in tile progress units) - spacing between carriages */
+export const CARRIAGE_SPACING = 0.28;
 
 // ============================================================================
 // Train Creation Functions
@@ -520,7 +627,9 @@ export function updateTrain(
     train.pathIndex++;
     
     // Keep path limited to avoid memory issues
-    if (train.path.length > 50) {
+    // Need enough history for longest possible train (10 carriages * 0.28 spacing = 2.8 tiles back)
+    // Plus buffer for smooth transitions, so keep 80 tiles of history
+    if (train.path.length > 80) {
       train.path.shift();
       train.pathIndex--;
     }
@@ -540,6 +649,10 @@ function updateCarriagePositions(
   grid: Tile[][],
   gridSize: number
 ): void {
+  // For newly spawned trains, start carriages behind the locomotive at the spawn point
+  // They will gradually spread out as the train moves
+  const spawnTile = train.path[0];
+  
   for (let i = 0; i < train.carriages.length; i++) {
     const carriage = train.carriages[i];
     
@@ -561,6 +674,8 @@ function updateCarriagePositions(
       
       // Walk back along the path to find carriage position
       let pathIdx = train.pathIndex;
+      let foundValidPosition = false;
+      
       while (carriageProgress < 0 && pathIdx > 0) {
         pathIdx--;
         carriageProgress += 1;
@@ -569,6 +684,7 @@ function updateCarriagePositions(
           const prevTile = train.path[pathIdx];
           carriageTileX = prevTile.x;
           carriageTileY = prevTile.y;
+          foundValidPosition = true;
           
           // Determine direction from this tile to next
           if (pathIdx + 1 < train.path.length) {
@@ -579,8 +695,17 @@ function updateCarriagePositions(
         }
       }
       
-      // Clamp progress
-      carriageProgress = Math.max(0, Math.min(1, carriageProgress));
+      // If we couldn't find enough path history (new train), stack carriages at spawn point
+      // with increasing progress offset to simulate "arriving" from off-map
+      if (!foundValidPosition && carriageProgress < 0) {
+        carriageTileX = spawnTile.x;
+        carriageTileY = spawnTile.y;
+        // Keep them just behind the spawn with negative progress clamped to 0
+        carriageProgress = 0;
+      }
+      
+      // Clamp progress to valid range
+      carriageProgress = Math.max(0, Math.min(0.99, carriageProgress));
       
       carriage.tileX = carriageTileX;
       carriage.tileY = carriageTileY;
@@ -596,49 +721,89 @@ function updateCarriagePositions(
 
 /**
  * Draw a single train carriage on the correct track based on direction
+ * Handles curve interpolation for smooth movement on curved tracks
  */
 function drawCarriage(
   ctx: CanvasRenderingContext2D,
   carriage: TrainCarriage,
-  zoom: number
+  zoom: number,
+  grid: Tile[][],
+  gridSize: number
 ): void {
   const { screenX, screenY } = gridToScreen(carriage.tileX, carriage.tileY, 0, 0);
-  const centerX = screenX + TILE_WIDTH / 2;
-  const centerY = screenY + TILE_HEIGHT / 2;
   
-  const meta = DIRECTION_META[carriage.direction];
-  
-  // Calculate track offset based on direction (which track the train is on)
-  const trackSide = getTrackSide(carriage.direction);
-  const trackOffset = TILE_WIDTH * TRACK_SEPARATION_RATIO / 2;
-  
-  // Get perpendicular direction for offset based on travel direction
-  // For N-S travel, offset is along E-W axis; for E-W travel, offset is along N-S axis
-  let perpX = 0, perpY = 0;
-  if (carriage.direction === 'north' || carriage.direction === 'south') {
-    // N-S travel: perpendicular is E-W direction (ISO_EW normalized)
-    perpX = -0.894427;
-    perpY = 0.447214;
-  } else {
-    // E-W travel: perpendicular is N-S direction (ISO_NS normalized)
-    perpX = 0.894427;
-    perpY = 0.447214;
+  // Get track type for this tile to check if we're on a curve
+  let trackType: TrackType = 'straight_ns';
+  if (carriage.tileX >= 0 && carriage.tileX < gridSize && 
+      carriage.tileY >= 0 && carriage.tileY < gridSize) {
+    const connections = getAdjacentRail(grid, gridSize, carriage.tileX, carriage.tileY);
+    trackType = getTrackType(connections);
   }
   
-  // Apply track offset (trackSide 0 = +perp, trackSide 1 = -perp)
+  // Calculate track offset based on direction
+  const trackSide = getTrackSide(carriage.direction);
+  const trackOffset = TILE_WIDTH * TRACK_SEPARATION_RATIO / 2;
   const offsetMultiplier = trackSide === 0 ? 1 : -1;
-  const offsetX = perpX * trackOffset * offsetMultiplier;
-  const offsetY = perpY * trackOffset * offsetMultiplier;
   
-  const carX = centerX + meta.vec.dx * carriage.progress + offsetX;
-  const carY = centerY + meta.vec.dy * carriage.progress + offsetY;
+  let carX: number, carY: number, carAngle: number;
+  
+  // Check if we're on a curve and should interpolate
+  const curveGeometry = getCurveGeometry(trackType, screenX, screenY);
+  const curveTraversal = curveGeometry ? getCurveTraversalDirection(trackType, carriage.direction) : null;
+  
+  if (curveGeometry && curveTraversal) {
+    // We're on a curve - interpolate position and angle along the bezier
+    const { from, to, control } = curveGeometry;
+    const { entryT, exitT } = curveTraversal;
+    
+    // Map progress (0-1) to curve parameter t
+    // entryT tells us where we start, exitT where we end
+    const t = entryT + (exitT - entryT) * carriage.progress;
+    
+    // Get perpendicular offset for the track separation
+    // For curves, we need to offset perpendicular to the curve tangent
+    const bezierResult = bezierPositionAndAngle(from, control, to, t);
+    
+    // Calculate perpendicular to the tangent at this point
+    const tangentAngle = bezierResult.angle;
+    const perpAngle = tangentAngle + Math.PI / 2;
+    const perpX = Math.cos(perpAngle);
+    const perpY = Math.sin(perpAngle);
+    
+    // Apply track offset
+    carX = bezierResult.x + perpX * trackOffset * offsetMultiplier;
+    carY = bezierResult.y + perpY * trackOffset * offsetMultiplier;
+    carAngle = bezierResult.angle;
+  } else {
+    // Straight track or unknown - use linear interpolation
+    const centerX = screenX + TILE_WIDTH / 2;
+    const centerY = screenY + TILE_HEIGHT / 2;
+    const meta = DIRECTION_META[carriage.direction];
+    
+    // Get perpendicular direction for offset
+    let perpX = 0, perpY = 0;
+    if (carriage.direction === 'north' || carriage.direction === 'south') {
+      perpX = ISO_EW.x;
+      perpY = ISO_EW.y;
+    } else {
+      perpX = ISO_NS.x;
+      perpY = ISO_NS.y;
+    }
+    
+    const offsetX = perpX * trackOffset * offsetMultiplier;
+    const offsetY = perpY * trackOffset * offsetMultiplier;
+    
+    carX = centerX + meta.vec.dx * carriage.progress + offsetX;
+    carY = centerY + meta.vec.dy * carriage.progress + offsetY;
+    carAngle = meta.angle;
+  }
   
   ctx.save();
   ctx.translate(carX, carY);
-  ctx.rotate(meta.angle);
+  ctx.rotate(carAngle);
   
-  // Scale down for double track (trains are smaller)
-  const scale = zoom >= 0.8 ? 0.4 : 0.35;
+  // Bigger scale for better visibility
+  const scale = zoom >= 0.8 ? 0.65 : 0.55;
   
   switch (carriage.type) {
     case 'locomotive':
@@ -865,7 +1030,9 @@ export function drawTrains(
   trains: Train[],
   offset: { x: number; y: number },
   zoom: number,
-  canvasSize: { width: number; height: number }
+  canvasSize: { width: number; height: number },
+  grid: Tile[][],
+  gridSize: number
 ): void {
   const dpr = window.devicePixelRatio || 1;
   
@@ -900,7 +1067,7 @@ export function drawTrains(
         continue;
       }
       
-      drawCarriage(ctx, carriage, zoom);
+      drawCarriage(ctx, carriage, zoom, grid, gridSize);
     }
   }
   

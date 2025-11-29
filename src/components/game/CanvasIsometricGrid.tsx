@@ -1093,7 +1093,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       return;
     }
 
-    drawTrains(ctx, trainsRef.current, currentOffset, currentZoom, size);
+    drawTrains(ctx, trainsRef.current, currentOffset, currentZoom, size, currentGrid, currentGridSize);
   }, []);
 
   // Find firework buildings (uses imported utility)
