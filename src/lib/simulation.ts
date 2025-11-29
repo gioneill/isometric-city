@@ -2224,28 +2224,28 @@ export function placeBuilding(
   // Can't build on water
   if (tile.building.type === 'water') return state;
 
-  // Can't place roads on existing buildings (only allow on grass, tree, or existing roads)
+  // Can't place roads on existing buildings (only allow on grass, tree, existing roads, or rail - rail+road creates combined tile)
   // Note: 'empty' tiles are part of multi-tile building footprints, so roads can't be placed there either
   if (buildingType === 'road') {
-    const allowedTypes: BuildingType[] = ['grass', 'tree', 'road'];
+    const allowedTypes: BuildingType[] = ['grass', 'tree', 'road', 'rail'];
     if (!allowedTypes.includes(tile.building.type)) {
       return state; // Can't place road on existing building
     }
   }
 
-  // Can't place rail on existing buildings (only allow on grass, tree, or existing rail)
+  // Can't place rail on existing buildings (only allow on grass, tree, existing rail, or road - rail+road creates combined tile)
   if (buildingType === 'rail') {
-    const allowedTypes: BuildingType[] = ['grass', 'tree', 'rail'];
+    const allowedTypes: BuildingType[] = ['grass', 'tree', 'rail', 'road'];
     if (!allowedTypes.includes(tile.building.type)) {
       return state; // Can't place rail on existing building
     }
   }
 
-  // Only roads can be placed on roads, only rail can be placed on rail - all other buildings require clearing first
-  if (buildingType && buildingType !== 'road' && tile.building.type === 'road') {
+  // Roads and rail can be combined, but other buildings require clearing first
+  if (buildingType && buildingType !== 'road' && buildingType !== 'rail' && tile.building.type === 'road') {
     return state;
   }
-  if (buildingType && buildingType !== 'rail' && tile.building.type === 'rail') {
+  if (buildingType && buildingType !== 'road' && buildingType !== 'rail' && tile.building.type === 'rail') {
     return state;
   }
 
@@ -2322,8 +2322,30 @@ export function placeBuilding(
       if (!allowedTypes.includes(tile.building.type)) {
         return state; // Can't place on existing building or part of multi-tile building
       }
-      newGrid[y][x].building = createBuilding(buildingType);
-      newGrid[y][x].zone = 'none';
+      
+      // Handle combined rail+road tiles
+      if (buildingType === 'rail' && tile.building.type === 'road') {
+        // Placing rail on road: keep as road with rail overlay
+        newGrid[y][x].hasRailOverlay = true;
+        // Don't change the building type - it stays as road
+      } else if (buildingType === 'road' && tile.building.type === 'rail') {
+        // Placing road on rail: convert to road with rail overlay
+        newGrid[y][x].building = createBuilding('road');
+        newGrid[y][x].hasRailOverlay = true;
+        newGrid[y][x].zone = 'none';
+      } else if (buildingType === 'rail' && tile.hasRailOverlay) {
+        // Already has rail overlay, do nothing
+      } else if (buildingType === 'road' && tile.hasRailOverlay) {
+        // Already has road with rail overlay, do nothing
+      } else {
+        // Normal placement
+        newGrid[y][x].building = createBuilding(buildingType);
+        newGrid[y][x].zone = 'none';
+        // Clear rail overlay if placing non-combined building
+        if (buildingType !== 'road') {
+          newGrid[y][x].hasRailOverlay = false;
+        }
+      }
       // Set flip for waterfront buildings to face the water
       if (shouldFlip) {
         newGrid[y][x].building.flipped = true;
@@ -2409,6 +2431,7 @@ export function bulldozeTile(state: GameState, x: number, y: number): GameState 
         if (clearX < state.gridSize && clearY < state.gridSize) {
           newGrid[clearY][clearX].building = createBuilding('grass');
           newGrid[clearY][clearX].zone = 'none';
+          newGrid[clearY][clearX].hasRailOverlay = false; // Clear rail overlay
           // Don't remove subway when bulldozing surface buildings
         }
       }
@@ -2417,6 +2440,7 @@ export function bulldozeTile(state: GameState, x: number, y: number): GameState 
     // Single tile bulldoze
     newGrid[y][x].building = createBuilding('grass');
     newGrid[y][x].zone = 'none';
+    newGrid[y][x].hasRailOverlay = false; // Clear rail overlay
     // Don't remove subway when bulldozing surface buildings
   }
 

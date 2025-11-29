@@ -155,11 +155,12 @@ export function getTrackSide(direction: CarDirection): TrackSide {
 // ============================================================================
 
 /**
- * Check if a tile is a rail track
+ * Check if a tile is a rail track (pure rail tile OR road with rail overlay)
  */
 export function isRailTile(grid: Tile[][], gridSize: number, x: number, y: number): boolean {
   if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return false;
-  return grid[y][x].building.type === 'rail';
+  const tile = grid[y][x];
+  return tile.building.type === 'rail' || (tile.building.type === 'road' && tile.hasRailOverlay === true);
 }
 
 /**
@@ -171,7 +172,19 @@ export function isRailStationTile(grid: Tile[][], gridSize: number, x: number, y
 }
 
 /**
+ * Check if a tile has rail (either pure rail tile OR road with rail overlay)
+ */
+function hasRailAtPosition(grid: Tile[][], gridSize: number, x: number, y: number): boolean {
+  if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return false;
+  const tile = grid[y][x];
+  return tile.building.type === 'rail' || 
+         tile.building.type === 'rail_station' || 
+         (tile.building.type === 'road' && tile.hasRailOverlay === true);
+}
+
+/**
  * Get adjacent rail connections for a tile
+ * Recognizes both pure rail tiles AND road tiles with rail overlay
  */
 export function getAdjacentRail(
   grid: Tile[][],
@@ -180,10 +193,10 @@ export function getAdjacentRail(
   y: number
 ): RailConnection {
   return {
-    north: isRailTile(grid, gridSize, x - 1, y) || isRailStationTile(grid, gridSize, x - 1, y),
-    east: isRailTile(grid, gridSize, x, y - 1) || isRailStationTile(grid, gridSize, x, y - 1),
-    south: isRailTile(grid, gridSize, x + 1, y) || isRailStationTile(grid, gridSize, x + 1, y),
-    west: isRailTile(grid, gridSize, x, y + 1) || isRailStationTile(grid, gridSize, x, y + 1),
+    north: hasRailAtPosition(grid, gridSize, x - 1, y),
+    east: hasRailAtPosition(grid, gridSize, x, y - 1),
+    south: hasRailAtPosition(grid, gridSize, x + 1, y),
+    west: hasRailAtPosition(grid, gridSize, x, y + 1),
   };
 }
 
@@ -953,12 +966,65 @@ export function drawRailTrack(
   drawRails(ctx, x, y, trackType, zoom);
 }
 
+/**
+ * Get adjacent rail connections for a combined rail+road tile
+ * Checks for both pure rail tiles AND road tiles with rail overlay
+ */
+export function getAdjacentRailForOverlay(
+  grid: Tile[][],
+  gridSize: number,
+  x: number,
+  y: number
+): RailConnection {
+  const hasRailAt = (checkX: number, checkY: number): boolean => {
+    if (checkX < 0 || checkY < 0 || checkX >= gridSize || checkY >= gridSize) return false;
+    const tile = grid[checkY][checkX];
+    // Consider a tile as having rail if it's a rail tile, a rail station, or a road with rail overlay
+    return tile.building.type === 'rail' || 
+           tile.building.type === 'rail_station' || 
+           (tile.building.type === 'road' && tile.hasRailOverlay === true);
+  };
+
+  return {
+    north: hasRailAt(x - 1, y),
+    east: hasRailAt(x, y - 1),
+    south: hasRailAt(x + 1, y),
+    west: hasRailAt(x, y + 1),
+  };
+}
+
+/**
+ * Draw rail tracks only (ties and rails, no ballast) for overlay on roads
+ * This is used when rail is overlaid on a road tile - the road provides the base
+ */
+export function drawRailTracksOnly(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  gridX: number,
+  gridY: number,
+  grid: Tile[][],
+  gridSize: number,
+  zoom: number
+): void {
+  // Get adjacent rail connections (including road+rail combined tiles)
+  const connections = getAdjacentRailForOverlay(grid, gridSize, gridX, gridY);
+  
+  // Determine track type
+  const trackType = getTrackType(connections);
+
+  // Draw only ties and rails (no ballast) - the road base is already drawn
+  drawTies(ctx, x, y, trackType, zoom);
+  drawRails(ctx, x, y, trackType, zoom);
+}
+
 // ============================================================================
 // Train Pathfinding Functions
 // ============================================================================
 
 /**
  * Get available direction options from a rail tile
+ * Recognizes both pure rail tiles AND road tiles with rail overlay
  */
 export function getRailDirectionOptions(
   grid: Tile[][],
@@ -967,10 +1033,10 @@ export function getRailDirectionOptions(
   y: number
 ): CarDirection[] {
   const options: CarDirection[] = [];
-  if (isRailTile(grid, gridSize, x - 1, y) || isRailStationTile(grid, gridSize, x - 1, y)) options.push('north');
-  if (isRailTile(grid, gridSize, x, y - 1) || isRailStationTile(grid, gridSize, x, y - 1)) options.push('east');
-  if (isRailTile(grid, gridSize, x + 1, y) || isRailStationTile(grid, gridSize, x + 1, y)) options.push('south');
-  if (isRailTile(grid, gridSize, x, y + 1) || isRailStationTile(grid, gridSize, x, y + 1)) options.push('west');
+  if (hasRailAtPosition(grid, gridSize, x - 1, y)) options.push('north');
+  if (hasRailAtPosition(grid, gridSize, x, y - 1)) options.push('east');
+  if (hasRailAtPosition(grid, gridSize, x + 1, y)) options.push('south');
+  if (hasRailAtPosition(grid, gridSize, x, y + 1)) options.push('west');
   return options;
 }
 
@@ -995,7 +1061,7 @@ export function findRailStations(
 }
 
 /**
- * Count rail tiles in the grid
+ * Count rail tiles in the grid (includes pure rail tiles AND road tiles with rail overlay)
  */
 export function countRailTiles(
   grid: Tile[][],
@@ -1005,7 +1071,8 @@ export function countRailTiles(
   
   for (let y = 0; y < gridSize; y++) {
     for (let x = 0; x < gridSize; x++) {
-      if (grid[y][x].building.type === 'rail') {
+      const tile = grid[y][x];
+      if (tile.building.type === 'rail' || (tile.building.type === 'road' && tile.hasRailOverlay === true)) {
         count++;
       }
     }

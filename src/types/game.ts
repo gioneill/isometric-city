@@ -226,6 +226,7 @@ export interface Tile {
   crime: number;
   traffic: number;
   hasSubway: boolean;
+  hasRailOverlay?: boolean; // Rail tracks overlaid on road (road base with rail tracks on top)
 }
 
 export interface Stats {

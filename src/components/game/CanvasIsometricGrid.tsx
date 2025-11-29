@@ -138,6 +138,7 @@ import {
 import { CrimeType, getCrimeName, getCrimeDescription, getFireDescriptionForTile, getFireNameForTile } from '@/components/game/incidentData';
 import {
   drawRailTrack,
+  drawRailTracksOnly,
   isRailTile,
   isRailStationTile,
   countRailTiles,
@@ -3486,6 +3487,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         
         // Draw road markings and sidewalks
         drawBuilding(ctx, screenX, screenY, tile);
+        
+        // If this road has a rail overlay, draw just the rail tracks (ties and rails, no ballast)
+        if (tile.hasRailOverlay) {
+          drawRailTracksOnly(ctx, screenX, screenY, tile.x, tile.y, grid, gridSize, zoom);
+        }
       });
     
     // Draw rail tracks (above water, similar to roads)
