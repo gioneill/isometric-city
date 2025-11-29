@@ -34,6 +34,7 @@ export interface BargeSystemState {
   worldStateRef: React.MutableRefObject<WorldRenderState>;
   isMobile: boolean;
   visualHour: number;
+  onBargeDelivery?: (cargoValue: number, cargoType: number) => void;
 }
 
 export function useBargeSystem(
@@ -41,7 +42,7 @@ export function useBargeSystem(
   systemState: BargeSystemState
 ) {
   const { bargesRef, bargeIdRef, bargeSpawnTimerRef } = refs;
-  const { worldStateRef, isMobile, visualHour } = systemState;
+  const { worldStateRef, isMobile, visualHour, onBargeDelivery } = systemState;
 
   // Find ocean-connected marinas callback
   const findOceanMarinasCallback = useCallback(() => {
@@ -228,6 +229,11 @@ export function useBargeSystem(
             // Set target back to spawn point
             barge.targetScreenX = barge.spawnScreenX;
             barge.targetScreenY = barge.spawnScreenY;
+            
+            // Cargo delivery complete - trigger economic effect
+            if (onBargeDelivery) {
+              onBargeDelivery(barge.cargoValue, barge.cargoType);
+            }
           }
           break;
         }
@@ -322,7 +328,7 @@ export function useBargeSystem(
     }
     
     bargesRef.current = updatedBarges;
-  }, [worldStateRef, bargesRef, bargeIdRef, bargeSpawnTimerRef, findOceanMarinasCallback, findOceanSpawnPointsCallback, findAdjacentWaterTileForMarinaCallback, isOverWaterCallback, isMobile]);
+  }, [worldStateRef, bargesRef, bargeIdRef, bargeSpawnTimerRef, findOceanMarinasCallback, findOceanSpawnPointsCallback, findAdjacentWaterTileForMarinaCallback, isOverWaterCallback, isMobile, onBargeDelivery]);
 
   // Draw barges with wakes
   const drawBarges = useCallback((ctx: CanvasRenderingContext2D) => {

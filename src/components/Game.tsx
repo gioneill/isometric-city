@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useGame } from '@/context/GameContext';
 import { Tool } from '@/types/game';
 import { useMobile } from '@/hooks/useMobile';
@@ -27,6 +27,9 @@ import {
 import { MiniMap } from '@/components/game/MiniMap';
 import { TopBar, StatsPanel } from '@/components/game/TopBar';
 import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
+
+// Cargo type names for notifications
+const CARGO_TYPE_NAMES = ['containers', 'bulk materials', 'oil'];
 
 export default function Game() {
   const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
@@ -181,6 +184,25 @@ export default function Game() {
         break;
     }
   }, [triggeredCheat, addMoney, addNotification, clearTriggeredCheat]);
+  
+  // Track barge deliveries to show occasional notifications
+  const bargeDeliveryCountRef = useRef(0);
+  
+  // Handle barge cargo delivery - adds money to the city treasury
+  const handleBargeDelivery = useCallback((cargoValue: number, cargoType: number) => {
+    addMoney(cargoValue);
+    bargeDeliveryCountRef.current++;
+    
+    // Show a notification every 5 deliveries to avoid spam
+    if (bargeDeliveryCountRef.current % 5 === 1) {
+      const cargoName = CARGO_TYPE_NAMES[cargoType] || 'cargo';
+      addNotification(
+        'Cargo Delivered',
+        `A shipment of ${cargoName} has arrived at the marina. +$${cargoValue} trade revenue.`,
+        'ship'
+      );
+    }
+  }, [addMoney, addNotification]);
 
   // Mobile layout
   if (isMobile) {
@@ -201,6 +223,7 @@ export default function Game() {
               selectedTile={selectedTile} 
               setSelectedTile={setSelectedTile}
               isMobile={true}
+              onBargeDelivery={handleBargeDelivery}
             />
           </div>
           
@@ -240,6 +263,7 @@ export default function Game() {
               navigationTarget={navigationTarget}
               onNavigationComplete={() => setNavigationTarget(null)}
               onViewportChange={setViewport}
+              onBargeDelivery={handleBargeDelivery}
             />
             <OverlayModeToggle overlayMode={overlayMode} setOverlayMode={setOverlayMode} />
             <MiniMap onNavigate={(x, y) => setNavigationTarget({ x, y })} viewport={viewport} />

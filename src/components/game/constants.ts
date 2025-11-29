@@ -73,8 +73,8 @@ export const BARGE_SPAWN_INTERVAL_MIN = 8; // Minimum seconds between barge spaw
 export const BARGE_SPAWN_INTERVAL_MAX = 20; // Maximum seconds between barge spawns
 export const BARGE_DOCK_TIME_MIN = 8; // Minimum seconds docked at marina
 export const BARGE_DOCK_TIME_MAX = 15; // Maximum seconds docked at marina
-export const BARGE_CARGO_VALUE_MIN = 50; // Minimum cargo value (adds to city income)
-export const BARGE_CARGO_VALUE_MAX = 200; // Maximum cargo value
+export const BARGE_CARGO_VALUE_MIN = 100; // Minimum cargo value (adds to city income per delivery)
+export const BARGE_CARGO_VALUE_MAX = 350; // Maximum cargo value (makes ocean marinas worthwhile)
 export const BARGE_WAKE_SPAWN_INTERVAL = 0.05; // Slower wake spawn than boats (larger vessel)
 
 // Factory smog system constants
