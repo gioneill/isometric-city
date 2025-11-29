@@ -435,9 +435,26 @@ function drawBallast(
       drawDoubleStraightBallast(center, eastEdge, ISO_NS);
       drawCenterBallast();
       break;
-    case 'single':
-      drawCenterBallast();
+    case 'single': {
+      // Draw a short straight ballast segment aligned with actual N-S tile axis
+      // Compute directions from tile geometry (not hardcoded ISO vectors which assume 2:1 ratio)
+      const nsDirX = southEdge.x - northEdge.x;
+      const nsDirY = southEdge.y - northEdge.y;
+      const nsLen = Math.hypot(nsDirX, nsDirY);
+      const nsDir = { x: nsDirX / nsLen, y: nsDirY / nsLen };
+      
+      // E-W perpendicular direction (from eastEdge to westEdge)
+      const ewDirX = westEdge.x - eastEdge.x;
+      const ewDirY = westEdge.y - eastEdge.y;
+      const ewLen = Math.hypot(ewDirX, ewDirY);
+      const ewDir = { x: ewDirX / ewLen, y: ewDirY / ewLen };
+      
+      const singleStubLen = nsLen * 0.35; // 35% of half-tile diagonal
+      const singleFrom = { x: cx - nsDir.x * singleStubLen, y: cy - nsDir.y * singleStubLen };
+      const singleTo = { x: cx + nsDir.x * singleStubLen, y: cy + nsDir.y * singleStubLen };
+      drawDoubleStraightBallast(singleFrom, singleTo, ewDir);
       break;
+    }
   }
 }
 
@@ -617,6 +634,25 @@ function drawTies(
     case 'terminus_w':
       drawDoubleTies(center, eastEdge, ISO_NS, ISO_NS, tiesHalf);
       break;
+    case 'single': {
+      // Draw ties for a short segment aligned with actual N-S tile axis
+      const nsDirX = southEdge.x - northEdge.x;
+      const nsDirY = southEdge.y - northEdge.y;
+      const nsLen = Math.hypot(nsDirX, nsDirY);
+      const nsDir = { x: nsDirX / nsLen, y: nsDirY / nsLen };
+      
+      // E-W perpendicular direction
+      const ewDirX = westEdge.x - eastEdge.x;
+      const ewDirY = westEdge.y - eastEdge.y;
+      const ewLen = Math.hypot(ewDirX, ewDirY);
+      const ewDir = { x: ewDirX / ewLen, y: ewDirY / ewLen };
+      
+      const singleStubLen = nsLen * 0.35;
+      const singleFrom = { x: cx - nsDir.x * singleStubLen, y: cy - nsDir.y * singleStubLen };
+      const singleTo = { x: cx + nsDir.x * singleStubLen, y: cy + nsDir.y * singleStubLen };
+      drawDoubleTies(singleFrom, singleTo, ewDir, ewDir, 3);
+      break;
+    }
   }
 }
 
@@ -827,14 +863,25 @@ function drawRails(
       drawBufferStop(ctx, cx + ISO_NS.x * halfSep, cy + ISO_NS.y * halfSep, 'west', zoom);
       drawBufferStop(ctx, cx - ISO_NS.x * halfSep, cy - ISO_NS.y * halfSep, 'west', zoom);
       break;
-    case 'single':
-      const stubLen = w * 0.15;
-      drawDoubleStraightRails(
-        { x: cx - ISO_NS.x * stubLen, y: cy - ISO_NS.y * stubLen },
-        { x: cx + ISO_NS.x * stubLen, y: cy + ISO_NS.y * stubLen },
-        ISO_EW
-      );
+    case 'single': {
+      // Draw rails for a short segment aligned with actual N-S tile axis
+      const nsDirX = southEdge.x - northEdge.x;
+      const nsDirY = southEdge.y - northEdge.y;
+      const nsLen = Math.hypot(nsDirX, nsDirY);
+      const nsDir = { x: nsDirX / nsLen, y: nsDirY / nsLen };
+      
+      // E-W perpendicular direction
+      const ewDirX = westEdge.x - eastEdge.x;
+      const ewDirY = westEdge.y - eastEdge.y;
+      const ewLen = Math.hypot(ewDirX, ewDirY);
+      const ewDir = { x: ewDirX / ewLen, y: ewDirY / ewLen };
+      
+      const stubLen = nsLen * 0.35;
+      const singleFrom = { x: cx - nsDir.x * stubLen, y: cy - nsDir.y * stubLen };
+      const singleTo = { x: cx + nsDir.x * stubLen, y: cy + nsDir.y * stubLen };
+      drawDoubleStraightRails(singleFrom, singleTo, ewDir);
       break;
+    }
   }
 }
 
