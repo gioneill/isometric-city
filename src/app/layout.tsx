@@ -28,13 +28,26 @@ export const metadata: Metadata = {
     title: 'ISOCITY — Metropolis Builder',
     description: 'A richly detailed isometric city builder. Zone districts and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
     type: 'website',
-    images: ['/opengraph-image'],
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1179,
+        height: 1406,
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'ISOCITY — Metropolis Builder',
     description: 'A richly detailed isometric city builder. Zone districts and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
-    images: ['/opengraph-image'],
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1179,
+        height: 1406,
+      },
+    ],
   },
   appleWebApp: {
     capable: true,
