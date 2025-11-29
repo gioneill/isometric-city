@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "crop-screenshots": "bash scripts/crop-screenshots.sh"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",

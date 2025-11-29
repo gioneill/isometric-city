@@ -23,16 +23,18 @@ export const metadata: Metadata = {
       : 'http://localhost:3000'
   ),
   title: 'ISOCITY — Metropolis Builder',
-  description: 'A luxurious isometric city builder with Art Deco elegance. Zone districts, manage resources, and build your gleaming metropolis.',
+  description: 'A richly detailed isometric city builder. Zone districts and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
   openGraph: {
     title: 'ISOCITY — Metropolis Builder',
-    description: 'A luxurious isometric city builder with Art Deco elegance. Zone districts, manage resources, and build your gleaming metropolis.',
+    description: 'A richly detailed isometric city builder. Zone districts and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
     type: 'website',
+    images: ['/opengraph-image.png'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'ISOCITY — Metropolis Builder',
-    description: 'A luxurious isometric city builder with Art Deco elegance.',
+    description: 'A richly detailed isometric city builder. Zone districts and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
+    images: ['/opengraph-image.png'],
   },
   appleWebApp: {
     capable: true,
