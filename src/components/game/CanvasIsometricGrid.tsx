@@ -3137,9 +3137,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               if (buildingType === 'university') {
                 scaleMultiplier *= 0.95; // Scale down by 5%
               }
-              // Special scale adjustment for space_program (scaled up 10%)
+              // Special scale adjustment for space_program (scaled up 6%)
               if (buildingType === 'space_program') {
-                scaleMultiplier *= 1.1; // Scale up by 10%
+                scaleMultiplier *= 1.06; // Scale up by 6% (was 10%, reduced 4%)
               }
               // Special scale adjustment for stadium (scaled down 30%)
               if (buildingType === 'stadium') {

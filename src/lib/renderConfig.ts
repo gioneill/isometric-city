@@ -244,7 +244,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     tennis: -0.2, // Shifted up 0.1 tiles from -0.1
     city_hall: -0.6, // Shift up about 0.2 tiles
     amusement_park: -1.5, // Shift up about 1 tile
-    space_program: -0.6, // Shift down a bit
+    space_program: -0.95, // Shifted down 0.05 tiles
     university: -0.55, // Shift up a tiny bit
     stadium: -1.2, // Shift up a ton
     museum: -1.0, // Shift up 1 tile
@@ -708,6 +708,9 @@ export function getSpriteCoords(
   if (isSprites4Based) {
     if (spriteKey === 'residential' || spriteKey === 'commercial') {
       sh = tileHeight * 1.1; // Add 10% more height at bottom
+    }
+    if (spriteKey === 'space_program') {
+      sh = tileHeight * 0.92; // Crop 8% off the bottom
     }
   }
   
