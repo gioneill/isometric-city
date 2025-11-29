@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: '/opengraph-image',
+        url: '/og-image.png',
         width: 1179,
         height: 1406,
         type: 'image/png',
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     description: 'A richly detailed isometric city builder. Zone districts and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
     images: [
       {
-        url: '/opengraph-image',
+        url: '/og-image.png',
         width: 1179,
         height: 1406,
       },

@@ -20,19 +20,6 @@ export async function GET(request: NextRequest) {
   // Get the base URL from the request
   const baseUrl = new URL(request.url).origin;
   
-  // Fetch the image from the public folder
-  const imageResponse = await fetch(`${baseUrl}/games/${randomFile}`);
-  
-  if (!imageResponse.ok) {
-    return new NextResponse('Image not found', { status: 404 });
-  }
-  
-  const imageBuffer = await imageResponse.arrayBuffer();
-  
-  return new NextResponse(imageBuffer, {
-    headers: {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=3600',
-    },
-  });
+  // Redirect to the static image
+  return NextResponse.redirect(`${baseUrl}/games/${randomFile}`, { status: 302 });
 }
