@@ -2926,7 +2926,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     const ambient = getAmbientColor(visualHour);
     
     // Apply darkness overlay
-    const alpha = darkness * 0.55;
+    const alpha = darkness * 0.85;
     ctx.fillStyle = `rgba(${ambient.r}, ${ambient.g}, ${ambient.b}, ${alpha})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
@@ -2949,7 +2949,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       screenY: (gx + gy) * TILE_HEIGHT / 2,
     });
     
-    const lightIntensity = Math.min(1, darkness * 1.2);
+    const lightIntensity = Math.min(1, darkness * 1.3);
     
     // Pre-calculate pseudo-random function
     const pseudoRandom = (seed: number, n: number) => {
@@ -3013,8 +3013,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       if (light.type === 'road') {
         const lightRadius = 28;
         const gradient = ctx.createRadialGradient(tileCenterX, tileCenterY, 0, tileCenterX, tileCenterY, lightRadius);
-        gradient.addColorStop(0, `rgba(255, 255, 255, ${0.7 * lightIntensity})`);
-        gradient.addColorStop(0.4, `rgba(255, 255, 255, ${0.35 * lightIntensity})`);
+        gradient.addColorStop(0, `rgba(255, 255, 255, ${0.75 * lightIntensity})`);
+        gradient.addColorStop(0.4, `rgba(255, 255, 255, ${0.4 * lightIntensity})`);
         gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
         ctx.fillStyle = gradient;
         ctx.beginPath();
@@ -3024,7 +3024,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         const buildingType = light.buildingType;
         const isResidential = residentialTypes.has(buildingType);
         const isCommercial = commercialTypes.has(buildingType);
-        const glowStrength = isCommercial ? 0.85 : isResidential ? 0.6 : 0.7;
+        const glowStrength = isCommercial ? 0.9 : isResidential ? 0.65 : 0.75;
         
         let numWindows = 2;
         if (buildingType.includes('medium') || buildingType.includes('low')) numWindows = 3;
@@ -3056,7 +3056,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           tileCenterX, tileCenterY + TILE_HEIGHT / 4, 0,
           tileCenterX, tileCenterY + TILE_HEIGHT / 4, TILE_WIDTH * 0.6
         );
-        groundGlow.addColorStop(0, `rgba(255, 255, 255, ${0.25 * lightIntensity})`);
+        groundGlow.addColorStop(0, `rgba(255, 255, 255, ${0.28 * lightIntensity})`);
         groundGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
         ctx.fillStyle = groundGlow;
         ctx.beginPath();
@@ -3080,8 +3080,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       if (glow.type === 'road') {
         const gradient = ctx.createRadialGradient(tileCenterX, tileCenterY, 0, tileCenterX, tileCenterY, 20);
-        gradient.addColorStop(0, `rgba(255, 210, 130, ${0.25 * lightIntensity})`);
-        gradient.addColorStop(0.5, `rgba(255, 190, 100, ${0.1 * lightIntensity})`);
+        gradient.addColorStop(0, `rgba(255, 210, 130, ${0.3 * lightIntensity})`);
+        gradient.addColorStop(0.5, `rgba(255, 190, 100, ${0.15 * lightIntensity})`);
         gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = gradient;
         ctx.beginPath();
@@ -3110,8 +3110,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             tileCenterX, tileCenterY - 15, 0,
             tileCenterX, tileCenterY - 15, glowRadius
           );
-          gradient.addColorStop(0, `rgba(${glowColor.r}, ${glowColor.g}, ${glowColor.b}, ${0.5 * lightIntensity})`);
-          gradient.addColorStop(0.5, `rgba(${glowColor.r}, ${glowColor.g}, ${glowColor.b}, ${0.2 * lightIntensity})`);
+          gradient.addColorStop(0, `rgba(${glowColor.r}, ${glowColor.g}, ${glowColor.b}, ${0.55 * lightIntensity})`);
+          gradient.addColorStop(0.5, `rgba(${glowColor.r}, ${glowColor.g}, ${glowColor.b}, ${0.25 * lightIntensity})`);
           gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
           ctx.fillStyle = gradient;
           ctx.beginPath();
