@@ -507,6 +507,7 @@ const SPRITE_PACK_SPRITES4_HARRY: SpritePack = {
   src: '/assets/sprites_red_water_new_harry.png',
   denseSrc: '/assets/sprites_red_water_new_harry_dense.png',
   modernSrc: '/assets/sprites_red_water_new_harry_dense.png',
+  constructionSrc: '/assets/sprites_red_water_new_harry_construction.png',
   // Note: Uses same construction, abandoned, dense, and parks sheets as the default
   // If you have Harry Potter themed variants for those, update these paths:
   // constructionSrc: '/assets/sprites_red_water_new_harry_construction.png',
