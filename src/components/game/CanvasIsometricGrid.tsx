@@ -3598,6 +3598,20 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           drawBuilding(buildingsCtx, screenX, screenY, tile);
         });
         
+        // Draw recreation pedestrians ON TOP of buildings (parks, etc.)
+        // These need to be drawn here so they appear above park sprites
+        if (zoom >= PEDESTRIAN_MIN_ZOOM && pedestriansRef.current.length > 0) {
+          const viewWidth = canvasSize.width / (dpr * zoom);
+          const viewHeight = canvasSize.height / (dpr * zoom);
+          const pedestrianViewBounds = {
+            viewLeft: -offset.x / zoom - TILE_WIDTH,
+            viewTop: -offset.y / zoom - TILE_HEIGHT * 2,
+            viewRight: viewWidth - offset.x / zoom + TILE_WIDTH,
+            viewBottom: viewHeight - offset.y / zoom + TILE_HEIGHT * 2,
+          };
+          drawPedestriansUtil(buildingsCtx, pedestriansRef.current, pedestrianViewBounds, zoom, 'recreation');
+        }
+        
         buildingsCtx.setTransform(1, 0, 0, 1, 0, 0);
       }
     }

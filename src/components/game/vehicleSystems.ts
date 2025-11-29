@@ -983,7 +983,8 @@ export function useVehicleSystems(
     };
     
     // Pass zoom level for LOD (Level of Detail) rendering
-    drawPedestriansUtil(ctx, pedestriansRef.current, currentGrid, currentGridSize, viewBounds, currentZoom);
+    // Only draw non-recreation pedestrians here (recreation pedestrians are drawn on buildings canvas)
+    drawPedestriansUtil(ctx, pedestriansRef.current, viewBounds, currentZoom, 'non-recreation');
     
     ctx.restore();
   }, [worldStateRef, pedestriansRef]);

@@ -4,11 +4,9 @@
  * OPTIMIZED for performance with LOD (Level of Detail)
  */
 
-import { Tile } from '@/types/game';
 import { Pedestrian, PedestrianActivity, TILE_WIDTH, TILE_HEIGHT } from './types';
 import { DIRECTION_META } from './constants';
 import { gridToScreen } from './utils';
-import { isEntityBehindBuilding } from './renderHelpers';
 import { getPedestrianOpacity, getVisiblePedestrians } from './pedestrianSystem';
 
 // LOD thresholds - draw simpler at lower zoom
@@ -16,19 +14,39 @@ const LOD_SIMPLE_ZOOM = 0.55;  // Below this, draw very simple pedestrians (just
 const LOD_MEDIUM_ZOOM = 0.75;  // Below this, skip some details
 
 /**
+ * Filter mode for drawing pedestrians
+ * - 'all': Draw all visible pedestrians
+ * - 'recreation': Only draw pedestrians at recreation areas (for drawing on top of parks)
+ * - 'non-recreation': Only draw pedestrians NOT at recreation areas (for drawing below buildings)
+ */
+export type PedestrianFilterMode = 'all' | 'recreation' | 'non-recreation';
+
+/**
  * Draw pedestrians with dynamic activities and states
  * Uses LOD (Level of Detail) for performance
+ * 
+ * @param filterMode - Controls which pedestrians to draw:
+ *   - 'all': All visible pedestrians (default)
+ *   - 'recreation': Only pedestrians at recreation areas (draw on buildings canvas)
+ *   - 'non-recreation': Only walking/other pedestrians (draw on cars canvas)
  */
 export function drawPedestrians(
   ctx: CanvasRenderingContext2D,
   pedestrians: Pedestrian[],
-  grid: Tile[][],
-  gridSize: number,
   viewBounds: { viewLeft: number; viewTop: number; viewRight: number; viewBottom: number },
-  zoom: number = 1.0
+  zoom: number = 1.0,
+  filterMode: PedestrianFilterMode = 'all'
 ): void {
   // Get only visible pedestrians (not inside buildings)
-  const visiblePedestrians = getVisiblePedestrians(pedestrians);
+  let visiblePedestrians = getVisiblePedestrians(pedestrians);
+  
+  // Apply filter mode
+  if (filterMode === 'recreation') {
+    visiblePedestrians = visiblePedestrians.filter(ped => ped.state === 'at_recreation');
+  } else if (filterMode === 'non-recreation') {
+    visiblePedestrians = visiblePedestrians.filter(ped => ped.state !== 'at_recreation');
+  }
+  
   if (visiblePedestrians.length === 0) return;
 
   // Determine LOD level based on zoom
@@ -197,7 +215,7 @@ function drawSimplePedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): v
  */
 function drawMediumWalkingPedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
   const walkBob = Math.sin(ped.walkOffset) * 0.5;
-  const scale = 0.35;
+  const scale = 0.30;
 
   // Head
   ctx.fillStyle = ped.skinColor;
@@ -227,7 +245,7 @@ function drawMediumWalkingPedestrian(ctx: CanvasRenderingContext2D, ped: Pedestr
  * Draw medium detail activity pedestrian
  */
 function drawMediumActivityPedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.35;
+  const scale = 0.30;
   const anim = Math.sin(ped.activityAnimTimer);
 
   // Head
@@ -267,7 +285,7 @@ function drawMediumActivityPedestrian(ctx: CanvasRenderingContext2D, ped: Pedest
 function drawWalkingPedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
   const walkBob = Math.sin(ped.walkOffset) * 0.8;
   const walkSway = Math.sin(ped.walkOffset * 0.5) * 0.5;
-  const scale = 0.35;
+  const scale = 0.30;
   const legSwing = Math.sin(ped.walkOffset) * 3;
 
   // Draw head and body first (filled shapes)
@@ -312,7 +330,7 @@ function drawWalkingPedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): 
  * Draw a simplified dog for performance
  */
 function drawDogSimple(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.3;
+  const scale = 0.26;
   const offsetX = 8;
   const offsetY = 3;
   
@@ -336,7 +354,7 @@ function drawDogSimple(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
  * Draw a basketball player
  */
 function drawBasketballPlayer(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.38;
+  const scale = 0.32;
   const bounce = Math.abs(Math.sin(ped.activityAnimTimer * 3)) * 2;
   const armMove = Math.sin(ped.activityAnimTimer * 6) * 4;
 
@@ -397,7 +415,7 @@ function drawBasketballPlayer(ctx: CanvasRenderingContext2D, ped: Pedestrian): v
  * Draw a tennis player
  */
 function drawTennisPlayer(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.36;
+  const scale = 0.31;
   const swing = Math.sin(ped.activityAnimTimer * 2) * 5;
 
   // Head
@@ -467,7 +485,7 @@ function drawTennisPlayer(ctx: CanvasRenderingContext2D, ped: Pedestrian): void 
  * Draw a soccer player
  */
 function drawSoccerPlayer(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.36;
+  const scale = 0.31;
   const kick = Math.sin(ped.activityAnimTimer * 4) * 4;
   const run = Math.abs(Math.sin(ped.activityAnimTimer * 5));
 
@@ -528,7 +546,7 @@ function drawSoccerPlayer(ctx: CanvasRenderingContext2D, ped: Pedestrian): void 
  * Draw a baseball player
  */
 function drawBaseballPlayer(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.36;
+  const scale = 0.31;
   const swing = Math.sin(ped.activityAnimTimer * 2) * 6;
 
   // Head
@@ -592,7 +610,7 @@ function drawBaseballPlayer(ctx: CanvasRenderingContext2D, ped: Pedestrian): voi
  * Draw a swimmer
  */
 function drawSwimmer(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.35;
+  const scale = 0.30;
   const swim = Math.sin(ped.activityAnimTimer * 4);
   const bob = Math.sin(ped.activityAnimTimer * 2) * 1.5;
 
@@ -644,7 +662,7 @@ function drawSwimmer(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
  * Draw a skateboarder
  */
 function drawSkateboarder(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.36;
+  const scale = 0.31;
   const ride = Math.sin(ped.activityAnimTimer * 3);
   const bob = Math.abs(ride) * 1.5;
 
@@ -705,7 +723,7 @@ function drawSkateboarder(ctx: CanvasRenderingContext2D, ped: Pedestrian): void 
  * Draw a person sitting on a bench
  */
 function drawSittingPerson(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.36;
+  const scale = 0.31;
   const breathe = Math.sin(ped.activityAnimTimer * 0.5) * 0.3;
 
   // Bench
@@ -778,7 +796,7 @@ const BLANKET_COLORS = [
 ];
 
 function drawPicnicker(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.34;
+  const scale = 0.29;
 
   // Picnic blanket - muted pastel colors based on pedestrian ID
   const blanketColor = BLANKET_COLORS[ped.id % BLANKET_COLORS.length];
@@ -823,7 +841,7 @@ function drawPicnicker(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
  * Draw a jogger
  */
 function drawJogger(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.36;
+  const scale = 0.23; // 35% smaller than other pedestrians
   const run = ped.walkOffset;
   const bounce = Math.abs(Math.sin(run * 2)) * 2;
 
@@ -887,7 +905,7 @@ function drawDogWalker(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
  * Draw a kid on playground
  */
 function drawPlaygroundKid(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.32; // Smaller - it's a kid
+  const scale = 0.27; // Smaller - it's a kid
   const swing = Math.sin(ped.activityAnimTimer * 3) * 8;
   const sway = Math.cos(ped.activityAnimTimer * 3) * 3;
 
@@ -944,7 +962,7 @@ function drawPlaygroundKid(ctx: CanvasRenderingContext2D, ped: Pedestrian): void
  * Draw a spectator watching a game
  */
 function drawSpectator(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.35;
+  const scale = 0.30;
   const cheer = Math.sin(ped.activityAnimTimer * 4);
   const cheerUp = cheer > 0.7;
 
@@ -1012,7 +1030,7 @@ function drawSpectator(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
  * Draw a socializing person (facing another person)
  */
 function drawSocializingPerson(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.35;
+  const scale = 0.30;
   const gesture = Math.sin(ped.activityAnimTimer * 2) * 2;
 
   // Head
@@ -1066,7 +1084,7 @@ function drawSocializingPerson(ctx: CanvasRenderingContext2D, ped: Pedestrian): 
  * Draw an idle person
  */
 function drawIdlePerson(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  const scale = 0.35;
+  const scale = 0.30;
   const breathe = Math.sin(ped.activityAnimTimer * 0.5) * 0.3;
 
   // Head

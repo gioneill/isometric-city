@@ -156,7 +156,7 @@ export function findRecreationAreas(
         destinations.push({ x, y, type: 'relaxation', buildingType });
       } else if (ACTIVE_RECREATION_TYPES.includes(buildingType)) {
         destinations.push({ x, y, type: 'active', buildingType });
-      } else if (PARK_TYPES.includes(buildingType)) {
+      } else if (PARK_TYPES.has(buildingType)) {
         destinations.push({ x, y, type: 'general', buildingType });
       }
     }
@@ -217,7 +217,7 @@ export function isEnterableBuilding(buildingType: BuildingType): boolean {
  * Check if a building type is a park/recreation area
  */
 export function isRecreationArea(buildingType: BuildingType): boolean {
-  return PARK_TYPES.includes(buildingType);
+  return PARK_TYPES.has(buildingType);
 }
 
 /**
