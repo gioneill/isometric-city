@@ -474,26 +474,33 @@ export function useBoatSystem(
       if (isNight) {
         // White masthead light at top of mast (always on)
         ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = '#ffffcc';
-        ctx.shadowBlur = 12;
+        // PERF: Skip shadowBlur on mobile - very expensive
+        if (!isMobile) {
+          ctx.shadowColor = '#ffffcc';
+          ctx.shadowBlur = 12;
+        }
         ctx.beginPath();
-        ctx.arc(2, -9, 0.8, 0, Math.PI * 2);
+        ctx.arc(2, -9, isMobile ? 1.2 : 0.8, 0, Math.PI * 2);
         ctx.fill();
         
         // Red port light (left side)
         ctx.fillStyle = '#ff3333';
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 8;
+        if (!isMobile) {
+          ctx.shadowColor = '#ff0000';
+          ctx.shadowBlur = 8;
+        }
         ctx.beginPath();
-        ctx.arc(-6, 2, 0.6, 0, Math.PI * 2);
+        ctx.arc(-6, 2, isMobile ? 1 : 0.6, 0, Math.PI * 2);
         ctx.fill();
         
         // Green starboard light (right side)
         ctx.fillStyle = '#33ff33';
-        ctx.shadowColor = '#00ff00';
-        ctx.shadowBlur = 8;
+        if (!isMobile) {
+          ctx.shadowColor = '#00ff00';
+          ctx.shadowBlur = 8;
+        }
         ctx.beginPath();
-        ctx.arc(-6, -2, 0.6, 0, Math.PI * 2);
+        ctx.arc(-6, -2, isMobile ? 1 : 0.6, 0, Math.PI * 2);
         ctx.fill();
         
         ctx.shadowBlur = 0;

@@ -589,10 +589,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     };
     
     // Use extracted utility function for drawing
-    drawAirplanesUtil(ctx, airplanesRef.current, viewBounds, visualHour, navLightFlashTimerRef.current);
+    drawAirplanesUtil(ctx, airplanesRef.current, viewBounds, visualHour, navLightFlashTimerRef.current, isMobile);
     
     ctx.restore();
-  }, [visualHour]);
+  }, [visualHour, isMobile]);
 
   // Draw helicopters with rotor wash (uses extracted utility)
   const drawHelicopters = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -619,10 +619,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     };
     
     // Use extracted utility function for drawing
-    drawHelicoptersUtil(ctx, helicoptersRef.current, viewBounds, visualHour, navLightFlashTimerRef.current);
+    drawHelicoptersUtil(ctx, helicoptersRef.current, viewBounds, visualHour, navLightFlashTimerRef.current, isMobile);
     
     ctx.restore();
-  }, [visualHour]);
+  }, [visualHour, isMobile]);
 
   // Boats are now handled by useBoatSystem hook (see above)
 
@@ -674,8 +674,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       return;
     }
 
-    drawTrains(ctx, trainsRef.current, currentOffset, currentZoom, size, currentGrid, currentGridSize, visualHour);
-  }, [visualHour]);
+    drawTrains(ctx, trainsRef.current, currentOffset, currentZoom, size, currentGrid, currentGridSize, visualHour, isMobile);
+  }, [visualHour, isMobile]);
 
   // Fireworks and smog are now handled by useEffectsSystems hook (see above)
 
@@ -2966,6 +2966,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     const lightCutouts: Array<{x: number, y: number, type: 'road' | 'building', buildingType?: string, seed?: number}> = [];
     const coloredGlows: Array<{x: number, y: number, type: string}> = [];
     
+    // PERF: On mobile, sample fewer lights to reduce gradient count
+    const roadSampleRate = isMobile ? 3 : 1; // Every 3rd road on mobile
+    let roadCounter = 0;
+    
     // PERF: Only iterate through diagonal bands that intersect the visible viewport
     // This skips entire rows of tiles that can't possibly be visible, significantly reducing iterations
     for (let sum = visibleMinSum; sum <= visibleMaxSum; sum++) {
@@ -2985,14 +2989,20 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         const buildingType = tile.building.type;
         
         if (buildingType === 'road') {
-          lightCutouts.push({ x, y, type: 'road' });
-          coloredGlows.push({ x, y, type: 'road' });
+          roadCounter++;
+          // PERF: On mobile, only include every Nth road light
+          if (roadCounter % roadSampleRate === 0) {
+            lightCutouts.push({ x, y, type: 'road' });
+            if (!isMobile) {
+              coloredGlows.push({ x, y, type: 'road' });
+            }
+          }
         } else if (!nonLitTypes.has(buildingType) && tile.building.powered) {
           lightCutouts.push({ x, y, type: 'building', buildingType, seed: x * 1000 + y });
           
-          // Check for special colored glows
-          if (buildingType === 'hospital' || buildingType === 'fire_station' || 
-              buildingType === 'police_station' || buildingType === 'power_plant') {
+          // Check for special colored glows (skip on mobile for performance)
+          if (!isMobile && (buildingType === 'hospital' || buildingType === 'fire_station' || 
+              buildingType === 'police_station' || buildingType === 'power_plant')) {
             coloredGlows.push({ x, y, type: buildingType });
           }
         }
@@ -3026,41 +3036,46 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         const isCommercial = commercialTypes.has(buildingType);
         const glowStrength = isCommercial ? 0.9 : isResidential ? 0.65 : 0.75;
         
-        let numWindows = 2;
-        if (buildingType.includes('medium') || buildingType.includes('low')) numWindows = 3;
-        if (buildingType.includes('high') || buildingType === 'mall') numWindows = 5;
-        if (buildingType === 'mansion' || buildingType === 'office_high') numWindows = 4;
-        
-        const windowSize = 5;
-        const buildingHeight = -18;
-        
-        for (let i = 0; i < numWindows; i++) {
-          const isLit = pseudoRandom(light.seed, i) < (isResidential ? 0.55 : 0.75);
-          if (!isLit) continue;
+        // PERF: On mobile, skip individual window lights - just use ground glow
+        if (!isMobile) {
+          let numWindows = 2;
+          if (buildingType.includes('medium') || buildingType.includes('low')) numWindows = 3;
+          if (buildingType.includes('high') || buildingType === 'mall') numWindows = 5;
+          if (buildingType === 'mansion' || buildingType === 'office_high') numWindows = 4;
           
-          const wx = tileCenterX + (pseudoRandom(light.seed, i + 10) - 0.5) * 22;
-          const wy = tileCenterY + buildingHeight + (pseudoRandom(light.seed, i + 20) - 0.5) * 16;
+          const windowSize = 5;
+          const buildingHeight = -18;
           
-          const gradient = ctx.createRadialGradient(wx, wy, 0, wx, wy, windowSize * 2.5);
-          gradient.addColorStop(0, `rgba(255, 255, 255, ${glowStrength * lightIntensity})`);
-          gradient.addColorStop(0.5, `rgba(255, 255, 255, ${glowStrength * 0.4 * lightIntensity})`);
-          gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-          ctx.fillStyle = gradient;
-          ctx.beginPath();
-          ctx.arc(wx, wy, windowSize * 2.5, 0, Math.PI * 2);
-          ctx.fill();
+          for (let i = 0; i < numWindows; i++) {
+            const isLit = pseudoRandom(light.seed, i) < (isResidential ? 0.55 : 0.75);
+            if (!isLit) continue;
+            
+            const wx = tileCenterX + (pseudoRandom(light.seed, i + 10) - 0.5) * 22;
+            const wy = tileCenterY + buildingHeight + (pseudoRandom(light.seed, i + 20) - 0.5) * 16;
+            
+            const gradient = ctx.createRadialGradient(wx, wy, 0, wx, wy, windowSize * 2.5);
+            gradient.addColorStop(0, `rgba(255, 255, 255, ${glowStrength * lightIntensity})`);
+            gradient.addColorStop(0.5, `rgba(255, 255, 255, ${glowStrength * 0.4 * lightIntensity})`);
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(wx, wy, windowSize * 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
         
-        // Ground glow
+        // Ground glow (on mobile, use a simpler/stronger single gradient)
+        const groundGlowRadius = isMobile ? TILE_WIDTH * 0.5 : TILE_WIDTH * 0.6;
+        const groundGlowAlpha = isMobile ? 0.4 : 0.28;
         const groundGlow = ctx.createRadialGradient(
           tileCenterX, tileCenterY + TILE_HEIGHT / 4, 0,
-          tileCenterX, tileCenterY + TILE_HEIGHT / 4, TILE_WIDTH * 0.6
+          tileCenterX, tileCenterY + TILE_HEIGHT / 4, groundGlowRadius
         );
-        groundGlow.addColorStop(0, `rgba(255, 255, 255, ${0.28 * lightIntensity})`);
+        groundGlow.addColorStop(0, `rgba(255, 255, 255, ${groundGlowAlpha * lightIntensity})`);
         groundGlow.addColorStop(1, 'rgba(255, 255, 255, 0)');
         ctx.fillStyle = groundGlow;
         ctx.beginPath();
-        ctx.ellipse(tileCenterX, tileCenterY + TILE_HEIGHT / 4, TILE_WIDTH * 0.6, TILE_HEIGHT / 2.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(tileCenterX, tileCenterY + TILE_HEIGHT / 4, groundGlowRadius, TILE_HEIGHT / 2.5, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }

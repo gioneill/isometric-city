@@ -1035,7 +1035,8 @@ function drawCarriage(
   grid: Tile[][],
   gridSize: number,
   visualHour: number,
-  trainId: number
+  trainId: number,
+  isMobile: boolean = false
 ): void {
   const { screenX, screenY } = gridToScreen(carriage.tileX, carriage.tileY, 0, 0);
   
@@ -1162,7 +1163,7 @@ function drawCarriage(
   
   switch (carriage.type) {
     case 'locomotive':
-      drawLocomotive(ctx, carriage.color, scale, visualHour, trainId);
+      drawLocomotive(ctx, carriage.color, scale, visualHour, trainId, isMobile);
       break;
     case 'passenger':
       drawPassengerCar(ctx, carriage.color, scale);
@@ -1195,7 +1196,7 @@ function seededRandom(seed: number): number {
 /**
  * Draw locomotive
  */
-function drawLocomotive(ctx: CanvasRenderingContext2D, color: string, scale: number, visualHour: number, trainId: number): void {
+function drawLocomotive(ctx: CanvasRenderingContext2D, color: string, scale: number, visualHour: number, trainId: number, isMobile: boolean = false): void {
   const len = TRAIN_CAR.LOCOMOTIVE_LENGTH * scale;
   const wid = TRAIN_CAR.CAR_WIDTH * scale;
   
@@ -1242,56 +1243,71 @@ function drawLocomotive(ctx: CanvasRenderingContext2D, color: string, scale: num
     // Very bright headlight with strong glow effect at night
     ctx.save();
     
-    // Large outer glow - very bright and wide (with randomness)
-    ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 40 * scale * glowMultiplier;
-    ctx.fillStyle = '#ffffcc';
-    ctx.beginPath();
-    ctx.arc(len * 0.55, 0, wid * 0.35 * glowMultiplier, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Medium glow layer (with randomness)
-    ctx.shadowBlur = 30 * scale * glowMultiplier;
-    ctx.fillStyle = '#ffffaa';
-    ctx.beginPath();
-    ctx.arc(len * 0.55, 0, wid * 0.28 * glowMultiplier, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Bright inner core (with randomness)
-    ctx.shadowBlur = 15 * scale * glowMultiplier;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(len * 0.55, 0, wid * 0.2 * glowMultiplier, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Intense white center (with randomness)
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(len * 0.55, 0, wid * 0.12 * glowMultiplier, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // Bright light beam extending forward - more visible (with randomness)
-    ctx.globalAlpha = 0.5 * opacityMultiplier;
-    ctx.fillStyle = '#ffffcc';
-    ctx.beginPath();
-    ctx.moveTo(len * 0.55, -wid * 0.25 * beamWidthMultiplier);
-    ctx.lineTo(len * 0.55 + len * 1.2 * beamLengthMultiplier, -wid * 0.8 * beamWidthMultiplier);
-    ctx.lineTo(len * 0.55 + len * 1.2 * beamLengthMultiplier, wid * 0.8 * beamWidthMultiplier);
-    ctx.lineTo(len * 0.55, wid * 0.25 * beamWidthMultiplier);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Additional brighter beam layer (with randomness)
-    ctx.globalAlpha = 0.3 * opacityMultiplier;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(len * 0.55, -wid * 0.15 * beamWidthMultiplier);
-    ctx.lineTo(len * 0.55 + len * 0.9 * beamLengthMultiplier, -wid * 0.5 * beamWidthMultiplier);
-    ctx.lineTo(len * 0.55 + len * 0.9 * beamLengthMultiplier, wid * 0.5 * beamWidthMultiplier);
-    ctx.lineTo(len * 0.55, wid * 0.15 * beamWidthMultiplier);
-    ctx.closePath();
-    ctx.fill();
+    // PERF: On mobile, skip shadowBlur and just draw larger, brighter circles
+    if (isMobile) {
+      // Simplified mobile headlight - single bright circle without expensive blur
+      ctx.fillStyle = '#ffffcc';
+      ctx.beginPath();
+      ctx.arc(len * 0.55, 0, wid * 0.5 * glowMultiplier, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Bright core
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(len * 0.55, 0, wid * 0.25 * glowMultiplier, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Large outer glow - very bright and wide (with randomness)
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 40 * scale * glowMultiplier;
+      ctx.fillStyle = '#ffffcc';
+      ctx.beginPath();
+      ctx.arc(len * 0.55, 0, wid * 0.35 * glowMultiplier, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Medium glow layer (with randomness)
+      ctx.shadowBlur = 30 * scale * glowMultiplier;
+      ctx.fillStyle = '#ffffaa';
+      ctx.beginPath();
+      ctx.arc(len * 0.55, 0, wid * 0.28 * glowMultiplier, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Bright inner core (with randomness)
+      ctx.shadowBlur = 15 * scale * glowMultiplier;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(len * 0.55, 0, wid * 0.2 * glowMultiplier, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Intense white center (with randomness)
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(len * 0.55, 0, wid * 0.12 * glowMultiplier, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Bright light beam extending forward - more visible (with randomness)
+      ctx.globalAlpha = 0.5 * opacityMultiplier;
+      ctx.fillStyle = '#ffffcc';
+      ctx.beginPath();
+      ctx.moveTo(len * 0.55, -wid * 0.25 * beamWidthMultiplier);
+      ctx.lineTo(len * 0.55 + len * 1.2 * beamLengthMultiplier, -wid * 0.8 * beamWidthMultiplier);
+      ctx.lineTo(len * 0.55 + len * 1.2 * beamLengthMultiplier, wid * 0.8 * beamWidthMultiplier);
+      ctx.lineTo(len * 0.55, wid * 0.25 * beamWidthMultiplier);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Additional brighter beam layer (with randomness)
+      ctx.globalAlpha = 0.3 * opacityMultiplier;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(len * 0.55, -wid * 0.15 * beamWidthMultiplier);
+      ctx.lineTo(len * 0.55 + len * 0.9 * beamLengthMultiplier, -wid * 0.5 * beamWidthMultiplier);
+      ctx.lineTo(len * 0.55 + len * 0.9 * beamLengthMultiplier, wid * 0.5 * beamWidthMultiplier);
+      ctx.lineTo(len * 0.55, wid * 0.15 * beamWidthMultiplier);
+      ctx.closePath();
+      ctx.fill();
+    }
     
     ctx.globalAlpha = 1.0;
     ctx.restore();
@@ -1474,7 +1490,8 @@ export function drawTrains(
   canvasSize: { width: number; height: number },
   grid: Tile[][],
   gridSize: number,
-  visualHour: number
+  visualHour: number,
+  isMobile: boolean = false
 ): void {
   const dpr = window.devicePixelRatio || 1;
   
@@ -1509,7 +1526,7 @@ export function drawTrains(
         continue;
       }
       
-      drawCarriage(ctx, carriage, zoom, grid, gridSize, visualHour, train.id);
+      drawCarriage(ctx, carriage, zoom, grid, gridSize, visualHour, train.id, isMobile);
     }
     
     // Draw smoke particles for freight trains (after carriages so they appear above)

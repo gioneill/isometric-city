@@ -136,44 +136,44 @@ export function MobileTopBar({
           </div>
 
           {/* Speed controls: Pause / Play / 2x / 3x */}
-          <div className="flex items-center gap-0.5 bg-secondary rounded p-0.5">
+          <div className="flex items-center gap-0 bg-secondary rounded-sm p-px">
             <Button
               onClick={() => setSpeed(0)}
               variant={speed === 0 ? 'default' : 'ghost'}
               size="icon"
-              className="h-6 w-6"
+              className="h-5 w-5"
               title="Pause"
             >
-              <PauseIcon size={10} />
+              <PauseIcon size={8} />
             </Button>
             <Button
               onClick={() => setSpeed(1)}
               variant={speed === 1 ? 'default' : 'ghost'}
               size="icon"
-              className="h-6 w-6"
+              className="h-5 w-5"
               title="Normal speed"
             >
-              <PlayIcon size={10} />
+              <PlayIcon size={8} />
             </Button>
             <Button
               onClick={() => setSpeed(2)}
               variant={speed === 2 ? 'default' : 'ghost'}
               size="icon"
-              className="h-6 w-6"
+              className="h-5 w-5"
               title="2x speed"
             >
-              <FastForwardIcon size={10} />
+              <FastForwardIcon size={8} />
             </Button>
             <Button
               onClick={() => setSpeed(3)}
               variant={speed === 3 ? 'default' : 'ghost'}
               size="icon"
-              className="h-6 w-6"
+              className="h-5 w-5"
               title="3x speed"
             >
               <div className="flex items-center -space-x-1">
-                <PlayIcon size={6} />
-                <PlayIcon size={6} />
+                <PlayIcon size={5} />
+                <PlayIcon size={5} />
               </div>
             </Button>
           </div>

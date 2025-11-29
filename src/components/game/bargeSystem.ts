@@ -489,34 +489,43 @@ export function useBargeSystem(
       if (isNight) {
         // White masthead light
         ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = '#ffffcc';
-        ctx.shadowBlur = 15;
+        // PERF: Skip shadowBlur on mobile - very expensive
+        if (!isMobile) {
+          ctx.shadowColor = '#ffffcc';
+          ctx.shadowBlur = 15;
+        }
         ctx.beginPath();
-        ctx.arc(-13, -13, 1.2, 0, Math.PI * 2);
+        ctx.arc(-13, -13, isMobile ? 1.8 : 1.2, 0, Math.PI * 2);
         ctx.fill();
         
         // Red port light (left side)
         ctx.fillStyle = '#ff3333';
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 10;
+        if (!isMobile) {
+          ctx.shadowColor = '#ff0000';
+          ctx.shadowBlur = 10;
+        }
         ctx.beginPath();
-        ctx.arc(-15, 8, 0.8, 0, Math.PI * 2);
+        ctx.arc(-15, 8, isMobile ? 1.2 : 0.8, 0, Math.PI * 2);
         ctx.fill();
         
         // Green starboard light (right side)
         ctx.fillStyle = '#33ff33';
-        ctx.shadowColor = '#00ff00';
-        ctx.shadowBlur = 10;
+        if (!isMobile) {
+          ctx.shadowColor = '#00ff00';
+          ctx.shadowBlur = 10;
+        }
         ctx.beginPath();
-        ctx.arc(-15, -8, 0.8, 0, Math.PI * 2);
+        ctx.arc(-15, -8, isMobile ? 1.2 : 0.8, 0, Math.PI * 2);
         ctx.fill();
         
         // Stern light (white)
         ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 8;
+        if (!isMobile) {
+          ctx.shadowColor = '#ffffff';
+          ctx.shadowBlur = 8;
+        }
         ctx.beginPath();
-        ctx.arc(-20, 0, 0.6, 0, Math.PI * 2);
+        ctx.arc(-20, 0, isMobile ? 1 : 0.6, 0, Math.PI * 2);
         ctx.fill();
         
         ctx.shadowBlur = 0;

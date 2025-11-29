@@ -13,7 +13,8 @@ export function drawAirplanes(
   airplanes: Airplane[],
   viewBounds: { viewLeft: number; viewTop: number; viewRight: number; viewBottom: number },
   hour: number,
-  navLightFlashTimer: number
+  navLightFlashTimer: number,
+  isMobile: boolean = false
 ): void {
   if (airplanes.length === 0) return;
 
@@ -319,65 +320,80 @@ export function drawAirplanes(
 
       // Red nav light on port (left) wingtip
       ctx.fillStyle = '#ff3333';
-      ctx.shadowColor = '#ff0000';
-      ctx.shadowBlur = 15;
+      // PERF: Skip shadowBlur on mobile - very expensive
+      if (!isMobile) {
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 15;
+      }
       ctx.beginPath();
-      ctx.arc(-9, -23, 1.5, 0, Math.PI * 2);
+      ctx.arc(-9, -23, isMobile ? 2 : 1.5, 0, Math.PI * 2);
       ctx.fill();
 
       // Green nav light on starboard (right) wingtip
       ctx.fillStyle = '#33ff33';
-      ctx.shadowColor = '#00ff00';
-      ctx.shadowBlur = 15;
+      if (!isMobile) {
+        ctx.shadowColor = '#00ff00';
+        ctx.shadowBlur = 15;
+      }
       ctx.beginPath();
-      ctx.arc(-9, 23, 1.5, 0, Math.PI * 2);
+      ctx.arc(-9, 23, isMobile ? 2 : 1.5, 0, Math.PI * 2);
       ctx.fill();
 
       // White tail navigation light
       ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = '#ffffff';
-      ctx.shadowBlur = 10;
+      if (!isMobile) {
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 10;
+      }
       ctx.beginPath();
-      ctx.arc(-23.5, 0, 1, 0, Math.PI * 2);
+      ctx.arc(-23.5, 0, isMobile ? 1.5 : 1, 0, Math.PI * 2);
       ctx.fill();
 
       // Red beacon on top of fuselage (flashing)
       if (beaconOn) {
         ctx.fillStyle = '#ff4444';
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 20;
+        if (!isMobile) {
+          ctx.shadowColor = '#ff0000';
+          ctx.shadowBlur = 20;
+        }
         ctx.beginPath();
-        ctx.arc(-5, -3.5, 1.2, 0, Math.PI * 2);
+        ctx.arc(-5, -3.5, isMobile ? 1.8 : 1.2, 0, Math.PI * 2);
         ctx.fill();
       }
 
       // White strobe lights on wingtips (rapid flash)
       if (strobeOn) {
         ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 40;
+        if (!isMobile) {
+          ctx.shadowColor = '#ffffff';
+          ctx.shadowBlur = 40;
+        }
         ctx.beginPath();
-        ctx.arc(-11, -22, 2, 0, Math.PI * 2);
+        ctx.arc(-11, -22, isMobile ? 3 : 2, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(-11, 22, 2, 0, Math.PI * 2);
+        ctx.arc(-11, 22, isMobile ? 3 : 2, 0, Math.PI * 2);
         ctx.fill();
         // Tail strobe (on top of fin)
-        ctx.shadowBlur = 25;
+        if (!isMobile) {
+          ctx.shadowBlur = 25;
+        }
         ctx.beginPath();
-        ctx.arc(-21, -5, 1.2, 0, Math.PI * 2);
+        ctx.arc(-21, -5, isMobile ? 1.8 : 1.2, 0, Math.PI * 2);
         ctx.fill();
       }
 
       // Landing lights (on wing roots, bright forward-facing)
       ctx.fillStyle = '#fffde7';
-      ctx.shadowColor = '#ffffff';
-      ctx.shadowBlur = 25;
+      if (!isMobile) {
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 25;
+      }
       ctx.beginPath();
-      ctx.arc(4, -6, 1.5, 0, Math.PI * 2);
+      ctx.arc(4, -6, isMobile ? 2 : 1.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(4, 6, 1.5, 0, Math.PI * 2);
+      ctx.arc(4, 6, isMobile ? 2 : 1.5, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.shadowBlur = 0;
@@ -415,14 +431,16 @@ export function drawHelicopters(
   helicopters: Helicopter[],
   viewBounds: { viewLeft: number; viewTop: number; viewRight: number; viewBottom: number },
   hour: number,
-  navLightFlashTimer: number
+  navLightFlashTimer: number,
+  isMobile: boolean = false
 ): void {
   if (helicopters.length === 0) return;
 
   const isNight = hour >= 20 || hour < 6;
 
   // First pass: draw all searchlight ground spots (so they appear behind everything)
-  if (isNight) {
+  // PERF: Skip searchlights on mobile - gradient creation is expensive
+  if (isNight && !isMobile) {
     for (const heli of helicopters) {
       // Only draw searchlight when flying at sufficient altitude
       if (heli.altitude < 0.3 || heli.state === 'landing') continue;
@@ -589,39 +607,48 @@ export function drawHelicopters(
     ctx.stroke();
 
     // Navigation lights at night (hour >= 20 || hour < 6)
-    const isNight = hour >= 20 || hour < 6;
-    if (isNight) {
+    const isNightLocal = hour >= 20 || hour < 6;
+    if (isNightLocal) {
       const strobeOn = Math.sin(navLightFlashTimer * 8) > 0.82; // Sharp, brief flash
 
       // Red nav light on port (left) side
       ctx.fillStyle = '#ff3333';
-      ctx.shadowColor = '#ff0000';
-      ctx.shadowBlur = 10;
+      // PERF: Skip shadowBlur on mobile - very expensive
+      if (!isMobile) {
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 10;
+      }
       ctx.beginPath();
-      ctx.arc(0, 5, 0.8, 0, Math.PI * 2);
+      ctx.arc(0, 5, isMobile ? 1.2 : 0.8, 0, Math.PI * 2);
       ctx.fill();
 
       // Green nav light on starboard (right) side
       ctx.fillStyle = '#33ff33';
-      ctx.shadowColor = '#00ff00';
-      ctx.shadowBlur = 10;
+      if (!isMobile) {
+        ctx.shadowColor = '#00ff00';
+        ctx.shadowBlur = 10;
+      }
       ctx.beginPath();
-      ctx.arc(0, -5, 0.8, 0, Math.PI * 2);
+      ctx.arc(0, -5, isMobile ? 1.2 : 0.8, 0, Math.PI * 2);
       ctx.fill();
 
       // Red anti-collision beacon on tail (flashing) - BRIGHT
       if (strobeOn) {
         // Draw multiple layers for intense brightness
         ctx.fillStyle = '#ff4444';
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 25;
+        if (!isMobile) {
+          ctx.shadowColor = '#ff0000';
+          ctx.shadowBlur = 25;
+        }
         ctx.beginPath();
-        ctx.arc(-14, 0, 2, 0, Math.PI * 2);
+        ctx.arc(-14, 0, isMobile ? 2.5 : 2, 0, Math.PI * 2);
         ctx.fill();
         // Inner bright core
-        ctx.shadowBlur = 12;
+        if (!isMobile) {
+          ctx.shadowBlur = 12;
+        }
         ctx.beginPath();
-        ctx.arc(-14, 0, 1, 0, Math.PI * 2);
+        ctx.arc(-14, 0, isMobile ? 1.5 : 1, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -675,7 +702,8 @@ export function drawHelicopters(
     ctx.restore();
 
     // Draw searchlight beam at night (when flying)
-    if (isNight && heli.altitude > 0.3 && heli.state !== 'landing') {
+    // PERF: Skip searchlight beam on mobile - gradients and shadowBlur are expensive
+    if (isNight && !isMobile && heli.altitude > 0.3 && heli.state !== 'landing') {
       // Calculate the same spot position as in the first pass
       const sweepOffset = Math.sin(heli.searchlightAngle) * heli.searchlightSweepRange;
       const lightAngle = heli.searchlightBaseAngle + sweepOffset;
