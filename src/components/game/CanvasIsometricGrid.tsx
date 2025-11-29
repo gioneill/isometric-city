@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useGame } from '@/context/GameContext';
-import { Tool, TOOL_INFO, Tile, BuildingType, AdjacentCity } from '@/types/game';
+import { TOOL_INFO, Tile, BuildingType, AdjacentCity } from '@/types/game';
 import { getBuildingSize, requiresWaterAdjacency, getWaterAdjacency, getRoadAdjacency } from '@/lib/simulation';
 import { FireIcon, SafetyIcon } from '@/components/ui/Icons';
 import { getSpriteCoords, BUILDING_TO_SPRITE, SPRITE_VERTICAL_OFFSETS, SPRITE_HORIZONTAL_OFFSETS, getActiveSpritePack } from '@/lib/renderConfig';
@@ -33,49 +33,12 @@ import {
   WorldRenderState,
 } from '@/components/game/types';
 import {
-  CAR_COLORS,
-  PEDESTRIAN_SKIN_COLORS,
-  PEDESTRIAN_SHIRT_COLORS,
-  PEDESTRIAN_MIN_ZOOM,
   TRAFFIC_LIGHT_MIN_ZOOM,
   DIRECTION_ARROWS_MIN_ZOOM,
   MEDIAN_PLANTS_MIN_ZOOM,
   LANE_MARKINGS_MIN_ZOOM,
   SIDEWALK_MIN_ZOOM,
   SIDEWALK_MIN_ZOOM_MOBILE,
-  BOAT_COLORS,
-  BOAT_MIN_ZOOM,
-  WAKE_MIN_ZOOM_MOBILE,
-  BOATS_PER_DOCK,
-  MAX_BOATS,
-  WAKE_MAX_AGE,
-  WAKE_SPAWN_INTERVAL,
-  FIREWORK_BUILDINGS,
-  FIREWORK_COLORS,
-  FIREWORK_PARTICLE_COUNT,
-  FIREWORK_PARTICLE_SPEED,
-  FIREWORK_PARTICLE_MAX_AGE,
-  FIREWORK_LAUNCH_SPEED,
-  FIREWORK_SPAWN_INTERVAL_MIN,
-  FIREWORK_SPAWN_INTERVAL_MAX,
-  FIREWORK_SHOW_DURATION,
-  FIREWORK_SHOW_CHANCE,
-  SMOG_PARTICLE_MAX_AGE,
-  SMOG_PARTICLE_MAX_AGE_MOBILE,
-  SMOG_SPAWN_INTERVAL_MEDIUM,
-  SMOG_SPAWN_INTERVAL_LARGE,
-  SMOG_SPAWN_INTERVAL_MOBILE_MULTIPLIER,
-  SMOG_DRIFT_SPEED,
-  SMOG_RISE_SPEED,
-  SMOG_MAX_ZOOM,
-  SMOG_FADE_ZOOM,
-  SMOG_BASE_OPACITY,
-  SMOG_PARTICLE_SIZE_MIN,
-  SMOG_PARTICLE_SIZE_MAX,
-  SMOG_PARTICLE_GROWTH,
-  SMOG_MAX_PARTICLES_PER_FACTORY,
-  SMOG_MAX_PARTICLES_PER_FACTORY_MOBILE,
-  DIRECTION_META,
 } from '@/components/game/constants';
 import {
   isRoadTile,
@@ -99,26 +62,12 @@ import { drawPlaceholderBuilding } from '@/components/game/placeholders';
 import { loadImage, loadSpriteImage, onImageLoaded, getCachedImage } from '@/components/game/imageLoader';
 import { TileInfoPanel } from '@/components/game/panels';
 import {
-  findResidentialBuildings,
-  findPedestrianDestinations,
-  findStations,
-  findFires,
   findMarinasAndPiers,
   findAdjacentWaterTile,
-  findFireworkBuildings,
-  findSmogFactories,
   isOverWater,
   generateTourWaypoints,
 } from '@/components/game/gridFinders';
-import {
-  calculateViewportBounds,
-  isEntityBehindBuilding,
-  isInViewport,
-  setupCanvasContext,
-  clearCanvas,
-} from '@/components/game/renderHelpers';
 import { drawAirplanes as drawAirplanesUtil, drawHelicopters as drawHelicoptersUtil } from '@/components/game/drawAircraft';
-import { drawPedestrians as drawPedestriansUtil } from '@/components/game/drawPedestrians';
 import { useVehicleSystems, VehicleSystemRefs, VehicleSystemState } from '@/components/game/vehicleSystems';
 import { useBuildingHelpers } from '@/components/game/buildingHelpers';
 import { useAircraftSystems, AircraftSystemRefs, AircraftSystemState } from '@/components/game/aircraftSystems';
@@ -127,28 +76,17 @@ import { useBoatSystem, BoatSystemRefs, BoatSystemState } from '@/components/gam
 import { useEffectsSystems, EffectsSystemRefs, EffectsSystemState } from '@/components/game/effectsSystems';
 import {
   analyzeMergedRoad,
-  getAdjacentRoads,
-  shouldHaveTrafficLight,
   getTrafficLightState,
   drawTrafficLight,
-  drawMergedRoadSegment,
-  drawMedian,
-  drawLaneMarkings,
-  drawRoadArrow,
   getTrafficFlowDirection,
   drawCrosswalks,
   ROAD_COLORS,
-  ROAD_CONFIG,
-  TRAFFIC_LIGHT_TIMING,
 } from '@/components/game/trafficSystem';
 import { CrimeType, getCrimeName, getCrimeDescription, getFireDescriptionForTile, getFireNameForTile } from '@/components/game/incidentData';
 import {
   drawRailTrack,
   drawRailTracksOnly,
-  isRailTile,
-  isRailStationTile,
   countRailTiles,
-  findRailStations,
 } from '@/components/game/railSystem';
 import {
   spawnTrain,
@@ -298,7 +236,6 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     speed,
     canvasSize: { width: 1200, height: 800 },
   });
-  const [lastPlacedTile, setLastPlacedTile] = useState<{ x: number; y: number } | null>(null);
   const [roadDrawDirection, setRoadDrawDirection] = useState<'h' | 'v' | null>(null);
   const placedRoadTilesRef = useRef<Set<string>>(new Set());
   // Track progressive image loading - start true to render immediately with placeholders
