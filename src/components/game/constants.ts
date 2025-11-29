@@ -39,8 +39,8 @@ export const DIRECTION_ARROWS_MIN_ZOOM = 0.65;    // Directional arrows on merge
 export const MEDIAN_PLANTS_MIN_ZOOM = 0.55;       // Plants/shrubs on road medians
 export const LANE_MARKINGS_MIN_ZOOM = 0.5;        // Lane markings and road lines
 export const LANE_MARKINGS_MEDIAN_MIN_ZOOM = 0.6; // Median markings for avenues/highways
-export const SIDEWALK_MIN_ZOOM = 0.45;            // Sidewalks on road edges (desktop)
-export const SIDEWALK_MIN_ZOOM_MOBILE = 0.35;     // Sidewalks on mobile (lower = visible when more zoomed out)
+export const SIDEWALK_MIN_ZOOM = 0.25;            // Sidewalks on road edges (desktop)
+export const SIDEWALK_MIN_ZOOM_MOBILE = 0.25;     // Sidewalks on mobile (lower = visible when more zoomed out)
 
 // Airplane system constants
 export const AIRPLANE_MIN_POPULATION = 5000; // Minimum population required for airplane activity

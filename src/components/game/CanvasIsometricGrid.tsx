@@ -3153,6 +3153,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               if (buildingType === 'subway_station') {
                 scaleMultiplier *= 0.7; // Scale down by 30%
               }
+              // Special scale adjustment for police_station (scaled down 3%)
+              if (buildingType === 'police_station') {
+                scaleMultiplier *= 0.97; // Scale down by 3%
+              }
+              // Special scale adjustment for fire_station (scaled down 3%)
+              if (buildingType === 'fire_station') {
+                scaleMultiplier *= 0.97; // Scale down by 3%
+              }
               // Special scale adjustment for house_small (scaled up 8%)
               if (buildingType === 'house_small') {
                 scaleMultiplier *= 1.08; // Scale up by 8%
@@ -3825,14 +3833,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         drawBoats(ctx); // Draw boats on water
         drawTrainsCallback(ctx); // Draw trains on rail network
         drawSmog(ctx); // Draw factory smog (above ground, below aircraft)
+        drawPedestrians(ctx); // Draw walking pedestrians (below buildings)
         drawEmergencyVehicles(ctx); // Draw emergency vehicles!
         clearAirCanvas();
         
         // Draw incident indicators on air canvas (above buildings so tooltips are visible)
         drawIncidentIndicators(airCtx, delta); // Draw fire/crime incident indicators!
         
-        // Draw ALL pedestrians on air canvas (above buildings/parks, smooth animation)
-        drawPedestrians(airCtx); // Draw walking pedestrians
+        // Draw recreation pedestrians on air canvas (above parks, not other buildings)
         drawRecreationPedestrians(airCtx); // Draw recreation pedestrians (at parks, benches, etc.)
         
         drawHelicopters(airCtx); // Draw helicopters (below planes, above buildings)
