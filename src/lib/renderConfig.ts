@@ -239,7 +239,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     hospital: -0.5, // Shift up (reduced from previous)
     school: -0.35, // Shifted down 0.05 tiles from -0.4
     power_plant: -0.3, // Shift up
-    park: -0.15, // Perfect position
+    park: -0.125, // Adjusted position
     park_large: -0.85, // Shift up significantly (almost an entire tile)
     tennis: -0.2, // Shifted up 0.1 tiles from -0.1
     city_hall: -0.6, // Shift up about 0.2 tiles
