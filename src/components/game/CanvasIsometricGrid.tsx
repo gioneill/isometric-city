@@ -3965,8 +3965,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             placedRoadTilesRef.current.clear();
             // Place immediately on first click
             placeAtTile(gridX, gridY);
-            // Track initial tile for roads and subways
-            if (selectedTool === 'road' || selectedTool === 'subway') {
+            // Track initial tile for roads, rail, and subways
+            if (selectedTool === 'road' || selectedTool === 'rail' || selectedTool === 'subway') {
               placedRoadTilesRef.current.add(`${gridX},${gridY}`);
             }
           }
@@ -4083,8 +4083,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         if (isDragging && showsDragGrid && dragStartTile) {
           setDragEndTile({ x: gridX, y: gridY });
         }
-        // For roads and subways, use straight-line snapping
-        else if (isDragging && (selectedTool === 'road' || selectedTool === 'subway') && dragStartTile) {
+        // For roads, rail, and subways, use straight-line snapping
+        else if (isDragging && (selectedTool === 'road' || selectedTool === 'rail' || selectedTool === 'subway') && dragStartTile) {
           const dx = Math.abs(gridX - dragStartTile.x);
           const dy = Math.abs(gridY - dragStartTile.y);
           
@@ -4146,9 +4146,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       }
     }
     
-    // After placing roads, check if any cities should be discovered
-    // This happens after any road placement (drag or click) reaches an edge
-    if (isDragging && selectedTool === 'road') {
+    // After placing roads or rail, check if any cities should be discovered
+    // This happens after any road/rail placement (drag or click) reaches an edge
+    if (isDragging && (selectedTool === 'road' || selectedTool === 'rail')) {
       // Use setTimeout to allow state to update first, then check for discoverable cities
       setTimeout(() => {
         checkAndDiscoverCities((discoveredCity) => {
