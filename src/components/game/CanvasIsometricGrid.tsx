@@ -3431,10 +3431,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     // Draw rail tracks (above water, similar to roads)
     insertionSortByDepth(railQueue);
     railQueue.forEach(({ tile, screenX, screenY }) => {
-        // Draw rail base tile first (gravel/ballast colored diamond)
+        // Draw rail base tile first (dark gravel colored diamond)
         const w = TILE_WIDTH;
         const h = TILE_HEIGHT;
-        ctx.fillStyle = '#6B7355'; // Gravel color
+        ctx.fillStyle = '#5B6345'; // Dark gravel color for contrast with ballast
         ctx.beginPath();
         ctx.moveTo(screenX + w / 2, screenY);
         ctx.lineTo(screenX + w, screenY + h / 2);
@@ -3442,6 +3442,15 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         ctx.lineTo(screenX, screenY + h / 2);
         ctx.closePath();
         ctx.fill();
+        
+        // Draw edge shading for depth
+        ctx.strokeStyle = '#4B5335';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(screenX + w / 2, screenY + h);
+        ctx.lineTo(screenX, screenY + h / 2);
+        ctx.lineTo(screenX + w / 2, screenY);
+        ctx.stroke();
         
         // Draw the rail tracks
         drawRailTrack(ctx, screenX, screenY, tile.x, tile.y, grid, gridSize, zoom);

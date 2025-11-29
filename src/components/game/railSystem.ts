@@ -83,13 +83,13 @@ export interface Train {
 
 /** Rail track colors */
 export const RAIL_COLORS = {
-  BALLAST: '#8B7355',           // Track bed (gravel/ballast)
-  BALLAST_DARK: '#6B5344',      // Darker ballast edges
-  TIE: '#4a3728',               // Wooden rail ties (sleepers)
+  BALLAST: '#9B8365',           // Track bed (gravel/ballast) - lighter for contrast
+  BALLAST_DARK: '#7B6354',      // Darker ballast edges
+  TIE: '#3a2718',               // Wooden rail ties (sleepers) - darker for contrast
   TIE_HIGHLIGHT: '#5d4a3a',     // Lighter tie surface
-  RAIL: '#4a4a4a',              // Steel rail
-  RAIL_HIGHLIGHT: '#6a6a6a',    // Rail highlight
-  RAIL_SHADOW: '#2a2a2a',       // Rail shadow
+  RAIL: '#303030',              // Steel rail - darker for visibility
+  RAIL_HIGHLIGHT: '#505050',    // Rail highlight
+  RAIL_SHADOW: '#1a1a1a',       // Rail shadow
 };
 
 /** Locomotive colors (various liveries) */
@@ -121,10 +121,10 @@ export const PASSENGER_COLORS = [
 ];
 
 /** Track gauge (width between rails) as ratio of tile width */
-export const TRACK_GAUGE_RATIO = 0.12;
+export const TRACK_GAUGE_RATIO = 0.15;
 
 /** Ballast width as ratio of tile width */
-export const BALLAST_WIDTH_RATIO = 0.24;
+export const BALLAST_WIDTH_RATIO = 0.32;
 
 /** Number of ties per tile */
 export const TIES_PER_TILE = 6;
@@ -403,8 +403,8 @@ function drawTies(
   const h = TILE_HEIGHT;
   const cx = x + w / 2;
   const cy = y + h / 2;
-  const tieWidth = w * 0.025;
-  const tieLength = w * BALLAST_WIDTH_RATIO * 0.9;
+  const tieWidth = w * 0.04;
+  const tieLength = w * BALLAST_WIDTH_RATIO * 0.85;
 
   // Calculate edge midpoints
   const northEdgeX = x + w * 0.25;
@@ -528,7 +528,7 @@ function drawRails(
   const cx = x + w / 2;
   const cy = y + h / 2;
   const railGauge = w * TRACK_GAUGE_RATIO;
-  const railWidth = zoom >= 0.7 ? 1.5 : 1;
+  const railWidth = zoom >= 0.7 ? 2.5 : 2;
 
   // Calculate edge midpoints
   const northEdgeX = x + w * 0.25;
