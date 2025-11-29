@@ -374,7 +374,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   },
   parksVerticalOffsets: {
     // Same approach as denseVerticalOffsets - adjust as needed for proper positioning
-    basketball_courts: -0.35,  // shifted up 0.2 tiles
+    basketball_courts: -0.15,
     playground_small: -0.25,  // shifted up 0.1
     playground_large: -0.45,  // shifted down 0.6 tiles from -1.05
     baseball_field_small: -0.55,  // shifted down 0.3 from -0.85
