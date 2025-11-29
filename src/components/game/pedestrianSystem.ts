@@ -35,7 +35,6 @@ import {
   PEDESTRIAN_BAG_CHANCE,
   PEDESTRIAN_HAT_CHANCE,
   PEDESTRIAN_IDLE_CHANCE,
-  DIRECTION_META,
 } from './constants';
 import { isRoadTile, getDirectionOptions, findPathOnRoads, getDirectionToTile, findNearestRoadToBuilding } from './utils';
 
@@ -311,6 +310,7 @@ export function updatePedestrianState(
 
 /**
  * Update walking state - the main movement logic
+ * Optimized: reduced social/idle checks, simplified logic
  */
 function updateWalkingState(
   ped: Pedestrian,
@@ -323,32 +323,38 @@ function updateWalkingState(
   // Update walk animation
   ped.walkOffset += delta * 8;
   
-  // Check if we should stop to socialize
-  if (Math.random() < PEDESTRIAN_SOCIAL_CHANCE * delta) {
-    const nearbyPed = findNearbyPedestrian(ped, allPedestrians, 2);
-    if (nearbyPed && nearbyPed.state === 'walking') {
-      ped.state = 'socializing';
-      ped.socialTarget = nearbyPed.id;
-      ped.activityDuration = PEDESTRIAN_SOCIAL_DURATION;
+  // Only check social/idle occasionally (based on pedestrian ID for distribution)
+  // This spreads the checks across frames instead of all at once
+  const checkFrame = (ped.id + Math.floor(ped.age * 10)) % 60 === 0;
+  
+  if (checkFrame) {
+    // Check if we should stop to socialize (very rare)
+    if (Math.random() < PEDESTRIAN_SOCIAL_CHANCE) {
+      const nearbyPed = findNearbyPedestrianFast(ped, allPedestrians);
+      if (nearbyPed) {
+        ped.state = 'socializing';
+        ped.socialTarget = nearbyPed.id;
+        ped.activityDuration = PEDESTRIAN_SOCIAL_DURATION;
+        ped.activityProgress = 0;
+        nearbyPed.state = 'socializing';
+        nearbyPed.socialTarget = ped.id;
+        nearbyPed.activityDuration = PEDESTRIAN_SOCIAL_DURATION;
+        nearbyPed.activityProgress = 0;
+        return true;
+      }
+    }
+    
+    // Random chance to idle briefly (very rare)
+    if (Math.random() < PEDESTRIAN_IDLE_CHANCE) {
+      ped.state = 'idle';
+      ped.activityDuration = 1 + Math.random() * 2;
       ped.activityProgress = 0;
-      nearbyPed.state = 'socializing';
-      nearbyPed.socialTarget = ped.id;
-      nearbyPed.activityDuration = PEDESTRIAN_SOCIAL_DURATION;
-      nearbyPed.activityProgress = 0;
       return true;
     }
   }
   
-  // Random chance to idle briefly
-  if (Math.random() < PEDESTRIAN_IDLE_CHANCE * delta) {
-    ped.state = 'idle';
-    ped.activityDuration = 1 + Math.random() * 3;
-    ped.activityProgress = 0;
-    return true;
-  }
-  
-  // Check if on road
-  if (!isRoadTile(grid, gridSize, ped.tileX, ped.tileY)) {
+  // Check if on road (skip if we recently checked - once per tile is enough)
+  if (ped.progress < 0.1 && !isRoadTile(grid, gridSize, ped.tileX, ped.tileY)) {
     return false;
   }
   
@@ -587,20 +593,28 @@ function updateSocializingState(
 }
 
 /**
- * Find a nearby pedestrian for socializing
+ * Find a nearby pedestrian for socializing - optimized version
+ * Only checks a limited number of pedestrians to avoid O(n²) behavior
  */
-function findNearbyPedestrian(
+function findNearbyPedestrianFast(
   ped: Pedestrian,
-  allPedestrians: Pedestrian[],
-  maxDistance: number
+  allPedestrians: Pedestrian[]
 ): Pedestrian | null {
-  for (const other of allPedestrians) {
+  // Only check up to 20 pedestrians to avoid performance issues
+  const checkLimit = Math.min(20, allPedestrians.length);
+  const startIdx = ped.id % Math.max(1, allPedestrians.length - checkLimit);
+  
+  for (let i = 0; i < checkLimit; i++) {
+    const idx = (startIdx + i) % allPedestrians.length;
+    const other = allPedestrians[idx];
+    
     if (other.id === ped.id) continue;
     if (other.state !== 'walking') continue;
     if (other.socialTarget !== null) continue;
     
+    // Quick distance check - same tile or adjacent
     const dist = Math.abs(other.tileX - ped.tileX) + Math.abs(other.tileY - ped.tileY);
-    if (dist <= maxDistance) {
+    if (dist <= 1) {
       return other;
     }
   }

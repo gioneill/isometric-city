@@ -1,6 +1,6 @@
 import React, { useCallback, useRef } from 'react';
 import { Car, CarDirection, EmergencyVehicle, EmergencyVehicleType, Pedestrian, PedestrianDestType, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
-import { CAR_COLORS, PEDESTRIAN_MIN_ZOOM, DIRECTION_META } from './constants';
+import { CAR_COLORS, PEDESTRIAN_MIN_ZOOM, DIRECTION_META, PEDESTRIAN_MAX_COUNT, PEDESTRIAN_SPAWN_BATCH_SIZE, PEDESTRIAN_SPAWN_INTERVAL } from './constants';
 import { isRoadTile, getDirectionOptions, pickNextDirection, findPathOnRoads, getDirectionToTile, gridToScreen } from './utils';
 import { findResidentialBuildings, findPedestrianDestinations, findStations, findFires, findRecreationAreas, findEnterableBuildings } from './gridFinders';
 import { drawPedestrians as drawPedestriansUtil } from './drawPedestrians';
@@ -813,6 +813,7 @@ export function useVehicleSystems(
   const updatePedestrians = useCallback((delta: number) => {
     const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed, zoom: currentZoom } = worldStateRef.current;
     
+    // Clear pedestrians if zoomed out too far
     if (currentZoom < PEDESTRIAN_MIN_ZOOM) {
       pedestriansRef.current = [];
       return;
@@ -825,6 +826,7 @@ export function useVehicleSystems(
     
     const speedMultiplier = currentSpeed === 0 ? 0 : currentSpeed === 1 ? 1 : currentSpeed === 2 ? 2.5 : 4;
     
+    // Cache road tile count (expensive to calculate every frame)
     const currentGridVersion = gridVersionRef.current;
     let roadTileCount: number;
     if (cachedRoadTileCountRef.current.gridVersion === currentGridVersion) {
@@ -841,23 +843,30 @@ export function useVehicleSystems(
       cachedRoadTileCountRef.current = { count: roadTileCount, gridVersion: currentGridVersion };
     }
     
-    const maxPedestrians = Math.max(200, roadTileCount * 3);
+    // OPTIMIZED: Use hard cap and slower spawn rate
+    const maxPedestrians = Math.min(PEDESTRIAN_MAX_COUNT, Math.max(50, roadTileCount));
     pedestrianSpawnTimerRef.current -= delta;
+    
     if (pedestriansRef.current.length < maxPedestrians && pedestrianSpawnTimerRef.current <= 0) {
-      let spawnedCount = 0;
-      const spawnBatch = Math.min(50, Math.max(20, Math.floor(roadTileCount / 10)));
+      // Spawn fewer pedestrians at a time
+      const spawnBatch = Math.min(PEDESTRIAN_SPAWN_BATCH_SIZE, maxPedestrians - pedestriansRef.current.length);
       for (let i = 0; i < spawnBatch; i++) {
-        if (spawnPedestrian()) {
-          spawnedCount++;
-        }
+        spawnPedestrian();
       }
-      pedestrianSpawnTimerRef.current = spawnedCount > 0 ? 0.02 : 0.01;
+      pedestrianSpawnTimerRef.current = PEDESTRIAN_SPAWN_INTERVAL;
     }
     
+    // OPTIMIZED: Reuse array instead of spreading
+    const allPedestrians = pedestriansRef.current;
     const updatedPedestrians: Pedestrian[] = [];
-    const allPedestrians = [...pedestriansRef.current];
     
-    for (const ped of allPedestrians) {
+    // Pre-calculate traffic light state once per frame
+    const trafficTime = trafficLightTimerRef.current;
+    const lightState = getTrafficLightState(trafficTime);
+    
+    for (let i = 0; i < allPedestrians.length; i++) {
+      const ped = allPedestrians[i];
+      
       // Use the new state machine for pedestrian updates
       const alive = updatePedestrianState(
         ped,
@@ -869,30 +878,21 @@ export function useVehicleSystems(
       );
       
       if (alive) {
-        // For walking pedestrians, also check traffic lights
-        if (ped.state === 'walking') {
-          // Most pedestrians respect traffic lights at intersections (based on their id)
-          const pedRespectsLights = (ped.id % 5) !== 0; // 80% respect lights (4 out of 5)
-          
-          if (pedRespectsLights && ped.pathIndex + 1 < ped.path.length && ped.progress > 0.6) {
+        // OPTIMIZED: Only check traffic lights for walking pedestrians approaching intersections
+        // Check less frequently - only when close to tile boundary
+        if (ped.state === 'walking' && ped.progress > 0.7 && ped.pathIndex + 1 < ped.path.length) {
+          // Only 80% respect lights (skip check for some pedestrians)
+          if ((ped.id % 5) !== 0) {
             const nextTile = ped.path[ped.pathIndex + 1];
-            // Check if next tile is an intersection
-            const nextNorth = isRoadTile(currentGrid, currentGridSize, nextTile.x - 1, nextTile.y);
-            const nextEast = isRoadTile(currentGrid, currentGridSize, nextTile.x, nextTile.y - 1);
-            const nextSouth = isRoadTile(currentGrid, currentGridSize, nextTile.x + 1, nextTile.y);
-            const nextWest = isRoadTile(currentGrid, currentGridSize, nextTile.x, nextTile.y + 1);
-            const isNextIntersection = [nextNorth, nextEast, nextSouth, nextWest].filter(Boolean).length >= 3;
+            // Quick intersection check - only count if likely an intersection
+            let roadCount = 0;
+            if (isRoadTile(currentGrid, currentGridSize, nextTile.x - 1, nextTile.y)) roadCount++;
+            if (roadCount < 3 && isRoadTile(currentGrid, currentGridSize, nextTile.x, nextTile.y - 1)) roadCount++;
+            if (roadCount < 3 && isRoadTile(currentGrid, currentGridSize, nextTile.x + 1, nextTile.y)) roadCount++;
+            if (roadCount < 3 && isRoadTile(currentGrid, currentGridSize, nextTile.x, nextTile.y + 1)) roadCount++;
             
-            if (isNextIntersection) {
-              // Get traffic light state
-              const trafficTime = trafficLightTimerRef.current;
-              const lightState = getTrafficLightState(trafficTime);
-              
-              // Pedestrians wait when they can't proceed (same logic as cars)
-              if (!canProceedThroughIntersection(ped.direction, lightState)) {
-                // Stop the pedestrian progress - handled by not advancing
-                ped.progress = Math.min(ped.progress, 0.9);
-              }
+            if (roadCount >= 3 && !canProceedThroughIntersection(ped.direction, lightState)) {
+              ped.progress = Math.min(ped.progress, 0.85);
             }
           }
         }
@@ -982,7 +982,8 @@ export function useVehicleSystems(
       viewBottom: viewHeight - currentOffset.y / currentZoom + TILE_HEIGHT * 2,
     };
     
-    drawPedestriansUtil(ctx, pedestriansRef.current, currentGrid, currentGridSize, viewBounds);
+    // Pass zoom level for LOD (Level of Detail) rendering
+    drawPedestriansUtil(ctx, pedestriansRef.current, currentGrid, currentGridSize, viewBounds, currentZoom);
     
     ctx.restore();
   }, [worldStateRef, pedestriansRef]);

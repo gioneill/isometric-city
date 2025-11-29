@@ -1,6 +1,7 @@
 /**
  * Pedestrian drawing utilities
  * Renders pedestrians with dynamic activities and states
+ * OPTIMIZED for performance with LOD (Level of Detail)
  */
 
 import { Tile } from '@/types/game';
@@ -10,21 +11,35 @@ import { gridToScreen } from './utils';
 import { isEntityBehindBuilding } from './renderHelpers';
 import { getPedestrianOpacity, getVisiblePedestrians } from './pedestrianSystem';
 
+// LOD thresholds - draw simpler at lower zoom
+const LOD_SIMPLE_ZOOM = 0.7;  // Below this, draw very simple pedestrians
+const LOD_MEDIUM_ZOOM = 1.0;  // Below this, skip some details
+
 /**
  * Draw pedestrians with dynamic activities and states
+ * Uses LOD (Level of Detail) for performance
  */
 export function drawPedestrians(
   ctx: CanvasRenderingContext2D,
   pedestrians: Pedestrian[],
   grid: Tile[][],
   gridSize: number,
-  viewBounds: { viewLeft: number; viewTop: number; viewRight: number; viewBottom: number }
+  viewBounds: { viewLeft: number; viewTop: number; viewRight: number; viewBottom: number },
+  zoom: number = 1.0
 ): void {
   // Get only visible pedestrians (not inside buildings)
   const visiblePedestrians = getVisiblePedestrians(pedestrians);
   if (visiblePedestrians.length === 0) return;
 
-  visiblePedestrians.forEach((ped) => {
+  // Determine LOD level based on zoom
+  const useSimpleLOD = zoom < LOD_SIMPLE_ZOOM;
+  const useMediumLOD = zoom < LOD_MEDIUM_ZOOM;
+
+  // Pre-set common styles to reduce state changes
+  ctx.lineCap = 'round';
+
+  for (let i = 0; i < visiblePedestrians.length; i++) {
+    const ped = visiblePedestrians[i];
     // Calculate position based on state
     let pedX: number;
     let pedY: number;
@@ -61,28 +76,47 @@ export function drawPedestrians(
 
     // Viewport culling
     if (
-      pedX < viewBounds.viewLeft - 30 ||
-      pedX > viewBounds.viewRight + 30 ||
-      pedY < viewBounds.viewTop - 50 ||
-      pedY > viewBounds.viewBottom + 50
+      pedX < viewBounds.viewLeft - 20 ||
+      pedX > viewBounds.viewRight + 20 ||
+      pedY < viewBounds.viewTop - 30 ||
+      pedY > viewBounds.viewBottom + 30
     ) {
-      return;
+      continue;
     }
 
-    // Check if behind building (for walking pedestrians)
-    if (ped.state === 'walking' && isEntityBehindBuilding(grid, gridSize, ped.tileX, ped.tileY)) {
-      return;
+    // Check if behind building (for walking pedestrians only, skip for performance at low zoom)
+    if (!useSimpleLOD && ped.state === 'walking' && isEntityBehindBuilding(grid, gridSize, ped.tileX, ped.tileY)) {
+      continue;
     }
 
     // Get opacity for enter/exit animations
     const opacity = getPedestrianOpacity(ped);
-    if (opacity <= 0) return;
+    if (opacity <= 0) continue;
 
     ctx.save();
     ctx.translate(pedX, pedY);
-    ctx.globalAlpha = opacity;
+    if (opacity < 1) ctx.globalAlpha = opacity;
+
+    // OPTIMIZED: Use simple LOD for zoomed out view
+    if (useSimpleLOD) {
+      drawSimplePedestrian(ctx, ped);
+      ctx.restore();
+      continue;
+    }
 
     // Draw based on current activity/state
+    // OPTIMIZED: Use medium detail for most activities when zoomed out
+    if (useMediumLOD) {
+      if (ped.state === 'at_recreation') {
+        drawMediumActivityPedestrian(ctx, ped);
+      } else {
+        drawMediumWalkingPedestrian(ctx, ped);
+      }
+      ctx.restore();
+      continue;
+    }
+
+    // Full detail drawing
     switch (ped.activity) {
       case 'playing_basketball':
         drawBasketballPlayer(ctx, ped);
@@ -132,80 +166,164 @@ export function drawPedestrians(
     }
 
     ctx.restore();
-  });
+  }
 }
 
 /**
- * Draw a standard walking pedestrian
+ * Draw a very simple pedestrian (lowest LOD) - just colored dots
+ */
+function drawSimplePedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
+  // Just draw a small colored circle for the body
+  ctx.fillStyle = ped.shirtColor;
+  ctx.beginPath();
+  ctx.arc(0, -2, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Head as tiny dot
+  ctx.fillStyle = ped.skinColor;
+  ctx.beginPath();
+  ctx.arc(0, -5, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * Draw medium detail walking pedestrian
+ */
+function drawMediumWalkingPedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
+  const walkBob = Math.sin(ped.walkOffset) * 0.5;
+  const scale = 0.35;
+
+  // Head
+  ctx.fillStyle = ped.skinColor;
+  ctx.beginPath();
+  ctx.arc(0, (-12 + walkBob) * scale, 3 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = ped.shirtColor;
+  ctx.beginPath();
+  ctx.ellipse(0, (-5 + walkBob) * scale, 2.5 * scale, 4 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Simple legs (single stroke)
+  ctx.strokeStyle = ped.pantsColor;
+  ctx.lineWidth = 1.5 * scale;
+  const legSwing = Math.sin(ped.walkOffset) * 2;
+  ctx.beginPath();
+  ctx.moveTo(0, (-1 + walkBob) * scale);
+  ctx.lineTo(legSwing * scale, 5 * scale);
+  ctx.moveTo(0, (-1 + walkBob) * scale);
+  ctx.lineTo(-legSwing * scale, 5 * scale);
+  ctx.stroke();
+}
+
+/**
+ * Draw medium detail activity pedestrian
+ */
+function drawMediumActivityPedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
+  const scale = 0.35;
+  const anim = Math.sin(ped.activityAnimTimer);
+
+  // Head
+  ctx.fillStyle = ped.skinColor;
+  ctx.beginPath();
+  ctx.arc(0, -12 * scale, 3 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = ped.shirtColor;
+  ctx.beginPath();
+  ctx.ellipse(anim * scale, -5 * scale, 2.5 * scale, 4 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Simple legs
+  ctx.strokeStyle = ped.pantsColor;
+  ctx.lineWidth = 1.5 * scale;
+  ctx.beginPath();
+  ctx.moveTo(-1 * scale, -1 * scale);
+  ctx.lineTo(-1.5 * scale, 5 * scale);
+  ctx.moveTo(1 * scale, -1 * scale);
+  ctx.lineTo(1.5 * scale, 5 * scale);
+  ctx.stroke();
+
+  // Activity indicator (colored dot for ball, etc.)
+  if (ped.hasBall) {
+    ctx.fillStyle = '#ff6b35';
+    ctx.beginPath();
+    ctx.arc(4 * scale, 2 * scale, 1.5 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/**
+ * Draw a standard walking pedestrian - OPTIMIZED
  */
 function drawWalkingPedestrian(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
   const walkBob = Math.sin(ped.walkOffset) * 0.8;
   const walkSway = Math.sin(ped.walkOffset * 0.5) * 0.5;
   const scale = 0.35;
+  const legSwing = Math.sin(ped.walkOffset) * 3;
 
-  // Hat
-  if (ped.hasHat) {
-    ctx.fillStyle = ped.hatColor;
-    ctx.beginPath();
-    ctx.ellipse(walkSway * scale, (-15 + walkBob) * scale, 4 * scale, 1.5 * scale, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Head
+  // Draw head and body first (filled shapes)
   ctx.fillStyle = ped.skinColor;
   ctx.beginPath();
   ctx.arc(walkSway * scale, (-12 + walkBob) * scale, 3 * scale, 0, Math.PI * 2);
   ctx.fill();
 
-  // Body (shirt)
   ctx.fillStyle = ped.shirtColor;
   ctx.beginPath();
   ctx.ellipse(walkSway * scale, (-5 + walkBob) * scale, 2.5 * scale, 4 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Legs (animated)
+  // Draw both legs in one path
   ctx.strokeStyle = ped.pantsColor;
   ctx.lineWidth = 1.5 * scale;
-  ctx.lineCap = 'round';
-
-  const leftLegSwing = Math.sin(ped.walkOffset) * 3;
   ctx.beginPath();
   ctx.moveTo(walkSway * scale, (-1 + walkBob) * scale);
-  ctx.lineTo((walkSway - 1 + leftLegSwing) * scale, (5 + walkBob) * scale);
-  ctx.stroke();
-
-  const rightLegSwing = Math.sin(ped.walkOffset + Math.PI) * 3;
-  ctx.beginPath();
+  ctx.lineTo((walkSway - 1 + legSwing) * scale, (5 + walkBob) * scale);
   ctx.moveTo(walkSway * scale, (-1 + walkBob) * scale);
-  ctx.lineTo((walkSway + 1 + rightLegSwing) * scale, (5 + walkBob) * scale);
+  ctx.lineTo((walkSway + 1 - legSwing) * scale, (5 + walkBob) * scale);
   ctx.stroke();
 
-  // Arms (animated)
+  // Draw both arms in one path
   ctx.strokeStyle = ped.skinColor;
   ctx.lineWidth = 1.2 * scale;
-
-  const leftArmSwing = Math.sin(ped.walkOffset + Math.PI) * 2;
+  const armSwing = legSwing * 0.67;
   ctx.beginPath();
   ctx.moveTo((walkSway - 2) * scale, (-6 + walkBob) * scale);
-  ctx.lineTo((walkSway - 3 + leftArmSwing) * scale, (-2 + walkBob) * scale);
-  ctx.stroke();
-
-  const rightArmSwing = Math.sin(ped.walkOffset) * 2;
-  ctx.beginPath();
+  ctx.lineTo((walkSway - 3 - armSwing) * scale, (-2 + walkBob) * scale);
   ctx.moveTo((walkSway + 2) * scale, (-6 + walkBob) * scale);
-  ctx.lineTo((walkSway + 3 + rightArmSwing) * scale, (-2 + walkBob) * scale);
+  ctx.lineTo((walkSway + 3 + armSwing) * scale, (-2 + walkBob) * scale);
   ctx.stroke();
 
-  // Dog if walking one
+  // Dog if walking one (simplified)
   if (ped.hasDog) {
-    drawDog(ctx, ped, 8 + leftArmSwing, 3);
+    drawDogSimple(ctx, ped);
   }
+}
 
-  // Bag if carrying one
-  if (ped.hasBag) {
-    ctx.fillStyle = '#8B4513';
-    ctx.fillRect((walkSway + 3) * scale, (-4 + walkBob) * scale, 2 * scale, 3 * scale);
-  }
+/**
+ * Draw a simplified dog for performance
+ */
+function drawDogSimple(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
+  const scale = 0.3;
+  const offsetX = 8;
+  const offsetY = 3;
+  
+  // Dog as simple ellipse
+  ctx.fillStyle = '#8B4513';
+  ctx.beginPath();
+  ctx.ellipse(offsetX * scale, (offsetY + 3) * scale, 4 * scale, 2 * scale, 0, 0, Math.PI * 2);
+  ctx.arc((offsetX + 4) * scale, (offsetY + 1) * scale, 2 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Leash
+  ctx.strokeStyle = '#8B4513';
+  ctx.lineWidth = 0.5 * scale;
+  ctx.beginPath();
+  ctx.moveTo(-2 * scale, -2 * scale);
+  ctx.lineTo(offsetX * scale, (offsetY + 2) * scale);
+  ctx.stroke();
 }
 
 /**
@@ -742,70 +860,10 @@ function drawJogger(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
 }
 
 /**
- * Draw a dog walker
+ * Draw a dog walker - just uses the regular walking function which handles dogs
  */
 function drawDogWalker(ctx: CanvasRenderingContext2D, ped: Pedestrian): void {
-  // Draw walking person first
   drawWalkingPedestrian(ctx, ped);
-  // Dog is drawn within drawWalkingPedestrian if hasDog is true
-}
-
-/**
- * Draw just a dog
- */
-function drawDog(ctx: CanvasRenderingContext2D, ped: Pedestrian, offsetX: number, offsetY: number): void {
-  const scale = 0.3;
-  const trot = Math.sin(ped.walkOffset * 1.5) * 2;
-
-  ctx.save();
-  ctx.translate(offsetX * scale, offsetY * scale);
-
-  // Leash
-  ctx.strokeStyle = '#8B4513';
-  ctx.lineWidth = 0.5 * scale;
-  ctx.beginPath();
-  ctx.moveTo(-8 * scale, -2 * scale);
-  ctx.quadraticCurveTo(0, 5 * scale, 0, 2 * scale);
-  ctx.stroke();
-
-  // Dog body
-  ctx.fillStyle = '#8B4513';
-  ctx.beginPath();
-  ctx.ellipse(0, 3 * scale, 4 * scale, 2 * scale, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Dog head
-  ctx.beginPath();
-  ctx.arc(4 * scale, (1 + trot * 0.3) * scale, 2 * scale, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Ears
-  ctx.beginPath();
-  ctx.ellipse(5 * scale, (-1 + trot * 0.3) * scale, 1 * scale, 1.5 * scale, 0.3, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Tail
-  ctx.strokeStyle = '#8B4513';
-  ctx.lineWidth = 1 * scale;
-  ctx.beginPath();
-  ctx.moveTo(-4 * scale, 2 * scale);
-  ctx.quadraticCurveTo((-6 + trot) * scale, -1 * scale, (-5 + trot) * scale, -2 * scale);
-  ctx.stroke();
-
-  // Legs
-  ctx.strokeStyle = '#8B4513';
-  ctx.lineWidth = 1 * scale;
-  const legMove = Math.sin(ped.walkOffset * 1.5);
-  ctx.beginPath();
-  ctx.moveTo(-2 * scale, 5 * scale);
-  ctx.lineTo((-2 + legMove) * scale, 8 * scale);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(2 * scale, 5 * scale);
-  ctx.lineTo((2 - legMove) * scale, 8 * scale);
-  ctx.stroke();
-
-  ctx.restore();
 }
 
 /**

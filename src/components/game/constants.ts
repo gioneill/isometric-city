@@ -11,17 +11,23 @@ export const PEDESTRIAN_PANTS_COLORS = ['#1f2937', '#374151', '#4b5563', '#1e3a8
 export const PEDESTRIAN_HAT_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#1f2937', '#ffffff'];
 
 // Pedestrian behavior constants
-export const PEDESTRIAN_BUILDING_ENTER_TIME = 1.0;  // Time to enter/exit building (seconds)
-export const PEDESTRIAN_MIN_ACTIVITY_TIME = 15.0;   // Minimum time at an activity
-export const PEDESTRIAN_MAX_ACTIVITY_TIME = 90.0;   // Maximum time at an activity
-export const PEDESTRIAN_BUILDING_MIN_TIME = 20.0;   // Minimum time inside buildings
-export const PEDESTRIAN_BUILDING_MAX_TIME = 180.0;  // Maximum time inside buildings
-export const PEDESTRIAN_SOCIAL_CHANCE = 0.15;       // Chance to stop and socialize
-export const PEDESTRIAN_SOCIAL_DURATION = 5.0;      // How long socializing lasts
-export const PEDESTRIAN_DOG_CHANCE = 0.08;          // Chance of walking a dog
-export const PEDESTRIAN_BAG_CHANCE = 0.25;          // Chance of carrying a bag
-export const PEDESTRIAN_HAT_CHANCE = 0.20;          // Chance of wearing a hat
-export const PEDESTRIAN_IDLE_CHANCE = 0.05;         // Chance to stop and idle briefly
+export const PEDESTRIAN_BUILDING_ENTER_TIME = 0.8;  // Time to enter/exit building (seconds)
+export const PEDESTRIAN_MIN_ACTIVITY_TIME = 20.0;   // Minimum time at an activity
+export const PEDESTRIAN_MAX_ACTIVITY_TIME = 120.0;  // Maximum time at an activity
+export const PEDESTRIAN_BUILDING_MIN_TIME = 30.0;   // Minimum time inside buildings
+export const PEDESTRIAN_BUILDING_MAX_TIME = 240.0;  // Maximum time inside buildings
+export const PEDESTRIAN_SOCIAL_CHANCE = 0.02;       // Chance to stop and socialize (reduced for perf)
+export const PEDESTRIAN_SOCIAL_DURATION = 4.0;      // How long socializing lasts
+export const PEDESTRIAN_DOG_CHANCE = 0.05;          // Chance of walking a dog (reduced for perf)
+export const PEDESTRIAN_BAG_CHANCE = 0.15;          // Chance of carrying a bag
+export const PEDESTRIAN_HAT_CHANCE = 0.15;          // Chance of wearing a hat
+export const PEDESTRIAN_IDLE_CHANCE = 0.01;         // Chance to stop and idle briefly (reduced for perf)
+
+// Pedestrian performance limits
+export const PEDESTRIAN_MAX_COUNT = 150;            // Maximum pedestrians (hard cap)
+export const PEDESTRIAN_SPAWN_BATCH_SIZE = 10;      // How many to try spawning at once
+export const PEDESTRIAN_SPAWN_INTERVAL = 0.1;       // Seconds between spawn batches
+export const PEDESTRIAN_UPDATE_SKIP_DISTANCE = 30;  // Skip detailed updates for pedestrians this far from view
 
 // Zoom thresholds for rendering detail elements
 // Lower values = more zoomed out, higher values = more zoomed in required
