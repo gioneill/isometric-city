@@ -1676,14 +1676,14 @@ export function drawRailroadCrossing(
       drawCrossingGate(ctx, x, y, 'se', gateAngle, zoom);
     }
   } else if (orientation === 'ns') {
-    // NS rail (goes top-left to bottom-right) - gates on NW and SE to block EW road traffic
-    drawCrossingSignal(ctx, x, y, 'nw', flashTimer, isActive, zoom);
-    drawCrossingSignal(ctx, x, y, 'se', flashTimer, isActive, zoom);
+    // NS rail (goes top-left to bottom-right) - gates on NE and SW to block EW road traffic
+    drawCrossingSignal(ctx, x, y, 'ne', flashTimer, isActive, zoom);
+    drawCrossingSignal(ctx, x, y, 'sw', flashTimer, isActive, zoom);
     
     if (zoom >= 0.7) {
-      // Use default swing directions (nw swings right, se swings left - both toward center)
-      drawCrossingGate(ctx, x, y, 'nw', gateAngle, zoom);
-      drawCrossingGate(ctx, x, y, 'se', gateAngle, zoom);
+      // NE swings right, SW swings left to block road
+      drawCrossingGate(ctx, x, y, 'ne', gateAngle, zoom, 1);
+      drawCrossingGate(ctx, x, y, 'sw', gateAngle, zoom, -1);
     }
   } else {
     // EW rail (goes top-right to bottom-left) - gates on NW and SE to block NS road traffic
