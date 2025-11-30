@@ -86,11 +86,11 @@ export function drawAirplanes(
       ctx.lineTo(-6, 4);
       ctx.closePath();
       ctx.fill();
-      // Tail fin shadow (matches centered fin)
+      // Tail fin shadow (matches centered fin - points up in isometric)
       ctx.beginPath();
       ctx.moveTo(-18, 0);
-      ctx.lineTo(-19, -7);
-      ctx.lineTo(-23, -6);
+      ctx.lineTo(-19, 7);
+      ctx.lineTo(-23, 6);
       ctx.lineTo(-22, 0);
       ctx.closePath();
       ctx.fill();
@@ -113,49 +113,7 @@ export function drawAirplanes(
     const lighterShade = isWhitePlane ? '#ffffff' : shadeColor(plane.color, 20);
     const darkAccent = '#1e293b';
 
-    // === WINGS (draw first, behind fuselage) ===
-    // Main wings - swept back design with realistic shape
-    // Left wing (top in view)
-    ctx.fillStyle = darkerShade;
-    ctx.beginPath();
-    ctx.moveTo(6, -3.2);  // Wing root leading edge (matches fuselage)
-    ctx.lineTo(-6, -24);   // Wingtip leading edge
-    ctx.lineTo(-12, -23);  // Wingtip trailing edge
-    ctx.lineTo(-6, -3.2);  // Wing root trailing edge
-    ctx.closePath();
-    ctx.fill();
-    
-    // Wing highlight (top surface shine)
-    ctx.fillStyle = lighterShade;
-    ctx.beginPath();
-    ctx.moveTo(4, -3.2);
-    ctx.lineTo(-4, -20);
-    ctx.lineTo(-6, -19);
-    ctx.lineTo(-2, -3.2);
-    ctx.closePath();
-    ctx.fill();
-
-    // Right wing (bottom in view)
-    ctx.fillStyle = darkerShade;
-    ctx.beginPath();
-    ctx.moveTo(6, 3.2);
-    ctx.lineTo(-6, 24);
-    ctx.lineTo(-12, 23);
-    ctx.lineTo(-6, 3.2);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Wing highlight
-    ctx.fillStyle = lighterShade;
-    ctx.beginPath();
-    ctx.moveTo(4, 3.2);
-    ctx.lineTo(-4, 20);
-    ctx.lineTo(-6, 19);
-    ctx.lineTo(-2, 3.2);
-    ctx.closePath();
-    ctx.fill();
-
-    // === ENGINE NACELLES (underwing mounted, isometric-friendly) ===
+    // === ENGINE NACELLES (underwing mounted, draw first so they appear behind wings) ===
     // Engines positioned at ~40% wing span
     const engineY = 14; // Distance from centerline (under wing)
     const engineX = -2; // Slightly behind wing leading edge
@@ -215,6 +173,48 @@ export function drawAirplanes(
     ctx.lineTo(engineX + 1, engineY - 3);
     ctx.lineTo(engineX + 1, engineY - 1);
     ctx.lineTo(engineX - 1, engineY - 1);
+    ctx.closePath();
+    ctx.fill();
+
+    // === WINGS (draw after engines so wings appear on top) ===
+    // Main wings - swept back design with realistic shape
+    // Left wing (top in view)
+    ctx.fillStyle = darkerShade;
+    ctx.beginPath();
+    ctx.moveTo(6, -3.2);  // Wing root leading edge (matches fuselage)
+    ctx.lineTo(-6, -24);   // Wingtip leading edge
+    ctx.lineTo(-12, -23);  // Wingtip trailing edge
+    ctx.lineTo(-6, -3.2);  // Wing root trailing edge
+    ctx.closePath();
+    ctx.fill();
+    
+    // Wing highlight (top surface shine)
+    ctx.fillStyle = lighterShade;
+    ctx.beginPath();
+    ctx.moveTo(4, -3.2);
+    ctx.lineTo(-4, -20);
+    ctx.lineTo(-6, -19);
+    ctx.lineTo(-2, -3.2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Right wing (bottom in view)
+    ctx.fillStyle = darkerShade;
+    ctx.beginPath();
+    ctx.moveTo(6, 3.2);
+    ctx.lineTo(-6, 24);
+    ctx.lineTo(-12, 23);
+    ctx.lineTo(-6, 3.2);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Wing highlight
+    ctx.fillStyle = lighterShade;
+    ctx.beginPath();
+    ctx.moveTo(4, 3.2);
+    ctx.lineTo(-4, 20);
+    ctx.lineTo(-6, 19);
+    ctx.lineTo(-2, 3.2);
     ctx.closePath();
     ctx.fill();
 
@@ -285,13 +285,13 @@ export function drawAirplanes(
     ctx.closePath();
     ctx.fill();
 
-    // === VERTICAL TAIL FIN (rises from center-top of tail section) ===
+    // === VERTICAL TAIL FIN (rises from center of tail section, pointing up in isometric) ===
     // Simple swept fin that rises from the fuselage spine
     ctx.fillStyle = darkerShade;
     ctx.beginPath();
     ctx.moveTo(-18, 0);      // Base at fuselage centerline
-    ctx.lineTo(-19, -6);     // Rises up and back
-    ctx.lineTo(-23, -5);     // Top back corner
+    ctx.lineTo(-19, 6);      // Rises up and back (positive Y = up in isometric view)
+    ctx.lineTo(-23, 5);      // Top back corner
     ctx.lineTo(-22, 0);      // Back to centerline
     ctx.closePath();
     ctx.fill();
@@ -300,8 +300,8 @@ export function drawAirplanes(
     ctx.fillStyle = plane.color;
     ctx.beginPath();
     ctx.moveTo(-18, 0);
-    ctx.lineTo(-19, -5);
-    ctx.lineTo(-20, -4.5);
+    ctx.lineTo(-19, 5);
+    ctx.lineTo(-20, 4.5);
     ctx.lineTo(-19, 0);
     ctx.closePath();
     ctx.fill();
@@ -379,7 +379,7 @@ export function drawAirplanes(
           ctx.shadowBlur = 25;
         }
         ctx.beginPath();
-        ctx.arc(-21, -5, isMobile ? 1.8 : 1.2, 0, Math.PI * 2);
+        ctx.arc(-21, 5, isMobile ? 1.8 : 1.2, 0, Math.PI * 2);
         ctx.fill();
       }
 

@@ -20,10 +20,7 @@ import {
   SafetyIcon,
   EnvironmentIcon,
   CloseIcon,
-  ShareIcon,
-  CheckIcon,
 } from '@/components/ui/Icons';
-import { copyShareUrl } from '@/lib/shareState';
 
 // Sun/Moon icon for time of day
 function TimeOfDayIcon({ hour }: { hour: number }) {
@@ -81,27 +78,18 @@ export function MobileTopBar({
   const { state, setSpeed, setTaxRate, isSaving, visualHour } = useGame();
   const { stats, year, month, speed, taxRate, cityName } = state;
   const [showDetails, setShowDetails] = useState(false);
-  const [shareState, setShareState] = useState<'idle' | 'copied'>('idle');
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  const handleShare = async () => {
-    const success = await copyShareUrl(state);
-    if (success) {
-      setShareState('copied');
-      setTimeout(() => setShareState('idle'), 2000);
-    }
-  };
 
   return (
     <>
       {/* Main Top Bar */}
       <Card className="fixed top-0 left-0 right-0 z-40 rounded-none border-x-0 border-t-0 bg-card/95 backdrop-blur-sm safe-area-top">
-        <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-start justify-between px-3 pt-2 pb-0">
           {/* Left: City name and date */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-start gap-2 min-w-0">
             <button
-              className="flex flex-col items-start min-w-0 active:opacity-70"
+              className="flex flex-col items-start min-w-0 active:opacity-70 p-0 m-0"
               onClick={() => setShowDetails(!showDetails)}
             >
               <div className="flex items-center gap-1">
@@ -114,83 +102,69 @@ export function MobileTopBar({
               </div>
               <div className="flex items-center gap-1 text-muted-foreground text-[10px] font-mono">
                 <span>{monthNames[month - 1]} {year}</span>
-                <TimeOfDayIcon hour={visualHour} />
               </div>
             </button>
           </div>
 
           {/* Center: Pop/Funds stats */}
-          <div className="flex items-center gap-2 mr-auto ml-2">
-            <div className="flex flex-col items-end">
-              <span className="text-[9px] text-muted-foreground">Pop</span>
+          <div className="flex items-start gap-2 mr-auto ml-2">
+            <div className="flex flex-col items-start">
               <span className="text-xs font-mono font-semibold text-foreground">
                 {stats.population >= 1000 ? `${(stats.population / 1000).toFixed(1)}k` : stats.population}
               </span>
+              <span className="text-[9px] text-muted-foreground">Pop</span>
             </div>
-            <div className="flex flex-col items-end">
-              <span className="text-[9px] text-muted-foreground">Funds</span>
+            <div className="flex flex-col items-start">
               <span className={`text-xs font-mono font-semibold ${stats.money < 0 ? 'text-red-500' : stats.money < 1000 ? 'text-amber-500' : 'text-green-500'}`}>
                 ${stats.money >= 1000000 ? `${(stats.money / 1000000).toFixed(1)}M` : stats.money >= 1000 ? `${(stats.money / 1000).toFixed(0)}k` : stats.money}
               </span>
+              <span className="text-[9px] text-muted-foreground">Funds</span>
             </div>
           </div>
 
           {/* Speed controls: Pause / Play / 2x / 3x */}
-          <div className="flex items-center gap-0 bg-secondary rounded-sm p-px">
-            <Button
+          <div className="flex items-center gap-0 bg-secondary rounded-sm h-[31px] overflow-hidden p-0 m-0">
+            <button
               onClick={() => setSpeed(0)}
-              variant={speed === 0 ? 'default' : 'ghost'}
-              size="icon"
-              className="h-4 w-4"
+              className={`h-[31px] w-[31px] min-w-[31px] p-0 m-0 flex items-center justify-center rounded-none ${
+                speed === 0 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent/20'
+              }`}
               title="Pause"
             >
-              <PauseIcon size={8} />
-            </Button>
-            <Button
+              <PauseIcon size={16} />
+            </button>
+            <button
               onClick={() => setSpeed(1)}
-              variant={speed === 1 ? 'default' : 'ghost'}
-              size="icon"
-              className="h-4 w-4"
+              className={`h-[31px] w-[31px] min-w-[31px] p-0 m-0 flex items-center justify-center rounded-none ${
+                speed === 1 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent/20'
+              }`}
               title="Normal speed"
             >
-              <PlayIcon size={8} />
-            </Button>
-            <Button
+              <PlayIcon size={16} />
+            </button>
+            <button
               onClick={() => setSpeed(2)}
-              variant={speed === 2 ? 'default' : 'ghost'}
-              size="icon"
-              className="h-4 w-4"
+              className={`h-[31px] w-[31px] min-w-[31px] p-0 m-0 flex items-center justify-center rounded-none ${
+                speed === 2 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent/20'
+              }`}
               title="2x speed"
             >
-              <FastForwardIcon size={8} />
-            </Button>
-            <Button
+              <FastForwardIcon size={16} />
+            </button>
+            <button
               onClick={() => setSpeed(3)}
-              variant={speed === 3 ? 'default' : 'ghost'}
-              size="icon"
-              className="h-4 w-4"
+              className={`h-[31px] w-[31px] min-w-[31px] p-0 m-0 flex items-center justify-center rounded-none ${
+                speed === 3 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent/20'
+              }`}
               title="3x speed"
             >
               <div className="flex items-center -space-x-1">
-                <PlayIcon size={5} />
-                <PlayIcon size={5} />
+                <PlayIcon size={10} />
+                <PlayIcon size={10} />
               </div>
-            </Button>
+            </button>
           </div>
 
-          {/* Right: Share button */}
-          <Button
-            onClick={handleShare}
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-          >
-            {shareState === 'copied' ? (
-              <CheckIcon size={14} className="text-green-500" />
-            ) : (
-              <ShareIcon size={14} />
-            )}
-          </Button>
         </div>
 
         {/* Demand indicators row */}

@@ -194,14 +194,14 @@ export const TopBar = React.memo(function TopBar() {
           </div>
         </div>
         
-        <div className="flex items-center gap-1 bg-secondary rounded-md p-1">
+        <div className="flex items-center gap-0 bg-secondary rounded-md p-0">
           {[0, 1, 2, 3].map(s => (
             <Button
               key={s}
               onClick={() => setSpeed(s as 0 | 1 | 2 | 3)}
               variant={speed === s ? 'default' : 'ghost'}
               size="icon-sm"
-              className="h-7 w-7"
+              className="h-7 w-7 p-0 m-0"
               title={s === 0 ? 'Pause' : s === 1 ? 'Normal' : s === 2 ? 'Fast' : 'Very Fast'}
             >
               {s === 0 ? <PauseIcon size={14} /> : 
