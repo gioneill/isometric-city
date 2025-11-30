@@ -133,17 +133,15 @@ export function SettingsPanel() {
           <div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">Game Settings</div>
             
-            <div className="flex items-start justify-between gap-4 py-2">
+            <div className="flex items-center justify-between py-2 gap-4">
               <div className="flex-1 min-w-0">
                 <Label>Disasters</Label>
                 <p className="text-muted-foreground text-xs">Enable random fires and disasters</p>
               </div>
-              <div className="flex-shrink-0 pt-1">
-                <Switch
-                  checked={disastersEnabled}
-                  onCheckedChange={setDisastersEnabled}
-                />
-              </div>
+              <Switch
+                checked={disastersEnabled}
+                onCheckedChange={setDisastersEnabled}
+              />
             </div>
             
             <div className="py-2">
@@ -354,7 +352,7 @@ export function SettingsPanel() {
               </div>
             ) : (
               <p className="text-muted-foreground text-xs text-center py-4 border border-dashed rounded-md">
-                No saved cities yet. Click &quot;Save&quot; to create your first save slot.
+                No saved cities yet.
               </p>
             )}
           </div>

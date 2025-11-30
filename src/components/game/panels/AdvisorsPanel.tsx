@@ -47,9 +47,9 @@ export function AdvisorsPanel() {
         </DialogHeader>
         
         <div className="space-y-4">
-          <Card className="flex items-center gap-4 p-4">
+          <Card className="flex items-center gap-4 p-4 bg-primary/10 border-primary/30">
             <div 
-              className={`w-16 h-16 flex items-center justify-center text-3xl font-black rounded-md ${gradeColor} bg-secondary`}
+              className={`w-16 h-16 flex items-center justify-center text-3xl font-black rounded-md ${gradeColor} bg-primary/20`}
             >
               {grade}
             </div>
@@ -60,16 +60,16 @@ export function AdvisorsPanel() {
           </Card>
           
           <ScrollArea className="max-h-[350px]">
-            <div className="space-y-3 pr-4">
+            <div className="space-y-3">
               {advisorMessages.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+                <Card className="text-center py-8 text-muted-foreground bg-primary/10 border-primary/30">
                   <AdvisorIcon size={32} className="mx-auto mb-3 opacity-50" />
                   <div className="text-sm">No urgent issues to report!</div>
                   <div className="text-xs mt-1">Your city is running smoothly.</div>
-                </div>
+                </Card>
               ) : (
                 advisorMessages.map((advisor, i) => (
-                  <Card key={i} className={`p-3 ${
+                  <Card key={i} className={`p-3 bg-primary/10 border-primary/30 ${
                     advisor.priority === 'critical' ? 'border-l-2 border-l-red-500' :
                     advisor.priority === 'high' ? 'border-l-2 border-l-amber-500' :
                     advisor.priority === 'medium' ? 'border-l-2 border-l-yellow-500' : ''

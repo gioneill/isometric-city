@@ -90,32 +90,32 @@ export function StatisticsPanel() {
         </DialogHeader>
         
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-3">
-            <Card className="p-3">
-              <div className="text-muted-foreground text-xs mb-1">Population</div>
-              <div className="font-mono tabular-nums font-semibold text-green-400">{stats.population.toLocaleString()}</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            <Card className="p-2 sm:p-3">
+              <div className="text-muted-foreground text-[10px] sm:text-xs mb-1">Population</div>
+              <div className="font-mono tabular-nums font-semibold text-green-400 text-sm sm:text-base truncate">{stats.population.toLocaleString()}</div>
             </Card>
-            <Card className="p-3">
-              <div className="text-muted-foreground text-xs mb-1">Jobs</div>
-              <div className="font-mono tabular-nums font-semibold text-blue-400">{stats.jobs.toLocaleString()}</div>
+            <Card className="p-2 sm:p-3">
+              <div className="text-muted-foreground text-[10px] sm:text-xs mb-1">Jobs</div>
+              <div className="font-mono tabular-nums font-semibold text-blue-400 text-sm sm:text-base truncate">{stats.jobs.toLocaleString()}</div>
             </Card>
-            <Card className="p-3">
-              <div className="text-muted-foreground text-xs mb-1">Treasury</div>
-              <div className="font-mono tabular-nums font-semibold text-amber-400">${stats.money.toLocaleString()}</div>
+            <Card className="p-2 sm:p-3">
+              <div className="text-muted-foreground text-[10px] sm:text-xs mb-1">Treasury</div>
+              <div className="font-mono tabular-nums font-semibold text-amber-400 text-sm sm:text-base truncate">${stats.money.toLocaleString()}</div>
             </Card>
-            <Card className="p-3">
-              <div className="text-muted-foreground text-xs mb-1">Weekly</div>
-              <div className={`font-mono tabular-nums font-semibold ${stats.income - stats.expenses >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <Card className="p-2 sm:p-3">
+              <div className="text-muted-foreground text-[10px] sm:text-xs mb-1">Weekly</div>
+              <div className={`font-mono tabular-nums font-semibold text-sm sm:text-base truncate ${stats.income - stats.expenses >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 ${Math.floor((stats.income - stats.expenses) / 4).toLocaleString()}
               </div>
             </Card>
           </div>
           
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="population">Population</TabsTrigger>
-              <TabsTrigger value="money">Money</TabsTrigger>
-              <TabsTrigger value="happiness">Happiness</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 h-auto">
+              <TabsTrigger value="population" className="text-xs sm:text-sm py-2 px-2 sm:px-3">Population</TabsTrigger>
+              <TabsTrigger value="money" className="text-xs sm:text-sm py-2 px-2 sm:px-3">Money</TabsTrigger>
+              <TabsTrigger value="happiness" className="text-xs sm:text-sm py-2 px-2 sm:px-3">Happiness</TabsTrigger>
             </TabsList>
           </Tabs>
           

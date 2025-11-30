@@ -107,7 +107,7 @@ export function MobileTopBar({
     <>
       {/* Main Top Bar */}
       <Card className="fixed top-0 left-0 right-0 z-40 rounded-none border-x-0 border-t-0 bg-card/95 backdrop-blur-sm safe-area-top">
-        <div className="flex items-start justify-between px-3 pt-2">
+        <div className="flex items-start justify-between px-3 py-1.5">
           {/* Left: City name and date */}
           <button
             className="flex flex-col items-start min-w-0 active:opacity-70 p-0 m-0"
@@ -143,45 +143,45 @@ export function MobileTopBar({
           </div>
 
           {/* Speed controls and exit button */}
-          <div className="flex items-center gap-1 -mt-1.5">
-            <div className="flex items-center gap-0 bg-secondary rounded-sm h-7 overflow-hidden p-0 m-0">
+          <div className="flex items-center gap-1 -mt-0.5">
+            <div className="flex items-center gap-0 bg-secondary rounded-sm h-6 overflow-hidden p-0 m-0">
               <button
                 onClick={() => setSpeed(0)}
-                className={`h-7 w-7 min-w-7 p-0 m-0 flex items-center justify-center rounded-none ${
+                className={`h-6 w-6 min-w-6 p-0 m-0 flex items-center justify-center rounded-none ${
                   speed === 0 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent/20'
                 }`}
                 title="Pause"
               >
-                <PauseIcon size={14} />
+                <PauseIcon size={12} />
               </button>
               <button
                 onClick={() => setSpeed(1)}
-                className={`h-7 w-7 min-w-7 p-0 m-0 flex items-center justify-center rounded-none ${
+                className={`h-6 w-6 min-w-6 p-0 m-0 flex items-center justify-center rounded-none ${
                   speed === 1 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent/20'
                 }`}
                 title="Normal speed"
               >
-                <PlayIcon size={14} />
+                <PlayIcon size={12} />
               </button>
               <button
                 onClick={() => setSpeed(2)}
-                className={`h-7 w-7 min-w-7 p-0 m-0 flex items-center justify-center rounded-none ${
+                className={`h-6 w-6 min-w-6 p-0 m-0 flex items-center justify-center rounded-none ${
                   speed === 2 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent/20'
                 }`}
                 title="2x speed"
               >
-                <FastForwardIcon size={14} />
+                <FastForwardIcon size={12} />
               </button>
               <button
                 onClick={() => setSpeed(3)}
-                className={`h-7 w-7 min-w-7 p-0 m-0 flex items-center justify-center rounded-none ${
+                className={`h-6 w-6 min-w-6 p-0 m-0 flex items-center justify-center rounded-none ${
                   speed === 3 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent/20'
                 }`}
                 title="3x speed"
               >
                 <div className="flex items-center -space-x-1">
-                  <PlayIcon size={9} />
-                  <PlayIcon size={9} />
+                  <PlayIcon size={8} />
+                  <PlayIcon size={8} />
                 </div>
               </button>
             </div>
@@ -190,11 +190,11 @@ export function MobileTopBar({
             {onExit && (
               <button
                 onClick={() => setShowExitDialog(true)}
-                className="h-7 w-6 p-0 m-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                className="h-6 w-5 p-0 m-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
                 title="Exit to Main Menu"
               >
                 <svg 
-                  className="w-3.5 h-3.5" 
+                  className="w-3 h-3" 
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
