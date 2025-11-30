@@ -90,11 +90,29 @@ function getPlaneSprite(
   const tileWidth = spriteWidth / AIRPLANE_SPRITE_COLS;
   const tileHeight = spriteHeight / AIRPLANE_SPRITE_ROWS;
   
-  // Crop adjustments for specific plane types
+  // Crop adjustments for specific plane types and directions
   let topCrop = 0;
   let bottomCrop = 0;
+  if (planeType === '777') {
+    // Column 3 (North-facing) has overlap with row above (737)
+    if (dirInfo.col === 3) {
+      topCrop = 70;
+      bottomCrop = -70; // Extend reading area downward to compensate
+    } else {
+      topCrop = 8;
+    }
+  }
   if (planeType === '747') {
-    topCrop = 8; // Pixels to crop from top to remove artifact from row above
+    // Column 3 (North-facing) has severe overlap with row above (777)
+    if (dirInfo.col === 3) {
+      topCrop = 70;
+      bottomCrop = -70; // Extend reading area downward to compensate
+    } else {
+      topCrop = 8;
+    }
+  }
+  if (planeType === 'g650') {
+    topCrop = 12; // Pixels to crop from top to remove artifact from row above
   }
   if (planeType === 'seaplane') {
     topCrop = 120; // Crop from top to remove artifact from row above
