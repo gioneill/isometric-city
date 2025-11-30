@@ -6,8 +6,10 @@ import { GameProvider } from '@/context/GameContext';
 import Game from '@/components/Game';
 import { useMobile } from '@/hooks/useMobile';
 import { getSpritePack, getSpriteCoords, DEFAULT_SPRITE_PACK_ID } from '@/lib/renderConfig';
+import { SavedCityMeta } from '@/types/game';
 
 const STORAGE_KEY = 'isocity-game-state';
+const SAVED_CITIES_INDEX_KEY = 'isocity-saved-cities-index';
 
 // Background color to filter from sprite sheets (red)
 const BACKGROUND_COLOR = { r: 255, g: 0, b: 0 };
@@ -69,6 +71,23 @@ function hasSavedGame(): boolean {
     return false;
   }
   return false;
+}
+
+// Load saved cities index from localStorage
+function loadSavedCities(): SavedCityMeta[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const saved = localStorage.getItem(SAVED_CITIES_INDEX_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed as SavedCityMeta[];
+      }
+    }
+  } catch {
+    return [];
+  }
+  return [];
 }
 
 // Sprite Gallery component that renders sprites using canvas (like SpriteTestPanel)
@@ -193,9 +212,30 @@ function SpriteGallery({ count = 16, cols = 4 }: { count?: number; cols?: number
   );
 }
 
+// Saved City Card Component
+function SavedCityCard({ city, onLoad }: { city: SavedCityMeta; onLoad: () => void }) {
+  return (
+    <button
+      onClick={onLoad}
+      className="w-full text-left p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-none transition-all duration-200 group"
+    >
+      <h3 className="text-white font-medium truncate group-hover:text-white/90 text-sm">
+        {city.cityName}
+      </h3>
+      <div className="flex items-center gap-3 mt-1 text-xs text-white/50">
+        <span>Pop: {city.population.toLocaleString()}</span>
+        <span>${city.money.toLocaleString()}</span>
+      </div>
+    </button>
+  );
+}
+
+const SAVED_CITY_PREFIX = 'isocity-city-';
+
 export default function HomePage() {
   const [showGame, setShowGame] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [savedCities, setSavedCities] = useState<SavedCityMeta[]>([]);
   const { isMobileDevice, isSmallScreen } = useMobile();
   const isMobile = isMobileDevice || isSmallScreen;
 
@@ -203,6 +243,7 @@ export default function HomePage() {
   useEffect(() => {
     const checkSavedGame = () => {
       setIsChecking(false);
+      setSavedCities(loadSavedCities());
       if (hasSavedGame()) {
         setShowGame(true);
       }
@@ -210,6 +251,25 @@ export default function HomePage() {
     // Use requestAnimationFrame to avoid synchronous setState in effect
     requestAnimationFrame(checkSavedGame);
   }, []);
+
+  // Handle exit from game - refresh saved cities list
+  const handleExitGame = () => {
+    setShowGame(false);
+    setSavedCities(loadSavedCities());
+  };
+
+  // Load a saved city
+  const loadSavedCity = (cityId: string) => {
+    try {
+      const saved = localStorage.getItem(SAVED_CITY_PREFIX + cityId);
+      if (saved) {
+        localStorage.setItem(STORAGE_KEY, saved);
+        setShowGame(true);
+      }
+    } catch {
+      console.error('Failed to load saved city');
+    }
+  };
 
   if (isChecking) {
     return (
@@ -223,7 +283,7 @@ export default function HomePage() {
     return (
       <GameProvider>
         <main className="h-screen w-screen overflow-hidden">
-          <Game />
+          <Game onExit={handleExitGame} />
         </main>
       </GameProvider>
     );
@@ -232,16 +292,18 @@ export default function HomePage() {
   // Mobile landing page
   if (isMobile) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 safe-area-top safe-area-bottom">
+      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 safe-area-top safe-area-bottom overflow-y-auto">
         {/* Title */}
         <h1 className="text-5xl sm:text-6xl font-light tracking-wider text-white/90 mb-6">
           IsoCity
         </h1>
         
-        {/* Sprite Gallery */}
-        <div className="mb-6">
-          <SpriteGallery count={9} cols={3} />
-        </div>
+        {/* Sprite Gallery - hide if there are saved cities to save space */}
+        {savedCities.length === 0 && (
+          <div className="mb-6">
+            <SpriteGallery count={9} cols={3} />
+          </div>
+        )}
         
         {/* Buttons */}
         <div className="flex flex-col gap-3 w-full max-w-xs">
@@ -264,6 +326,24 @@ export default function HomePage() {
             Load Example
           </Button>
         </div>
+        
+        {/* Saved Cities */}
+        {savedCities.length > 0 && (
+          <div className="w-full max-w-xs mt-4">
+            <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+              Saved Cities
+            </h2>
+            <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+              {savedCities.slice(0, 5).map((city) => (
+                <SavedCityCard
+                  key={city.id}
+                  city={city}
+                  onLoad={() => loadSavedCity(city.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     );
   }
@@ -297,6 +377,24 @@ export default function HomePage() {
               Load Example
             </Button>
           </div>
+          
+          {/* Saved Cities */}
+          {savedCities.length > 0 && (
+            <div className="w-64">
+              <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+                Saved Cities
+              </h2>
+              <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                {savedCities.slice(0, 5).map((city) => (
+                  <SavedCityCard
+                    key={city.id}
+                    city={city}
+                    onLoad={() => loadSavedCity(city.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right - Sprite Gallery */}

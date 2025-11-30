@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useGame } from '@/context/GameContext';
 import { Tile } from '@/types/game';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,14 @@ import {
   EnvironmentIcon,
   CloseIcon,
 } from '@/components/ui/Icons';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // Sun/Moon icon for time of day
 function TimeOfDayIcon({ hour }: { hour: number }) {
@@ -69,15 +77,29 @@ function DemandBar({ label, demand, color }: { label: string; demand: number; co
 export function MobileTopBar({ 
   selectedTile, 
   services, 
-  onCloseTile 
+  onCloseTile,
+  onExit,
 }: { 
   selectedTile: Tile | null;
   services: { police: number[][]; fire: number[][]; health: number[][]; education: number[][]; power: boolean[][]; water: boolean[][] };
   onCloseTile: () => void;
+  onExit?: () => void;
 }) {
-  const { state, setSpeed, setTaxRate, isSaving, visualHour } = useGame();
+  const { state, setSpeed, setTaxRate, isSaving, visualHour, saveCity } = useGame();
   const { stats, year, month, speed, taxRate, cityName } = state;
   const [showDetails, setShowDetails] = useState(false);
+  const [showExitDialog, setShowExitDialog] = useState(false);
+
+  const handleSaveAndExit = useCallback(() => {
+    saveCity();
+    setShowExitDialog(false);
+    onExit?.();
+  }, [saveCity, onExit]);
+
+  const handleExitWithoutSaving = useCallback(() => {
+    setShowExitDialog(false);
+    onExit?.();
+  }, [onExit]);
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -164,6 +186,24 @@ export function MobileTopBar({
               </div>
             </button>
           </div>
+
+          {/* Exit button */}
+          {onExit && (
+            <button
+              onClick={() => setShowExitDialog(true)}
+              className="h-[31px] w-[31px] min-w-[31px] p-0 m-0 ml-1 flex items-center justify-center rounded-sm bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent/20"
+              title="Exit to Main Menu"
+            >
+              <svg 
+                className="w-4 h-4" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          )}
 
         </div>
 
@@ -363,6 +403,33 @@ export function MobileTopBar({
           </Card>
         </div>
       )}
+
+      {/* Exit confirmation dialog */}
+      <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Exit to Main Menu</DialogTitle>
+            <DialogDescription>
+              Would you like to save your city before exiting?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExitWithoutSaving}
+              className="w-full sm:w-auto"
+            >
+              Exit Without Saving
+            </Button>
+            <Button
+              onClick={handleSaveAndExit}
+              className="w-full sm:w-auto"
+            >
+              Save & Exit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

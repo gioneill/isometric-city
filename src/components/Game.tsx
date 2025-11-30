@@ -31,7 +31,7 @@ import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
 // Cargo type names for notifications
 const CARGO_TYPE_NAMES = ['containers', 'bulk materials', 'oil'];
 
-export default function Game() {
+export default function Game({ onExit }: { onExit?: () => void }) {
   const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
@@ -214,6 +214,7 @@ export default function Game() {
             selectedTile={selectedTile && state.selectedTool === 'select' ? state.grid[selectedTile.y][selectedTile.x] : null}
             services={state.services}
             onCloseTile={() => setSelectedTile(null)}
+            onExit={onExit}
           />
           
           {/* Main canvas area - fills remaining space, with padding for top/bottom bars */}
@@ -250,7 +251,7 @@ export default function Game() {
   return (
     <TooltipProvider>
       <div className="w-full h-full min-h-[720px] overflow-hidden bg-background flex">
-        <Sidebar />
+        <Sidebar onExit={onExit} />
         
         <div className="flex-1 flex flex-col">
           <TopBar />

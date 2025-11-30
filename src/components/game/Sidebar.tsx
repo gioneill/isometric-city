@@ -12,6 +12,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { openCommandMenu } from '@/components/ui/CommandMenu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // Hover Submenu Component for collapsible tool categories
 // Implements triangle-rule safe zone for forgiving cursor navigation
@@ -218,10 +226,63 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
   );
 });
 
+// Exit confirmation dialog component
+function ExitDialog({ 
+  open, 
+  onOpenChange, 
+  onSaveAndExit, 
+  onExitWithoutSaving 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+  onSaveAndExit: () => void;
+  onExitWithoutSaving: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Exit to Main Menu</DialogTitle>
+          <DialogDescription>
+            Would you like to save your city before exiting?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={onExitWithoutSaving}
+            className="w-full sm:w-auto"
+          >
+            Exit Without Saving
+          </Button>
+          <Button
+            onClick={onSaveAndExit}
+            className="w-full sm:w-auto"
+          >
+            Save & Exit
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Memoized Sidebar Component
-export const Sidebar = React.memo(function Sidebar() {
-  const { state, setTool, setActivePanel } = useGame();
+export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => void }) {
+  const { state, setTool, setActivePanel, saveCity } = useGame();
   const { selectedTool, stats, activePanel } = state;
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  
+  const handleSaveAndExit = useCallback(() => {
+    saveCity();
+    setShowExitDialog(false);
+    onExit?.();
+  }, [saveCity, onExit]);
+  
+  const handleExitWithoutSaving = useCallback(() => {
+    setShowExitDialog(false);
+    onExit?.();
+  }, [onExit]);
   
   // Direct tool categories (shown inline)
   const directCategories = useMemo(() => ({
@@ -280,22 +341,42 @@ export const Sidebar = React.memo(function Sidebar() {
       <div className="px-4 py-4 border-b border-sidebar-border">
         <div className="flex items-center justify-between">
           <span className="text-sidebar-foreground font-bold tracking-tight">ISOCITY</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={openCommandMenu}
-            title="Search (⌘K)"
-            className="h-7 w-7 text-muted-foreground hover:text-sidebar-foreground"
-          >
-            <svg 
-              className="w-4 h-4" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={openCommandMenu}
+              title="Search (⌘K)"
+              className="h-7 w-7 text-muted-foreground hover:text-sidebar-foreground"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </Button>
+              <svg 
+                className="w-4 h-4" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </Button>
+            {onExit && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowExitDialog(true)}
+                title="Exit to Main Menu"
+                className="h-7 w-7 text-muted-foreground hover:text-sidebar-foreground"
+              >
+                <svg 
+                  className="w-4 h-4" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
       
@@ -380,6 +461,13 @@ export const Sidebar = React.memo(function Sidebar() {
           ))}
         </div>
       </div>
+      
+      <ExitDialog
+        open={showExitDialog}
+        onOpenChange={setShowExitDialog}
+        onSaveAndExit={handleSaveAndExit}
+        onExitWithoutSaving={handleExitWithoutSaving}
+      />
     </div>
   );
 });
