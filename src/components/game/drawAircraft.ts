@@ -97,7 +97,7 @@ function getPlaneSprite(
     topCrop = 8; // Pixels to crop from top to remove artifact from row above
   }
   if (planeType === 'seaplane') {
-    topCrop = 12; // Pixels to crop from top to remove artifact from row above
+    topCrop = 120; // Crop from top to remove artifact from row above
   }
   
   return {

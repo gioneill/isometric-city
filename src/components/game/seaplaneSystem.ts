@@ -181,8 +181,15 @@ export function useSeaplaneSystem(
           // Taxi around on water like a boat
           seaplane.taxiTime -= delta;
           
-          // Gentle random turning while taxiing
-          if (Math.random() < 0.02) {
+          // Calculate distance from bay center
+          const distFromCenter = Math.hypot(seaplane.x - seaplane.bayScreenX, seaplane.y - seaplane.bayScreenY);
+          const angleToBayCenter = Math.atan2(seaplane.bayScreenY - seaplane.y, seaplane.bayScreenX - seaplane.x);
+          
+          // If too far from center (>100px), steer back toward center
+          if (distFromCenter > 100) {
+            seaplane.targetAngle = angleToBayCenter + (Math.random() - 0.5) * 0.5; // Slight randomness
+          } else if (Math.random() < 0.02) {
+            // Gentle random turning while taxiing near center
             seaplane.targetAngle = seaplane.angle + (Math.random() - 0.5) * Math.PI / 2;
           }
           
@@ -198,8 +205,8 @@ export function useSeaplaneSystem(
           
           // Check if next position is over water
           if (!isOverWaterCallback(nextX, nextY)) {
-            // Turn around if about to leave water
-            seaplane.targetAngle = seaplane.angle + Math.PI;
+            // Turn toward bay center if about to leave water
+            seaplane.targetAngle = angleToBayCenter;
             nextX = seaplane.x;
             nextY = seaplane.y;
           }
@@ -218,12 +225,12 @@ export function useSeaplaneSystem(
             });
           }
           
-          // Time to take off
+          // Time to take off - head toward bay center first
           if (seaplane.taxiTime <= 0) {
             seaplane.state = 'taking_off';
             seaplane.speed = SEAPLANE_TAKEOFF_SPEED;
-            // Pick a random takeoff direction
-            seaplane.angle = Math.random() * Math.PI * 2;
+            // Take off toward bay center (so we stay over water longer)
+            seaplane.angle = angleToBayCenter + (Math.random() - 0.5) * 0.8; // Slight randomness
             seaplane.targetAngle = seaplane.angle;
           }
           break;
