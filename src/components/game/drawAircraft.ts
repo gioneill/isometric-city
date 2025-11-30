@@ -905,7 +905,7 @@ export function drawSeaplanes(
       ctx.restore();
     }
 
-    // Draw contrails (when flying at altitude)
+    // Draw contrails (when flying at altitude) - smaller than regular planes
     if (seaplane.contrail.length > 0 && seaplane.altitude > 0.5) {
       ctx.save();
       for (const particle of seaplane.contrail) {
@@ -919,8 +919,8 @@ export function drawSeaplanes(
           continue;
         }
 
-        const size = 3 + particle.age * 8;
-        const opacity = particle.opacity * 0.4 * seaplane.altitude;
+        const size = 2 + particle.age * 5; // Smaller contrails for seaplanes
+        const opacity = particle.opacity * 0.35 * seaplane.altitude;
 
         ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
         ctx.beginPath();

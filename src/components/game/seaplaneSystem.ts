@@ -163,9 +163,9 @@ export function useSeaplaneSystem(
         seaplane.stateProgress += delta;
         if (seaplane.stateProgress >= contrailSpawnInterval) {
           seaplane.stateProgress -= contrailSpawnInterval;
-          // Single contrail particle - offset behind plane and down
-          const behindOffset = 15; // Distance behind the plane
-          const downOffset = 8; // Vertical offset down
+          // Single contrail particle - offset behind plane
+          const behindOffset = 25; // Distance behind the plane
+          const downOffset = -2; // Vertical offset up
           const contrailX = seaplane.x - Math.cos(seaplane.angle) * behindOffset;
           const contrailY = seaplane.y - Math.sin(seaplane.angle) * behindOffset + downOffset;
           seaplane.contrail.push({ x: contrailX, y: contrailY, age: 0, opacity: 1 });

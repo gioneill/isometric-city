@@ -203,7 +203,7 @@ export function useAircraftSystems(
         if (plane.stateProgress >= contrailSpawnInterval) {
           plane.stateProgress -= contrailSpawnInterval;
           // Single centered contrail particle - offset behind plane and down
-          const behindOffset = 28; // Distance behind the plane
+          const behindOffset = 40; // Distance behind the plane
           const downOffset = 8; // Vertical offset down
           const contrailX = plane.x - Math.cos(plane.angle) * behindOffset;
           const contrailY = plane.y - Math.sin(plane.angle) * behindOffset + downOffset;
