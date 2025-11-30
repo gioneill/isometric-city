@@ -929,7 +929,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     queues.baseTileQueue.length = 0;
     queues.greenBaseTileQueue.length = 0;
     queues.overlayQueue.length = 0;
-    
+
     const buildingQueue = queues.buildingQueue;
     const waterQueue = queues.waterQueue;
     const roadQueue = queues.roadQueue;
