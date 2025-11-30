@@ -85,19 +85,18 @@ export const PLANE_DIRECTION_COLS: Record<string, { col: number; mirrorX: boolea
   // Mirrored/rotated sprites for opposite directions
   'e': { col: 2, mirrorX: true, mirrorY: false, baseAngle: 0 },                           // 0° - East (mirror of W)
   's': { col: 3, mirrorX: false, mirrorY: true, baseAngle: Math.PI / 2 },                 // 90° - South (vertical flip of N)
-  // NW and NE use the N sprite (top-down view) with rotation
-  // N sprite faces 270°, so baseAngle = 270° and rotation naturally adjusts to target
-  'nw': { col: 3, mirrorX: false, mirrorY: false, baseAngle: (3 * Math.PI) / 2 },          // 270° - N sprite, rotation handles direction
-  'ne': { col: 3, mirrorX: false, mirrorY: false, baseAngle: (3 * Math.PI) / 2 },          // 270° - N sprite, rotation handles direction
+  // NW uses SE sprite (col 0) mirrored horizontally, NE uses SW sprite (col 1) mirrored horizontally
+  'nw': { col: 0, mirrorX: true, mirrorY: false, baseAngle: (3 * Math.PI) / 4 + 0.26 },    // ~150° - horizontal flip of SE, +15° CCW adjustment
+  'ne': { col: 1, mirrorX: true, mirrorY: false, baseAngle: Math.PI / 4 - 0.26 },          // ~30° - horizontal flip of SW, +15° clockwise adjustment
 };
 // Plane scale factors by type (larger planes are bigger)
-// Scaled down 30% from previous values
+// Scaled down 20% from previous values
 export const PLANE_SCALES: Record<string, number> = {
-  '737': 0.19,
-  '777': 0.23,
-  '747': 0.245,
-  'a380': 0.28,
-  'g650': 0.14,
+  '737': 0.152,
+  '777': 0.184,
+  '747': 0.196,
+  'a380': 0.224,
+  'g650': 0.112,
 };
 
 // Helicopter system constants

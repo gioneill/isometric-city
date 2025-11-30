@@ -231,6 +231,7 @@ export function drawAirplanes(
 /**
  * Draw navigation lights on top of the plane sprite
  * Draws in world space using the plane's actual flight angle
+ * Only shows lights that would be visible based on plane orientation
  */
 function drawNavigationLights(
   ctx: CanvasRenderingContext2D,
@@ -246,60 +247,112 @@ function drawNavigationLights(
   const beaconOn = Math.sin(navLightFlashTimer * 4) > 0.7;
   
   // Light sizes in world space
-  const lightSize = isMobile ? 2.5 : 2;
+  const lightSize = isMobile ? 1.25 : 1;
   const glowSize = lightSize * 1.8;
   
   // Offsets scaled by plane size
-  const wingOffset = 12 * scale;
+  const wingOffset = 36 * scale;
   const tailOffset = 15 * scale;
+  const forwardOffset = 12 * scale;
   
   // Calculate positions based on plane's flight angle
-  // perpAngle is 90° to the left of flight direction
   const perpAngle = plane.angle - Math.PI / 2;
   
-  // Wing positions (perpendicular to flight direction)
-  const leftWingX = plane.x + Math.cos(perpAngle) * wingOffset;
-  const leftWingY = plane.y + Math.sin(perpAngle) * wingOffset;
-  const rightWingX = plane.x - Math.cos(perpAngle) * wingOffset;
-  const rightWingY = plane.y - Math.sin(perpAngle) * wingOffset;
+  // Forward position (both lights start from same forward point)
+  const forwardX = plane.x + Math.cos(plane.angle) * forwardOffset;
+  const forwardY = plane.y + Math.sin(plane.angle) * forwardOffset;
+  
+  // Wing positions (perpendicular from the forward point)
+  const leftWingX = forwardX + Math.cos(perpAngle) * wingOffset;
+  const leftWingY = forwardY + Math.sin(perpAngle) * wingOffset;
+  const rightWingX = forwardX - Math.cos(perpAngle) * wingOffset;
+  const rightWingY = forwardY - Math.sin(perpAngle) * wingOffset;
   
   // Tail position (behind plane)
   const tailX = plane.x - Math.cos(plane.angle) * tailOffset;
   const tailY = plane.y - Math.sin(plane.angle) * tailOffset;
   
+  // Normalize angle to 0-2PI
+  let normalizedAngle = plane.angle % (Math.PI * 2);
+  if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
+  const degrees = (normalizedAngle * 180) / Math.PI;
+  
+  // Determine which lights are visible based on flight direction
+  // In isometric view, camera looks from bottom-right toward top-left
+  // Red (port/left) light visible when plane's left side faces camera
+  // Green (starboard/right) light visible when plane's right side faces camera
+  // Tail light visible when plane flies toward camera (south-ish)
+  
+  // Show red light when flying: E, SE, S, SW (right side of plane away from camera)
+  const showRedLight = degrees >= 315 || degrees < 135;
+  // Show green light when flying: W, NW, N, NE (left side of plane away from camera)  
+  const showGreenLight = degrees >= 135 && degrees < 315;
+  // Show tail light when flying north-ish (away from camera): NW, N, NE
+  const showTailLight = degrees >= 180 && degrees < 360;
+  
   ctx.save();
   
   // Red (port/left) nav light - left wingtip
-  ctx.fillStyle = '#ff3333';
-  if (!isMobile) {
-    ctx.shadowColor = '#ff0000';
-    ctx.shadowBlur = 12;
+  if (showRedLight) {
+    ctx.fillStyle = '#ff3333';
+    if (!isMobile) {
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 12;
+    }
+    ctx.beginPath();
+    ctx.arc(leftWingX, leftWingY, lightSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Strobe on red wing
+    if (strobeOn) {
+      ctx.fillStyle = '#ffffff';
+      if (!isMobile) {
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 25;
+      }
+      ctx.beginPath();
+      ctx.arc(leftWingX, leftWingY, glowSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
-  ctx.beginPath();
-  ctx.arc(leftWingX, leftWingY, lightSize, 0, Math.PI * 2);
-  ctx.fill();
 
   // Green (starboard/right) nav light - right wingtip
-  ctx.fillStyle = '#33ff33';
-  if (!isMobile) {
-    ctx.shadowColor = '#00ff00';
-    ctx.shadowBlur = 12;
+  if (showGreenLight) {
+    ctx.fillStyle = '#33ff33';
+    if (!isMobile) {
+      ctx.shadowColor = '#00ff00';
+      ctx.shadowBlur = 12;
+    }
+    ctx.beginPath();
+    ctx.arc(rightWingX, rightWingY, lightSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Strobe on green wing
+    if (strobeOn) {
+      ctx.fillStyle = '#ffffff';
+      if (!isMobile) {
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 25;
+      }
+      ctx.beginPath();
+      ctx.arc(rightWingX, rightWingY, glowSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
-  ctx.beginPath();
-  ctx.arc(rightWingX, rightWingY, lightSize, 0, Math.PI * 2);
-  ctx.fill();
 
-  // White tail light
-  ctx.fillStyle = '#ffffff';
-  if (!isMobile) {
-    ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 8;
+  // White tail light - visible when flying away
+  if (showTailLight) {
+    ctx.fillStyle = '#ffffff';
+    if (!isMobile) {
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 8;
+    }
+    ctx.beginPath();
+    ctx.arc(tailX, tailY, lightSize * 0.8, 0, Math.PI * 2);
+    ctx.fill();
   }
-  ctx.beginPath();
-  ctx.arc(tailX, tailY, lightSize * 0.8, 0, Math.PI * 2);
-  ctx.fill();
 
-  // Red beacon (flashing) - on fuselage center
+  // Red beacon (flashing) - always visible on fuselage
   if (beaconOn) {
     ctx.fillStyle = '#ff4444';
     if (!isMobile) {
@@ -308,21 +361,6 @@ function drawNavigationLights(
     }
     ctx.beginPath();
     ctx.arc(plane.x, plane.y, lightSize, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // White strobe lights on wingtips (rapid flash)
-  if (strobeOn) {
-    ctx.fillStyle = '#ffffff';
-    if (!isMobile) {
-      ctx.shadowColor = '#ffffff';
-      ctx.shadowBlur = 25;
-    }
-    ctx.beginPath();
-    ctx.arc(leftWingX, leftWingY, glowSize, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(rightWingX, rightWingY, glowSize, 0, Math.PI * 2);
     ctx.fill();
   }
 
