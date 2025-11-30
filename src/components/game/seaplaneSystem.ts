@@ -95,9 +95,9 @@ export function useSeaplaneSystem(
     }
 
     // Calculate max seaplanes based on population and bay count
-    const populationBased = Math.floor(totalPopulation / 3000);
-    const bayBased = Math.floor(bays.length * 3);
-    const maxSeaplanes = Math.min(MAX_SEAPLANES, Math.max(2, Math.min(populationBased, bayBased)));
+    const populationBased = Math.floor(totalPopulation / 2000);
+    const bayBased = Math.floor(bays.length * 5);
+    const maxSeaplanes = Math.min(MAX_SEAPLANES, Math.max(3, Math.min(populationBased, bayBased)));
     
     // Speed multiplier based on game speed
     const speedMultiplier = currentSpeed === 1 ? 1 : currentSpeed === 2 ? 1.5 : 2;

@@ -791,9 +791,8 @@ export interface BayInfo {
 }
 
 /**
- * Find all bays (large inland water bodies) suitable for seaplane operations
- * A bay is a connected body of water that is NOT connected to the ocean (map edges)
- * and has at least minSize tiles
+ * Find all water bodies (both inland lakes and ocean-connected bays) suitable for seaplane operations
+ * Includes both inland water bodies and large ocean-connected areas
  */
 export function findBays(
   grid: Tile[][],
@@ -802,55 +801,11 @@ export function findBays(
 ): BayInfo[] {
   if (!grid || gridSize <= 0) return [];
 
-  // First, find all water tiles connected to edges (ocean)
-  const oceanWaterTiles = new Set<string>();
-  const visitedOcean = new Set<string>();
-  const oceanQueue: { x: number; y: number }[] = [];
-
-  // Start BFS from all edge water tiles
-  for (let i = 0; i < gridSize; i++) {
-    const edgeTiles = [
-      { x: 0, y: i },
-      { x: gridSize - 1, y: i },
-      { x: i, y: 0 },
-      { x: i, y: gridSize - 1 },
-    ];
-    
-    for (const tile of edgeTiles) {
-      if (grid[tile.y][tile.x].building.type === 'water') {
-        const key = `${tile.x},${tile.y}`;
-        if (!visitedOcean.has(key)) {
-          oceanQueue.push(tile);
-          visitedOcean.add(key);
-        }
-      }
-    }
-  }
-
-  // BFS to mark all ocean-connected water
   const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-  while (oceanQueue.length > 0) {
-    const { x, y } = oceanQueue.shift()!;
-    oceanWaterTiles.add(`${x},${y}`);
-
-    for (const [dx, dy] of directions) {
-      const nx = x + dx;
-      const ny = y + dy;
-      const key = `${nx},${ny}`;
-      
-      if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize && !visitedOcean.has(key)) {
-        if (grid[ny][nx].building.type === 'water') {
-          visitedOcean.add(key);
-          oceanQueue.push({ x: nx, y: ny });
-        }
-      }
-    }
-  }
-
-  // Now find all inland water bodies (not connected to ocean)
-  const visitedAll = new Set<string>(oceanWaterTiles); // Start with ocean tiles as visited
+  const visitedAll = new Set<string>();
   const bays: BayInfo[] = [];
 
+  // Find ALL connected water bodies (both inland and ocean-connected)
   for (let y = 0; y < gridSize; y++) {
     for (let x = 0; x < gridSize; x++) {
       const key = `${x},${y}`;
@@ -860,7 +815,7 @@ export function findBays(
         continue;
       }
 
-      // BFS to find this inland water body
+      // BFS to find this water body
       const bayTiles: { x: number; y: number }[] = [];
       const bayQueue: { x: number; y: number }[] = [{ x, y }];
       visitedAll.add(key);

@@ -96,7 +96,7 @@ export const PLANE_DIRECTION_COLS: Record<string, { col: number; mirrorX: boolea
 export const COL1_OVERRIDE_PLANE_TYPES = ['seaplane', 'g650'];
 export const COL1_DIRECTION_OVERRIDES: Record<string, { col: number; mirrorX: boolean; mirrorY: boolean; baseAngle: number }> = {
   'ne': { col: 3, mirrorX: true, mirrorY: false, baseAngle: -Math.PI / 4 - 0.69 },        // Use N sprite rotated for NE
-  'se': { col: 3, mirrorX: true, mirrorY: true, baseAngle: (3 * Math.PI) / 4 - 0.26 },    // Use N sprite rotated for SE
+  'se': { col: 3, mirrorX: true, mirrorY: true, baseAngle: (3 * Math.PI) / 4 - 0.78 },    // Use N sprite rotated for SE (30° clockwise)
   'nw': { col: 3, mirrorX: false, mirrorY: true, baseAngle: (5 * Math.PI) / 4 + 0.26 },   // Use N sprite rotated for NW
 };
 // Plane scale factors by type (larger planes are bigger)
@@ -111,10 +111,10 @@ export const PLANE_SCALES: Record<string, number> = {
 };
 
 // Seaplane system constants
-export const SEAPLANE_MIN_POPULATION = 5000; // Minimum population for seaplanes
-export const SEAPLANE_MIN_BAY_SIZE = 15; // Minimum water tiles for a bay to support seaplanes
+export const SEAPLANE_MIN_POPULATION = 3000; // Minimum population for seaplanes
+export const SEAPLANE_MIN_BAY_SIZE = 12; // Minimum water tiles for a bay to support seaplanes
 export const SEAPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#f97316', '#059669']; // Seaplane liveries
-export const MAX_SEAPLANES = 12; // Maximum seaplanes in the city
+export const MAX_SEAPLANES = 25; // Maximum seaplanes in the city
 export const SEAPLANE_SPAWN_INTERVAL_MIN = 3; // Minimum seconds between spawns
 export const SEAPLANE_SPAWN_INTERVAL_MAX = 8; // Maximum seconds between spawns
 export const SEAPLANE_TAXI_TIME_MIN = 3; // Minimum seconds taxiing on water before takeoff
