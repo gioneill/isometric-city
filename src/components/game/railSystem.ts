@@ -1558,6 +1558,7 @@ export function drawCrossingSignal(
  * Draw a railroad crossing gate arm
  * Gate goes straight up when open (angle=0) and down when closed (angle=90)
  * @param swingDirOverride - Optional override for swing direction (1 = right, -1 = left)
+ * @param tiltOverride - Optional override for tilt angle when closed
  */
 export function drawCrossingGate(
   ctx: CanvasRenderingContext2D,
@@ -1566,7 +1567,8 @@ export function drawCrossingGate(
   position: 'nw' | 'ne' | 'sw' | 'se',
   gateAngle: number, // 0 = up (open), 90 = down (closed)
   zoom: number,
-  swingDirOverride?: number
+  swingDirOverride?: number,
+  tiltOverride?: number
 ): void {
   if (zoom < 0.6) return;
   
@@ -1596,7 +1598,8 @@ export function drawCrossingGate(
   // angle 0 = straight up (vertical)
   // angle 90 = horizontal (blocking road), but with tilt adjustment
   // Tilt is applied progressively as the gate closes
-  const tiltAmount = (gateAngle / 90) * offset.tilt; // Gradually apply tilt as gate closes
+  const tilt = tiltOverride ?? offset.tilt;
+  const tiltAmount = (gateAngle / 90) * tilt; // Gradually apply tilt as gate closes
   const effectiveAngle = gateAngle + tiltAmount;
   const angleRad = effectiveAngle * Math.PI / 180;
   
@@ -1681,9 +1684,9 @@ export function drawRailroadCrossing(
     drawCrossingSignal(ctx, x, y, 'sw', flashTimer, isActive, zoom);
     
     if (zoom >= 0.7) {
-      // NE swings right, SW swings left to block road
-      drawCrossingGate(ctx, x, y, 'ne', gateAngle, zoom, 1);
-      drawCrossingGate(ctx, x, y, 'sw', gateAngle, zoom, -1);
+      // NE swings right with down tilt, SW swings left with up tilt
+      drawCrossingGate(ctx, x, y, 'ne', gateAngle, zoom, 1, 30);   // tilt down
+      drawCrossingGate(ctx, x, y, 'sw', gateAngle, zoom, -1, -30); // tilt up
     }
   } else {
     // EW rail (goes top-right to bottom-left) - gates on NW and SE to block NS road traffic
