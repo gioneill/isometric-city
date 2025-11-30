@@ -3,10 +3,99 @@
  * Extracted from CanvasIsometricGrid for better modularity
  */
 
-import { Airplane, Helicopter, TILE_WIDTH, TILE_HEIGHT } from './types';
+import { Airplane, Helicopter, TILE_WIDTH, TILE_HEIGHT, PlaneType } from './types';
+import {
+  AIRPLANE_SPRITE_COLS,
+  AIRPLANE_SPRITE_ROWS,
+  PLANE_TYPE_ROWS,
+  PLANE_DIRECTION_COLS,
+  PLANE_SCALES,
+} from './constants';
+import { getCachedImage } from './imageLoader';
+
+// Cache key for the filtered planes sprite sheet
+const AIRPLANE_SPRITE_CACHE_KEY = '/assets/sprites_red_water_new_planes.png';
 
 /**
- * Draw airplanes with contrails
+ * Convert an angle (radians) to one of 8 compass directions
+ */
+function angleToDirection(angle: number): string {
+  // Normalize angle to 0-2PI
+  let normalizedAngle = angle % (Math.PI * 2);
+  if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
+  
+  // Convert to degrees for easier understanding
+  const degrees = (normalizedAngle * 180) / Math.PI;
+  
+  // Map to 8 directions (each direction covers 45 degrees)
+  // In isometric screen coords:
+  // - Right (+X) is East
+  // - Down (+Y) is South  
+  // - Angle 0 is East (right)
+  // - Angle PI/2 is South (down)
+  // - Angle PI is West (left)
+  // - Angle 3*PI/2 is North (up)
+  
+  if (degrees >= 337.5 || degrees < 22.5) return 'e';
+  if (degrees >= 22.5 && degrees < 67.5) return 'se';
+  if (degrees >= 67.5 && degrees < 112.5) return 's';
+  if (degrees >= 112.5 && degrees < 157.5) return 'sw';
+  if (degrees >= 157.5 && degrees < 202.5) return 'w';
+  if (degrees >= 202.5 && degrees < 247.5) return 'nw';
+  if (degrees >= 247.5 && degrees < 292.5) return 'n';
+  return 'ne'; // 292.5 to 337.5
+}
+
+/**
+ * Calculate the rotation offset needed to fine-tune sprite to exact angle
+ * Uses the baseAngle from the sprite config which accounts for the actual sprite orientation
+ */
+function getRotationOffset(angle: number, baseAngle: number): number {
+  // Normalize angle to 0-2PI
+  let normalizedAngle = angle % (Math.PI * 2);
+  if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
+  
+  // Calculate difference between target angle and sprite's base angle
+  let diff = normalizedAngle - baseAngle;
+  
+  // Normalize to -PI to PI range
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  
+  return diff;
+}
+
+/**
+ * Get sprite coordinates for a plane type and direction
+ */
+function getPlaneSprite(
+  planeType: PlaneType,
+  direction: string,
+  spriteWidth: number,
+  spriteHeight: number
+): { sx: number; sy: number; sw: number; sh: number; mirrorX: boolean; mirrorY: boolean; baseAngle: number } | null {
+  const row = PLANE_TYPE_ROWS[planeType];
+  if (row === undefined) return null;
+  
+  const dirInfo = PLANE_DIRECTION_COLS[direction];
+  if (!dirInfo) return null;
+  
+  const tileWidth = spriteWidth / AIRPLANE_SPRITE_COLS;
+  const tileHeight = spriteHeight / AIRPLANE_SPRITE_ROWS;
+  
+  return {
+    sx: dirInfo.col * tileWidth,
+    sy: row * tileHeight,
+    sw: tileWidth,
+    sh: tileHeight,
+    mirrorX: dirInfo.mirrorX,
+    mirrorY: dirInfo.mirrorY,
+    baseAngle: dirInfo.baseAngle,
+  };
+}
+
+/**
+ * Draw airplanes with contrails using sprite sheet
  */
 export function drawAirplanes(
   ctx: CanvasRenderingContext2D,
@@ -17,6 +106,9 @@ export function drawAirplanes(
   isMobile: boolean = false
 ): void {
   if (airplanes.length === 0) return;
+
+  // Try to get the cached planes sprite sheet
+  const planeSprite = getCachedImage(AIRPLANE_SPRITE_CACHE_KEY, true);
 
   for (const plane of airplanes) {
     // Draw contrails first (behind plane)
@@ -46,371 +138,313 @@ export function drawAirplanes(
 
     // Skip plane rendering if outside viewport
     if (
-      plane.x < viewBounds.viewLeft - 50 ||
-      plane.x > viewBounds.viewRight + 50 ||
-      plane.y < viewBounds.viewTop - 50 ||
-      plane.y > viewBounds.viewBottom + 50
+      plane.x < viewBounds.viewLeft - 80 ||
+      plane.x > viewBounds.viewRight + 80 ||
+      plane.y < viewBounds.viewTop - 80 ||
+      plane.y > viewBounds.viewBottom + 80
     ) {
       continue;
     }
 
-    // Draw shadow (when low altitude) - matches the detailed airplane shape
+    // Get direction from angle
+    const direction = angleToDirection(plane.angle);
+    
+    // Draw shadow (when low altitude)
     if (plane.altitude < 0.8) {
       const shadowOffset = (1 - plane.altitude) * 18;
-      const shadowScale = 0.55 + plane.altitude * 0.35;
       const shadowOpacity = 0.25 * (1 - plane.altitude);
+      const baseScale = PLANE_SCALES[plane.planeType] || 0.6;
+      const shadowScale = (0.55 + plane.altitude * 0.35) * baseScale;
 
       ctx.save();
       ctx.translate(plane.x + shadowOffset, plane.y + shadowOffset * 0.5);
-      ctx.rotate(plane.angle);
       ctx.scale(shadowScale, shadowScale * 0.5);
       ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity})`;
       
-      // More detailed shadow matching airplane silhouette
+      // Simple ellipse shadow
       ctx.beginPath();
-      // Fuselage shadow
-      ctx.ellipse(0, 0, 24, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Wing shadows
-      ctx.beginPath();
-      ctx.moveTo(6, -4);
-      ctx.lineTo(-8, -26);
-      ctx.lineTo(-14, -25);
-      ctx.lineTo(-6, -4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(6, 4);
-      ctx.lineTo(-8, 26);
-      ctx.lineTo(-14, 25);
-      ctx.lineTo(-6, 4);
-      ctx.closePath();
-      ctx.fill();
-      // Tail fin shadow (matches centered fin - points up in isometric)
-      ctx.beginPath();
-      ctx.moveTo(-18, 0);
-      ctx.lineTo(-19, 7);
-      ctx.lineTo(-23, 6);
-      ctx.lineTo(-22, 0);
-      ctx.closePath();
+      ctx.ellipse(0, 0, 50, 20, 0, 0, Math.PI * 2);
       ctx.fill();
       
       ctx.restore();
     }
 
-    // Draw airplane - detailed commercial airliner
-    ctx.save();
-    ctx.translate(plane.x, plane.y);
-    ctx.rotate(plane.angle);
-
-    // Scale based on altitude (appears larger when higher/closer)
-    const altitudeScale = 0.7 + plane.altitude * 0.5;
-    ctx.scale(altitudeScale, altitudeScale);
-
-    // Determine if it's a darker/lighter livery for shading
-    const isWhitePlane = plane.color === '#ffffff' || plane.color === '#FFFFFF';
-    const darkerShade = isWhitePlane ? '#d1d5db' : shadeColor(plane.color, -30);
-    const lighterShade = isWhitePlane ? '#ffffff' : shadeColor(plane.color, 20);
-    const darkAccent = '#1e293b';
-
-    // === ENGINE NACELLES (underwing mounted, draw first so they appear behind wings) ===
-    // Engines positioned at ~40% wing span
-    const engineY = 14; // Distance from centerline (under wing)
-    const engineX = -2; // Slightly behind wing leading edge
-    
-    // Left engine - elongated pod shape hanging below wing
-    ctx.fillStyle = '#475569';
-    ctx.beginPath();
-    ctx.moveTo(engineX + 4, -engineY + 1);
-    ctx.lineTo(engineX - 4, -engineY + 1);
-    ctx.lineTo(engineX - 5, -engineY);
-    ctx.lineTo(engineX - 4, -engineY - 1);
-    ctx.lineTo(engineX + 4, -engineY - 1);
-    ctx.lineTo(engineX + 5, -engineY);
-    ctx.closePath();
-    ctx.fill();
-    // Engine body (lighter top)
-    ctx.fillStyle = '#94a3b8';
-    ctx.beginPath();
-    ctx.moveTo(engineX + 4, -engineY + 1);
-    ctx.lineTo(engineX - 4, -engineY + 1);
-    ctx.lineTo(engineX - 4, -engineY);
-    ctx.lineTo(engineX + 4, -engineY);
-    ctx.closePath();
-    ctx.fill();
-    // Engine pylon connecting to wing
-    ctx.fillStyle = '#64748b';
-    ctx.beginPath();
-    ctx.moveTo(engineX - 1, -engineY + 3);
-    ctx.lineTo(engineX + 1, -engineY + 3);
-    ctx.lineTo(engineX + 1, -engineY + 1);
-    ctx.lineTo(engineX - 1, -engineY + 1);
-    ctx.closePath();
-    ctx.fill();
-
-    // Right engine - elongated pod shape
-    ctx.fillStyle = '#475569';
-    ctx.beginPath();
-    ctx.moveTo(engineX + 4, engineY - 1);
-    ctx.lineTo(engineX - 4, engineY - 1);
-    ctx.lineTo(engineX - 5, engineY);
-    ctx.lineTo(engineX - 4, engineY + 1);
-    ctx.lineTo(engineX + 4, engineY + 1);
-    ctx.lineTo(engineX + 5, engineY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#94a3b8';
-    ctx.beginPath();
-    ctx.moveTo(engineX + 4, engineY - 1);
-    ctx.lineTo(engineX - 4, engineY - 1);
-    ctx.lineTo(engineX - 4, engineY);
-    ctx.lineTo(engineX + 4, engineY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#64748b';
-    ctx.beginPath();
-    ctx.moveTo(engineX - 1, engineY - 3);
-    ctx.lineTo(engineX + 1, engineY - 3);
-    ctx.lineTo(engineX + 1, engineY - 1);
-    ctx.lineTo(engineX - 1, engineY - 1);
-    ctx.closePath();
-    ctx.fill();
-
-    // === WINGS (draw after engines so wings appear on top) ===
-    // Main wings - swept back design with realistic shape
-    // Left wing (top in view)
-    ctx.fillStyle = darkerShade;
-    ctx.beginPath();
-    ctx.moveTo(6, -3.2);  // Wing root leading edge (matches fuselage)
-    ctx.lineTo(-6, -24);   // Wingtip leading edge
-    ctx.lineTo(-12, -23);  // Wingtip trailing edge
-    ctx.lineTo(-6, -3.2);  // Wing root trailing edge
-    ctx.closePath();
-    ctx.fill();
-    
-    // Wing highlight (top surface shine)
-    ctx.fillStyle = lighterShade;
-    ctx.beginPath();
-    ctx.moveTo(4, -3.2);
-    ctx.lineTo(-4, -20);
-    ctx.lineTo(-6, -19);
-    ctx.lineTo(-2, -3.2);
-    ctx.closePath();
-    ctx.fill();
-
-    // Right wing (bottom in view)
-    ctx.fillStyle = darkerShade;
-    ctx.beginPath();
-    ctx.moveTo(6, 3.2);
-    ctx.lineTo(-6, 24);
-    ctx.lineTo(-12, 23);
-    ctx.lineTo(-6, 3.2);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Wing highlight
-    ctx.fillStyle = lighterShade;
-    ctx.beginPath();
-    ctx.moveTo(4, 3.2);
-    ctx.lineTo(-4, 20);
-    ctx.lineTo(-6, 19);
-    ctx.lineTo(-2, 3.2);
-    ctx.closePath();
-    ctx.fill();
-
-    // === HORIZONTAL STABILIZERS (tail wings) ===
-    ctx.fillStyle = darkerShade;
-    // Left stabilizer
-    ctx.beginPath();
-    ctx.moveTo(-18, -2);
-    ctx.lineTo(-22, -9);
-    ctx.lineTo(-26, -8);
-    ctx.lineTo(-22, -2);
-    ctx.closePath();
-    ctx.fill();
-    // Right stabilizer
-    ctx.beginPath();
-    ctx.moveTo(-18, 2);
-    ctx.lineTo(-22, 9);
-    ctx.lineTo(-26, 8);
-    ctx.lineTo(-22, 2);
-    ctx.closePath();
-    ctx.fill();
-
-    // === FUSELAGE ===
-    // Main body - cylindrical with tapered nose and tail
-    const gradient = ctx.createLinearGradient(0, -4, 0, 4);
-    gradient.addColorStop(0, lighterShade);
-    gradient.addColorStop(0.3, plane.color);
-    gradient.addColorStop(0.7, plane.color);
-    gradient.addColorStop(1, darkerShade);
-    
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    // Start from tail, go around clockwise
-    ctx.moveTo(-22, -2.5);
-    // Tail section taper
-    ctx.lineTo(-18, -3.2);
-    // Main body top
-    ctx.lineTo(12, -3.2);
-    // Nose cone curve
-    ctx.quadraticCurveTo(20, -2.5, 24, 0);
-    ctx.quadraticCurveTo(20, 2.5, 12, 3.2);
-    // Main body bottom
-    ctx.lineTo(-18, 3.2);
-    // Tail section
-    ctx.lineTo(-22, 2.5);
-    ctx.quadraticCurveTo(-24, 0, -22, -2.5);
-    ctx.closePath();
-    ctx.fill();
-
-    // Fuselage highlight stripe (belly reflection)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    ctx.moveTo(-18, 0);
-    ctx.lineTo(18, 0);
-    ctx.stroke();
-
-    // === COCKPIT GLASS ===
-    // Simple thin cockpit windshield band
-    ctx.fillStyle = '#38bdf8'; // Sky blue glass
-    ctx.beginPath();
-    ctx.moveTo(18, -2.2);
-    ctx.quadraticCurveTo(23, -1.5, 24, 0);
-    ctx.quadraticCurveTo(23, 1.5, 18, 2.2);
-    ctx.lineTo(18, 1.6);
-    ctx.quadraticCurveTo(21, 1, 22, 0);
-    ctx.quadraticCurveTo(21, -1, 18, -1.6);
-    ctx.closePath();
-    ctx.fill();
-
-    // === VERTICAL TAIL FIN (rises from center of tail section, pointing up in isometric) ===
-    // Simple swept fin that rises from the fuselage spine
-    ctx.fillStyle = darkerShade;
-    ctx.beginPath();
-    ctx.moveTo(-18, 0);      // Base at fuselage centerline
-    ctx.lineTo(-19, 6);      // Rises up and back (positive Y = up in isometric view)
-    ctx.lineTo(-23, 5);      // Top back corner
-    ctx.lineTo(-22, 0);      // Back to centerline
-    ctx.closePath();
-    ctx.fill();
-    
-    // Fin highlight edge (front face)
-    ctx.fillStyle = plane.color;
-    ctx.beginPath();
-    ctx.moveTo(-18, 0);
-    ctx.lineTo(-19, 5);
-    ctx.lineTo(-20, 4.5);
-    ctx.lineTo(-19, 0);
-    ctx.closePath();
-    ctx.fill();
-
-    // === APU EXHAUST (tail cone) ===
-    ctx.fillStyle = '#374151';
-    ctx.beginPath();
-    ctx.ellipse(-23, 0, 1.2, 1.2, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // === NAVIGATION LIGHTS ===
-    const isNight = hour >= 20 || hour < 6;
-    if (isNight) {
-      const strobeOn = Math.sin(navLightFlashTimer * 8) > 0.85;
-      const beaconOn = Math.sin(navLightFlashTimer * 4) > 0.7;
-
-      // Red nav light on port (left) wingtip
-      ctx.fillStyle = '#ff3333';
-      // PERF: Skip shadowBlur on mobile - very expensive
-      if (!isMobile) {
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 15;
+    // Draw airplane sprite
+    if (planeSprite) {
+      const spriteInfo = getPlaneSprite(
+        plane.planeType,
+        direction,
+        planeSprite.naturalWidth || planeSprite.width,
+        planeSprite.naturalHeight || planeSprite.height
+      );
+      
+      if (spriteInfo) {
+        ctx.save();
+        ctx.translate(plane.x, plane.y);
+        
+        // Calculate rotation offset to fine-tune to exact angle
+        // Use the baseAngle from sprite config which accounts for the actual sprite orientation
+        const rotationOffset = getRotationOffset(plane.angle, spriteInfo.baseAngle);
+        ctx.rotate(rotationOffset);
+        
+        // Scale based on altitude and plane type
+        const baseScale = PLANE_SCALES[plane.planeType] || 0.3;
+        const altitudeScale = 0.7 + plane.altitude * 0.5;
+        const totalScale = baseScale * altitudeScale;
+        
+        // Apply mirroring if needed (mirrorX = horizontal flip, mirrorY = vertical flip)
+        const scaleX = spriteInfo.mirrorX ? -totalScale : totalScale;
+        const scaleY = spriteInfo.mirrorY ? -totalScale : totalScale;
+        ctx.scale(scaleX, scaleY);
+        
+        // Draw the sprite centered
+        ctx.drawImage(
+          planeSprite,
+          spriteInfo.sx,
+          spriteInfo.sy,
+          spriteInfo.sw,
+          spriteInfo.sh,
+          -spriteInfo.sw / 2,
+          -spriteInfo.sh / 2,
+          spriteInfo.sw,
+          spriteInfo.sh
+        );
+        
+        ctx.restore();
+        
+        // Draw navigation lights at night (on top of sprite)
+        const isNight = hour >= 20 || hour < 6;
+        if (isNight) {
+          drawNavigationLights(ctx, plane, navLightFlashTimer, isMobile, totalScale, spriteInfo.baseAngle, spriteInfo.mirrorX, spriteInfo.mirrorY);
+        }
+      } else {
+        // Fallback to simple drawing if sprite info not found
+        drawFallbackAirplane(ctx, plane, hour, navLightFlashTimer, isMobile);
       }
-      ctx.beginPath();
-      ctx.arc(-9, -23, isMobile ? 2 : 1.5, 0, Math.PI * 2);
-      ctx.fill();
+    } else {
+      // Fallback to simple drawing if sprite not loaded
+      drawFallbackAirplane(ctx, plane, hour, navLightFlashTimer, isMobile);
+    }
+  }
+}
 
-      // Green nav light on starboard (right) wingtip
-      ctx.fillStyle = '#33ff33';
-      if (!isMobile) {
-        ctx.shadowColor = '#00ff00';
-        ctx.shadowBlur = 15;
-      }
-      ctx.beginPath();
-      ctx.arc(-9, 23, isMobile ? 2 : 1.5, 0, Math.PI * 2);
-      ctx.fill();
+/**
+ * Draw navigation lights on top of the plane sprite
+ * Uses the same rotation/mirroring as the sprite for proper alignment
+ */
+function drawNavigationLights(
+  ctx: CanvasRenderingContext2D,
+  plane: Airplane,
+  navLightFlashTimer: number,
+  isMobile: boolean,
+  scale: number,
+  baseAngle: number,
+  mirrorX: boolean,
+  mirrorY: boolean
+): void {
+  const strobeOn = Math.sin(navLightFlashTimer * 8) > 0.85;
+  const beaconOn = Math.sin(navLightFlashTimer * 4) > 0.7;
+  
+  ctx.save();
+  ctx.translate(plane.x, plane.y);
+  
+  // Apply the same rotation as the sprite
+  const rotationOffset = getRotationOffset(plane.angle, baseAngle);
+  ctx.rotate(rotationOffset);
+  
+  // Apply the same mirroring as the sprite
+  const scaleX = mirrorX ? -scale : scale;
+  const scaleY = mirrorY ? -scale : scale;
+  ctx.scale(scaleX, scaleY);
+  
+  // Light size (not affected by plane scale since we're in transformed space)
+  const lightSize = isMobile ? 3 : 2.5;
+  const glowSize = lightSize * 1.5;
+  
+  // Wing offset in sprite space (sprite faces a fixed direction)
+  // The sprite's "forward" is along the positive X axis after transforms
+  const wingOffset = 25;
+  
+  // Red (port/left) nav light - left wingtip (negative Y in sprite space)
+  ctx.fillStyle = '#ff3333';
+  if (!isMobile) {
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 15;
+  }
+  ctx.beginPath();
+  ctx.arc(0, -wingOffset, lightSize, 0, Math.PI * 2);
+  ctx.fill();
 
-      // White tail navigation light
+  // Green (starboard/right) nav light - right wingtip (positive Y in sprite space)
+  ctx.fillStyle = '#33ff33';
+  if (!isMobile) {
+    ctx.shadowColor = '#00ff00';
+    ctx.shadowBlur = 15;
+  }
+  ctx.beginPath();
+  ctx.arc(0, wingOffset, lightSize, 0, Math.PI * 2);
+  ctx.fill();
+
+  // White tail light (behind plane - negative X in sprite space)
+  const tailOffset = 30;
+  ctx.fillStyle = '#ffffff';
+  if (!isMobile) {
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 10;
+  }
+  ctx.beginPath();
+  ctx.arc(-tailOffset, 0, lightSize * 0.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Red beacon (flashing) - on top of fuselage (center, slightly toward tail)
+  if (beaconOn) {
+    ctx.fillStyle = '#ff4444';
+    if (!isMobile) {
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 20;
+    }
+    ctx.beginPath();
+    ctx.arc(-5, 0, lightSize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // White strobe lights on wingtips (rapid flash)
+  if (strobeOn) {
+    ctx.fillStyle = '#ffffff';
+    if (!isMobile) {
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 40;
+    }
+    ctx.beginPath();
+    ctx.arc(0, -wingOffset, glowSize, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, wingOffset, glowSize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Landing lights (bright, forward-facing - on wing roots)
+  ctx.fillStyle = '#fffde7';
+  if (!isMobile) {
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 25;
+  }
+  const landingLightOffset = 10;
+  ctx.beginPath();
+  ctx.arc(landingLightOffset, -8, lightSize * 0.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(landingLightOffset, 8, lightSize * 0.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+/**
+ * Fallback airplane drawing when sprite is not available
+ */
+function drawFallbackAirplane(
+  ctx: CanvasRenderingContext2D,
+  plane: Airplane,
+  hour: number,
+  navLightFlashTimer: number,
+  isMobile: boolean
+): void {
+  ctx.save();
+  ctx.translate(plane.x, plane.y);
+  ctx.rotate(plane.angle);
+
+  // Scale based on altitude
+  const altitudeScale = 0.7 + plane.altitude * 0.5;
+  ctx.scale(altitudeScale, altitudeScale);
+
+  // Simple airplane shape
+  ctx.fillStyle = plane.color;
+  
+  // Fuselage
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 20, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Wings
+  ctx.beginPath();
+  ctx.moveTo(5, -3);
+  ctx.lineTo(-5, -20);
+  ctx.lineTo(-10, -18);
+  ctx.lineTo(-5, -3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(5, 3);
+  ctx.lineTo(-5, 20);
+  ctx.lineTo(-10, 18);
+  ctx.lineTo(-5, 3);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Tail
+  ctx.beginPath();
+  ctx.moveTo(-15, 0);
+  ctx.lineTo(-18, 5);
+  ctx.lineTo(-20, 4);
+  ctx.lineTo(-18, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Navigation lights at night
+  const isNight = hour >= 20 || hour < 6;
+  if (isNight) {
+    const strobeOn = Math.sin(navLightFlashTimer * 8) > 0.85;
+    
+    // Red port light
+    ctx.fillStyle = '#ff3333';
+    if (!isMobile) {
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 15;
+    }
+    ctx.beginPath();
+    ctx.arc(-7, -18, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Green starboard light
+    ctx.fillStyle = '#33ff33';
+    if (!isMobile) {
+      ctx.shadowColor = '#00ff00';
+      ctx.shadowBlur = 15;
+    }
+    ctx.beginPath();
+    ctx.arc(-7, 18, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // White tail light
+    ctx.fillStyle = '#ffffff';
+    if (!isMobile) {
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 10;
+    }
+    ctx.beginPath();
+    ctx.arc(-20, 0, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Strobe lights
+    if (strobeOn) {
       ctx.fillStyle = '#ffffff';
       if (!isMobile) {
-        ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 30;
       }
       ctx.beginPath();
-      ctx.arc(-23.5, 0, isMobile ? 1.5 : 1, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Red beacon on top of fuselage (flashing)
-      if (beaconOn) {
-        ctx.fillStyle = '#ff4444';
-        if (!isMobile) {
-          ctx.shadowColor = '#ff0000';
-          ctx.shadowBlur = 20;
-        }
-        ctx.beginPath();
-        ctx.arc(-5, -3.5, isMobile ? 1.8 : 1.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // White strobe lights on wingtips (rapid flash)
-      if (strobeOn) {
-        ctx.fillStyle = '#ffffff';
-        if (!isMobile) {
-          ctx.shadowColor = '#ffffff';
-          ctx.shadowBlur = 40;
-        }
-        ctx.beginPath();
-        ctx.arc(-11, -22, isMobile ? 3 : 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(-11, 22, isMobile ? 3 : 2, 0, Math.PI * 2);
-        ctx.fill();
-        // Tail strobe (on top of fin)
-        if (!isMobile) {
-          ctx.shadowBlur = 25;
-        }
-        ctx.beginPath();
-        ctx.arc(-21, 5, isMobile ? 1.8 : 1.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Landing lights (on wing roots, bright forward-facing)
-      ctx.fillStyle = '#fffde7';
-      if (!isMobile) {
-        ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 25;
-      }
-      ctx.beginPath();
-      ctx.arc(4, -6, isMobile ? 2 : 1.5, 0, Math.PI * 2);
+      ctx.arc(-9, -17, 2, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(4, 6, isMobile ? 2 : 1.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.shadowBlur = 0;
-    } else {
-      // Daytime - subtle light housings visible
-      ctx.fillStyle = '#dc2626';
-      ctx.beginPath();
-      ctx.arc(-9, -23, 0.8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#22c55e';
-      ctx.beginPath();
-      ctx.arc(-9, 23, 0.8, 0, Math.PI * 2);
+      ctx.arc(-9, 17, 2, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    ctx.restore();
+    ctx.shadowBlur = 0;
   }
+
+  ctx.restore();
 }
 
 // Helper function to shade a hex color

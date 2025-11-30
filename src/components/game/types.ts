@@ -25,6 +25,9 @@ export type Car = {
 // Airplane types for airport animation
 export type AirplaneState = 'flying' | 'landing' | 'taking_off' | 'taxiing';
 
+// Plane model types from the sprite sheet
+export type PlaneType = '737' | '777' | '747' | 'a380' | 'g650';
+
 export type ContrailParticle = {
   x: number;
   y: number;
@@ -56,8 +59,10 @@ export type Airplane = {
   contrail: ContrailParticle[];
   // Time until despawn (for flying planes)
   lifeTime: number;
-  // Plane color/style
+  // Plane color/style (legacy, for fallback rendering)
   color: string;
+  // Plane model type from sprite sheet
+  planeType: PlaneType;
 };
 
 // Helicopter types for hospital/airport transport

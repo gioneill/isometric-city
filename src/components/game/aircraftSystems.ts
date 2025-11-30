@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Airplane, Helicopter, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
+import { Airplane, Helicopter, WorldRenderState, TILE_WIDTH, TILE_HEIGHT, PlaneType } from './types';
 import {
   AIRPLANE_MIN_POPULATION,
   AIRPLANE_COLORS,
@@ -9,6 +9,7 @@ import {
   HELICOPTER_COLORS,
   ROTOR_WASH_MAX_AGE,
   ROTOR_WASH_SPAWN_INTERVAL,
+  PLANE_TYPES,
 } from './constants';
 import { gridToScreen } from './utils';
 import { findAirports, findHeliports } from './gridFinders';
@@ -89,8 +90,8 @@ export function useAircraftSystems(
       return;
     }
 
-    // Calculate max airplanes based on population (1 per 3.5k population, min 18, max 54)
-    const maxAirplanes = Math.min(54, Math.max(18, Math.floor(totalPopulation / 3500) * 3));
+    // Calculate max airplanes based on population (1 per 2k population, min 25, max 80)
+    const maxAirplanes = Math.min(80, Math.max(25, Math.floor(totalPopulation / 2000) * 3));
     
     // Speed multiplier based on game speed
     const speedMultiplier = currentSpeed === 1 ? 1 : currentSpeed === 2 ? 1.5 : 2;
@@ -112,6 +113,7 @@ export function useAircraftSystems(
       if (isTakingOff) {
         // Taking off from airport
         const angle = Math.random() * Math.PI * 2; // Random direction
+        const planeType = PLANE_TYPES[Math.floor(Math.random() * PLANE_TYPES.length)] as PlaneType;
         airplanesRef.current.push({
           id: airplaneIdRef.current++,
           x: airportCenterX,
@@ -127,6 +129,7 @@ export function useAircraftSystems(
           contrail: [],
           lifeTime: 30 + Math.random() * 20, // 30-50 seconds of flight
           color: AIRPLANE_COLORS[Math.floor(Math.random() * AIRPLANE_COLORS.length)],
+          planeType: planeType,
         });
       } else {
         // Arriving from the edge of the map
@@ -159,6 +162,7 @@ export function useAircraftSystems(
         
         // Calculate angle to airport
         const angleToAirport = Math.atan2(airportCenterY - startY, airportCenterX - startX);
+        const planeType = PLANE_TYPES[Math.floor(Math.random() * PLANE_TYPES.length)] as PlaneType;
         
         airplanesRef.current.push({
           id: airplaneIdRef.current++,
@@ -175,10 +179,11 @@ export function useAircraftSystems(
           contrail: [],
           lifeTime: 30 + Math.random() * 20,
           color: AIRPLANE_COLORS[Math.floor(Math.random() * AIRPLANE_COLORS.length)],
+          planeType: planeType,
         });
       }
       
-      airplaneSpawnTimerRef.current = 5 + Math.random() * 10; // 5-15 seconds between spawns
+      airplaneSpawnTimerRef.current = 2 + Math.random() * 5; // 2-7 seconds between spawns
     }
 
     // Update existing airplanes
@@ -197,18 +202,8 @@ export function useAircraftSystems(
         plane.stateProgress += delta;
         if (plane.stateProgress >= contrailSpawnInterval) {
           plane.stateProgress -= contrailSpawnInterval;
-          // Add two contrail particles (left and right engine) - single particle on mobile
-          const perpAngle = plane.angle + Math.PI / 2;
-          const engineOffset = 4 * (0.5 + plane.altitude * 0.5);
-          if (isMobile) {
-            // Single centered contrail particle on mobile
-            plane.contrail.push({ x: plane.x, y: plane.y, age: 0, opacity: 1 });
-          } else {
-            plane.contrail.push(
-              { x: plane.x + Math.cos(perpAngle) * engineOffset, y: plane.y + Math.sin(perpAngle) * engineOffset, age: 0, opacity: 1 },
-              { x: plane.x - Math.cos(perpAngle) * engineOffset, y: plane.y - Math.sin(perpAngle) * engineOffset, age: 0, opacity: 1 }
-            );
-          }
+          // Single centered contrail particle
+          plane.contrail.push({ x: plane.x, y: plane.y, age: 0, opacity: 1 });
         }
       }
       

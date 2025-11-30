@@ -50,10 +50,55 @@ export const SIDEWALK_MIN_ZOOM_MOBILE = 0.25;     // Sidewalks on mobile (lower 
 export const SKIP_SMALL_ELEMENTS_ZOOM_THRESHOLD = 0.5; // Desktop: hide boats/helis/smog during pan/zoom when below this
 
 // Airplane system constants
-export const AIRPLANE_MIN_POPULATION = 5000; // Minimum population required for airplane activity
-export const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c3aed']; // Airline liveries
+export const AIRPLANE_MIN_POPULATION = 2000; // Minimum population required for airplane activity
+export const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c3aed']; // Airline liveries (fallback)
 export const CONTRAIL_MAX_AGE = 3.0; // seconds
 export const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
+
+// Airplane sprite sheet configuration
+export const AIRPLANE_SPRITE_SRC = '/assets/sprites_red_water_new_planes.png';
+export const AIRPLANE_SPRITE_COLS = 5; // 5 columns per row
+export const AIRPLANE_SPRITE_ROWS = 6; // 6 rows total
+// Plane types by row (0-indexed): 737, 777, 747, a380, (skip row 4), g650
+export const PLANE_TYPE_ROWS: Record<string, number> = {
+  '737': 0,
+  '777': 1,
+  '747': 2,
+  'a380': 3,
+  'g650': 5, // Skip row 4
+};
+// Available plane types (weighted toward smaller planes for variety)
+export const PLANE_TYPES: Array<'737' | '777' | '747' | 'a380' | 'g650'> = ['737', '737', '737', '777', '777', '747', 'a380', 'g650'];
+// Column mapping for each direction (SE, SW, W, N)
+// Col 0: SE, Col 1: SW, Col 2: W, Col 3: N (top-down), Col 4: unused
+// For opposite directions, mirror the sprite appropriately:
+// - W→E: horizontal flip (mirrorX)
+// - N→S: vertical flip (mirrorY)
+// - NW and NE: use the N sprite (col 3) and rely on rotation offset
+// baseAngle = the angle the sprite visually faces; rotationOffset = planeAngle - baseAngle
+export const PLANE_DIRECTION_COLS: Record<string, { col: number; mirrorX: boolean; mirrorY: boolean; baseAngle: number }> = {
+  // Original sprites - baseAngle is what direction the sprite is drawn facing
+  'se': { col: 0, mirrorX: false, mirrorY: false, baseAngle: Math.PI / 4 },               // 45° - South East
+  'sw': { col: 1, mirrorX: false, mirrorY: false, baseAngle: (3 * Math.PI) / 4 + 0.26 },  // ~150° - South West (sprite faces ~15° more west)
+  'w': { col: 2, mirrorX: false, mirrorY: false, baseAngle: Math.PI },                    // 180° - West
+  'n': { col: 3, mirrorX: false, mirrorY: false, baseAngle: (3 * Math.PI) / 2 },          // 270° - North (top-down)
+  // Mirrored/rotated sprites for opposite directions
+  'e': { col: 2, mirrorX: true, mirrorY: false, baseAngle: 0 },                           // 0° - East (mirror of W)
+  's': { col: 3, mirrorX: false, mirrorY: true, baseAngle: Math.PI / 2 },                 // 90° - South (vertical flip of N)
+  // NW and NE use the N sprite (top-down view) with rotation
+  // N sprite faces 270°, so baseAngle = 270° and rotation naturally adjusts to target
+  'nw': { col: 3, mirrorX: false, mirrorY: false, baseAngle: (3 * Math.PI) / 2 + 0.52 },  // ~300° - needs extra CCW rotation
+  'ne': { col: 3, mirrorX: false, mirrorY: false, baseAngle: (3 * Math.PI) / 2 - 0.52 },  // ~240° - symmetric adjustment for NE
+};
+// Plane scale factors by type (larger planes are bigger)
+// Scaled down 30% from previous values
+export const PLANE_SCALES: Record<string, number> = {
+  '737': 0.19,
+  '777': 0.23,
+  '747': 0.245,
+  'a380': 0.28,
+  'g650': 0.14,
+};
 
 // Helicopter system constants
 export const HELICOPTER_MIN_POPULATION = 3000; // Minimum population required for helicopter activity

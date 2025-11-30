@@ -40,6 +40,7 @@ import {
   ZOOM_MIN,
   ZOOM_MAX,
   WATER_ASSET_PATH,
+  AIRPLANE_SPRITE_SRC,
 } from '@/components/game/constants';
 import {
   gridToScreen,
@@ -743,6 +744,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       if (currentSpritePack.modernSrc) {
         loadSpriteImage(currentSpritePack.modernSrc, true).catch(console.error);
       }
+      // Load airplane sprite sheet (always loaded, not dependent on sprite pack)
+      loadSpriteImage(AIRPLANE_SPRITE_SRC, true).catch(console.error);
     };
     
     // Load secondary sheets after 50ms to prioritize first paint
