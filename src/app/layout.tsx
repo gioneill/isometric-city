@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Playfair_Display, DM_Sans } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 const playfair = Playfair_Display({
@@ -77,7 +78,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/assets/buildings/residential.png" />
       </head>
-      <body className="bg-background text-foreground antialiased font-sans overflow-hidden">{children}</body>
+      <body className="bg-background text-foreground antialiased font-sans overflow-hidden">{children}<Analytics /></body>
     </html>
   );
 }
