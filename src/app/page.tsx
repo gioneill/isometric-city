@@ -326,7 +326,7 @@ export default function HomePage() {
             href="https://github.com/amilich/isometric-city"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full text-center py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+            className="w-full text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
           >
             Open GitHub
           </a>
@@ -385,7 +385,7 @@ export default function HomePage() {
               href="https://github.com/amilich/isometric-city"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-64 text-center py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+              className="w-64 text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
             >
               Open GitHub
             </a>
