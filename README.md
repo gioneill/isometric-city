@@ -1,10 +1,10 @@
 # IsoCity
 
-IsoCity is a modern, open-source isometric city-building simulation game built with **Next.js**, **TypeScript**, and **Tailwind CSS**. It leverages the HTML5 Canvas API for high-performance rendering of isometric graphics, featuring complex systems for traffic, pedestrians, and economic simulation.
+IsoCity is a open-source isometric city-building simulation game built with **Next.js**, **TypeScript**, and **Tailwind CSS**. It leverages the HTML5 Canvas API for high-performance rendering of isometric graphics, featuring complex systems for economic simulation, trains, planes, seaplanes, helicopters, cars, pedestrians, and more.
 
 ![IsoCity Banner](public/og-image.png)
 
-## 🌟 Features
+## Features
 
 -   **Isometric Rendering Engine**: Custom-built rendering system using HTML5 Canvas (`CanvasIsometricGrid`) capable of handling complex depth sorting and layer management.
 -   **Dynamic Simulation**:
@@ -12,10 +12,10 @@ IsoCity is a modern, open-source isometric city-building simulation game built w
     -   **Pedestrian System**: Pathfinding and crowd simulation for city inhabitants.
     -   **Economy & Resources**: Resource management, zoning (Residential, Commercial, Industrial), and city growth logic.
 -   **Interactive Grid**: Tile-based placement system for buildings, roads, parks, and utilities.
--   **State Management**: Save/Load functionality using JSON serialization (supports complex game states).
+-   **State Management**: Save/Load functionality for multiple cities.
 -   **Responsive Design**: Mobile-friendly interface with specialized touch controls and toolbars.
 
-## 🛠 Tech Stack
+## Tech Stack
 
 -   **Framework**: [Next.js 14+](https://nextjs.org/) (App Router)
 -   **Language**: [TypeScript](https://www.typescriptlang.org/)
@@ -60,7 +60,7 @@ isocity/
 -   **`src/lib/simulation.ts`**: Handles the underlying mathematical model of the city—calculating population growth, tax income, and resource consumption independent of the visual layer.
 -   **`src/resources/`**: Contains example save states (`example_state.json`) useful for testing or initializing the game with a pre-built city.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -88,20 +88,12 @@ isocity/
 4.  **Open the game:**
     Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
-## 🎮 Controls
-
--   **Mouse Left Click**: Select tool / Place building / Inspect.
--   **Mouse Drag**: Pan the camera.
--   **Scroll Wheel**: Zoom in/out.
--   **Keyboard Shortcuts**:
-    -   (Shortcuts defined in `CommandMenu.tsx` or `Game.tsx`)
-
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Whether it's reporting a bug, proposing a new feature, or submitting a pull request, your input is valued.
 
 Please ensure your code follows the existing style and conventions.
 
-## 📄 License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
