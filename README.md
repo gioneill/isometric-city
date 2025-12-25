@@ -34,7 +34,7 @@ IsoCity is a open-source isometric city-building simulation game built with **Ne
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/truncgil/isometric-city.git
+    git clone https://github.com/amilich/isometric-city.git
     cd isometric-city
     ```
 
