@@ -1661,8 +1661,6 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     ) {
       const w = TILE_WIDTH;
       const h = TILE_HEIGHT;
-      const cx = x + w / 2;
-      const cy = y + h / 2;
       
       const bridgeType = building.bridgeType || 'small';
       const orientation = building.bridgeOrientation || 'ns';
@@ -1672,6 +1670,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       const bridgeSpan = building.bridgeSpan ?? 1;
       const trackType = building.bridgeTrackType || 'road'; // 'road' or 'rail'
       const isRailBridge = trackType === 'rail';
+      
+      // Rail bridges are shifted down slightly on the Y axis
+      const yOffset = isRailBridge ? h * 0.1 : 0;
+      const adjustedY = y + yOffset;
+      
+      const cx = x + w / 2;
+      const cy = adjustedY + h / 2;
       
       // Bridge styles - road bridges use asphalt, rail bridges use gravel/ballast
       const bridgeStyles: Record<string, { asphalt: string; barrier: string; accent: string; support: string; cable?: string }[]> = {
@@ -1698,8 +1703,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       const style = bridgeStyles[bridgeType]?.[variant] || bridgeStyles.small[0];
       
-      // Bridge width - rail bridges are 10% skinnier than road bridges
-      const bridgeWidthRatio = isRailBridge ? 0.405 : 0.45; // 0.45 * 0.9 = 0.405
+      // Bridge width - rail bridges are 20% skinnier than road bridges
+      const bridgeWidthRatio = isRailBridge ? 0.36 : 0.45; // 0.45 * 0.8 = 0.36
       const halfWidth = w * bridgeWidthRatio * 0.5;
       
       // For bridges, we draw a SINGLE continuous parallelogram from edge to edge
@@ -1707,10 +1712,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       // Use the EXACT same edge points as roads for proper alignment
       // These match the road edge midpoints used in drawRoad()
-      const northEdge = { x: x + w * 0.25, y: y + h * 0.25 };
-      const eastEdge = { x: x + w * 0.75, y: y + h * 0.25 };
-      const southEdge = { x: x + w * 0.75, y: y + h * 0.75 };
-      const westEdge = { x: x + w * 0.25, y: y + h * 0.75 };
+      // For rail bridges, use adjustedY for the vertical offset
+      const northEdge = { x: x + w * 0.25, y: adjustedY + h * 0.25 };
+      const eastEdge = { x: x + w * 0.75, y: adjustedY + h * 0.25 };
+      const southEdge = { x: x + w * 0.75, y: adjustedY + h * 0.75 };
+      const westEdge = { x: x + w * 0.25, y: adjustedY + h * 0.75 };
       
       let startEdge: { x: number; y: number };
       let endEdge: { x: number; y: number };

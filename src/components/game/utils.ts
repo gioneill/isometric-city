@@ -40,6 +40,7 @@ export function getDirectionOptions(gridData: Tile[][], gridSizeValue: number, x
 }
 
 // Pick next direction for vehicle movement
+// On bridges, cars can only go straight (no turning)
 export function pickNextDirection(
   previousDirection: CarDirection,
   gridData: Tile[][],
@@ -49,6 +50,17 @@ export function pickNextDirection(
 ): CarDirection | null {
   const options = getDirectionOptions(gridData, gridSizeValue, x, y);
   if (options.length === 0) return null;
+  
+  // Check if current tile is a bridge - if so, only allow going straight
+  const currentTile = gridData[y]?.[x];
+  if (currentTile?.building.type === 'bridge') {
+    // On a bridge, only continue in the same direction (no turning)
+    if (options.includes(previousDirection)) {
+      return previousDirection;
+    }
+    // If we can't continue straight, fall back to normal behavior
+  }
+  
   const incoming = getOppositeDirection(previousDirection);
   const filtered = options.filter(dir => dir !== incoming);
   const pool = filtered.length > 0 ? filtered : options;
