@@ -2950,8 +2950,11 @@ export function placeWaterTerraform(state: GameState, x: number, y: number): Gam
   const tile = state.grid[y]?.[x];
   if (!tile) return state;
   
-  // Already water
+  // Already water - do nothing
   if (tile.building.type === 'water') return state;
+  
+  // Don't allow terraforming bridges - would break them
+  if (tile.building.type === 'bridge') return state;
 
   const newGrid = state.grid.map(row => row.map(t => ({ ...t, building: { ...t.building } })));
   
