@@ -1823,8 +1823,16 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       // Calculate how far to extend beyond the bridge tile (to cover the road's centerline)
       const extensionAmount = 8; // Extend into the road tile to cover centerline
       
-      // Helper to draw a connector from bridge edge to road
-      const drawConnector = (connectorEdge: { x: number; y: number }, extensionDir: number) => {
+      // Store connector info for drawing borders after the deck
+      const connectorBordersToDraw: Array<{
+        extendedX: number;
+        extendedY: number;
+        connectorEdgeX: number;
+        connectorEdgeY: number;
+      }> = [];
+      
+      // Helper to draw a connector fill from bridge edge to road
+      const drawConnectorFill = (connectorEdge: { x: number; y: number }, extensionDir: number) => {
         // Extended edge position (going toward the adjacent road)
         const extendedX = connectorEdge.x + travelDirX * extensionAmount * extensionDir;
         const extendedY = connectorEdge.y + travelDirY * extensionAmount * extensionDir;
@@ -1845,6 +1853,41 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         ctx.lineTo(connectorRoadRight.x, connectorRoadRight.y);
         ctx.closePath();
         ctx.fill();
+        
+        // Store info for drawing borders after deck
+        if (!isRailBridge) {
+          connectorBordersToDraw.push({
+            extendedX,
+            extendedY,
+            connectorEdgeX: connectorEdge.x,
+            connectorEdgeY: connectorEdge.y,
+          });
+        }
+      };
+      
+      // Helper to draw connector borders (called after deck is drawn)
+      const drawConnectorBorders = () => {
+        if (isRailBridge) return;
+        
+        const borderInset = halfWidth * 0.22;
+        const borderHalfWidth = halfWidth - borderInset;
+        
+        ctx.strokeStyle = '#606060'; // Lighter grey border for visibility
+        ctx.lineWidth = 0.75;
+        
+        for (const border of connectorBordersToDraw) {
+          // Road-side border (at extended/ground level end)
+          ctx.beginPath();
+          ctx.moveTo(border.extendedX + perpX * borderHalfWidth, border.extendedY + perpY * borderHalfWidth);
+          ctx.lineTo(border.extendedX - perpX * borderHalfWidth, border.extendedY - perpY * borderHalfWidth);
+          ctx.stroke();
+          
+          // Bridge-side border (at elevated end)
+          ctx.beginPath();
+          ctx.moveTo(border.connectorEdgeX + perpX * borderHalfWidth, border.connectorEdgeY - deckElevation + perpY * borderHalfWidth);
+          ctx.lineTo(border.connectorEdgeX - perpX * borderHalfWidth, border.connectorEdgeY - deckElevation - perpY * borderHalfWidth);
+          ctx.stroke();
+        }
       };
       
       // For 1x1 bridges (span of 1), draw connectors on BOTH ends
@@ -1853,13 +1896,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       if (!isRailBridge) {
         if (position === 'start' || isSingleTileBridge) {
-          // Draw connector at start edge (extending backward)
-          drawConnector(startEdge, -1);
+          // Draw connector fill at start edge (extending backward)
+          drawConnectorFill(startEdge, -1);
         }
         
         if (position === 'end' || isSingleTileBridge) {
-          // Draw connector at end edge (extending forward)
-          drawConnector(endEdge, 1);
+          // Draw connector fill at end edge (extending forward)
+          drawConnectorFill(endEdge, 1);
         }
       }
       
@@ -2179,6 +2222,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           ctx.stroke();
         }
       }
+      
+      // ============================================================
+      // DRAW CONNECTOR BORDERS (after deck so they're on top)
+      // ============================================================
+      drawConnectorBorders();
     }
     
     // Draw suspension bridge towers on main canvas (after base tiles, before buildings canvas)
