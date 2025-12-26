@@ -3660,7 +3660,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     for (let i = 0; i < bridgeQueue.length; i++) {
       const { tile, screenX, screenY } = bridgeQueue[i];
       if (tile.building.bridgeType === 'suspension') {
-        drawSuspensionBridgeTowers(ctx, screenX, screenY, tile.building, zoom, true);
+        drawSuspensionBridgeTowers(ctx, screenX, screenY, tile.building, zoom);
       }
     }
     
@@ -3750,7 +3750,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         for (let i = 0; i < bridgeQueue.length; i++) {
           const { tile, screenX, screenY } = bridgeQueue[i];
           if (tile.building.bridgeType === 'suspension') {
-            drawSuspensionBridgeTowers(buildingsCtx, screenX, screenY, tile.building, zoom, false);
+            drawSuspensionBridgeTowers(buildingsCtx, screenX, screenY, tile.building, zoom);
           }
         }
         
