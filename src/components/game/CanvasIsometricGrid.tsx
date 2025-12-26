@@ -2185,8 +2185,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       // NOTE: Suspension bridge front tower and cables are now drawn in drawSuspensionBridgeOverlay
       // which is called after buildings for proper z-ordering
       
-      // Large bridge truss structure
-      if (bridgeType === 'large' && currentZoom >= 0.5) {
+      // Large bridge truss structure (skip for rail bridges and 1-tile bridges)
+      if (bridgeType === 'large' && currentZoom >= 0.5 && !isRailBridge && bridgeSpan > 1) {
         ctx.strokeStyle = style.accent;
         ctx.lineWidth = 1.5;
         const trussHLeft = 3;

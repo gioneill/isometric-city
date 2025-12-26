@@ -757,6 +757,8 @@ const BRIDGE_TYPE_THRESHOLDS = {
 
 /** Get the appropriate bridge type for a given span */
 function getBridgeTypeForSpan(span: number): BridgeType {
+  // 1-tile bridges are simple bridges without trusses
+  if (span === 1) return 'small';
   if (span <= BRIDGE_TYPE_THRESHOLDS.large) return 'large';
   return 'suspension';
 }
