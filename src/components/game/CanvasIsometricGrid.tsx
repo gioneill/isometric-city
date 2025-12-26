@@ -2030,12 +2030,17 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           const numTies = 7; // Match TIES_PER_TILE
           const tieHalfLen = w * 0.065; // Half-length of each tie
           
+          // Use original (non-extended) edges for ties to align with adjacent rail tiles
+          // The extended edges are only for the deck/rails to avoid sub-pixel gaps
+          const tieStartY = startEdge.y - deckElevation;
+          const tieEndY = endEdge.y - deckElevation;
+          
           for (let trackOffset of [halfSep, -halfSep]) {
-            // Track center line - use extended edges to match bridge deck alignment
-            const trackStartX = extendedStartEdge.x + perpX * trackOffset;
-            const trackStartY = startY + perpY * trackOffset;
-            const trackEndX = extendedEndEdge.x + perpX * trackOffset;
-            const trackEndY = endY + perpY * trackOffset;
+            // Track center line - use original edges for tie alignment with adjacent tiles
+            const trackStartX = startEdge.x + perpX * trackOffset;
+            const trackStartY = tieStartY + perpY * trackOffset;
+            const trackEndX = endEdge.x + perpX * trackOffset;
+            const trackEndY = tieEndY + perpY * trackOffset;
             
             // Match railSystem.ts: use (i + 0.5) / numTies to center ties, avoiding edge overlap
             for (let i = 0; i < numTies; i++) {
