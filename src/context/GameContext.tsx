@@ -733,8 +733,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       
       // Handle water terraform tool separately
       if (tool === 'zone_water') {
-        // Already water
+        // Already water - do nothing
         if (tile.building.type === 'water') return prev;
+        // Don't allow terraforming bridges - would break them
+        if (tile.building.type === 'bridge') return prev;
         
         const nextState = placeWaterTerraform(prev, x, y);
         if (nextState === prev) return prev;
