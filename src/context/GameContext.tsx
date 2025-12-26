@@ -169,12 +169,23 @@ function loadGameState(): GameState | null {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       // Try to decompress first (new format)
-      // If it fails or returns null, fall back to parsing as plain JSON (legacy format)
+      // If it fails or returns null/garbage, fall back to parsing as plain JSON (legacy format)
       let jsonString = decompressFromUTF16(saved);
-      if (!jsonString) {
-        // Legacy uncompressed format - use the saved string directly
-        jsonString = saved;
+      
+      // Check if decompression returned valid-looking JSON (should start with '{')
+      // lz-string can return garbage strings when given invalid input
+      if (!jsonString || !jsonString.startsWith('{')) {
+        // Check if the saved string itself looks like JSON (legacy uncompressed format)
+        if (saved.startsWith('{')) {
+          jsonString = saved;
+        } else {
+          // Data is corrupted - clear it and return null
+          console.error('Corrupted save data detected, clearing...');
+          localStorage.removeItem(STORAGE_KEY);
+          return null;
+        }
       }
+      
       const parsed = JSON.parse(jsonString);
       // Validate it has essential properties
       if (parsed && 
@@ -283,6 +294,48 @@ function loadGameState(): GameState | null {
   return null;
 }
 
+// Optimize game state for saving by removing unnecessary/transient data
+function optimizeStateForSave(state: GameState): GameState {
+  // Create a shallow copy to avoid mutating the original
+  const optimized = { ...state };
+  
+  // Clear notifications (they're transient)
+  optimized.notifications = [];
+  
+  // Clear advisor messages (they're regenerated each tick)
+  optimized.advisorMessages = [];
+  
+  // Limit history to last 50 entries (instead of 100)
+  if (optimized.history && optimized.history.length > 50) {
+    optimized.history = optimized.history.slice(-50);
+  }
+  
+  return optimized;
+}
+
+// Try to free up localStorage space by clearing old/unused data
+function tryFreeLocalStorageSpace(): void {
+  try {
+    // Clear any old saved city restore data
+    localStorage.removeItem(SAVED_CITY_STORAGE_KEY);
+    
+    // Clear sprite test data if any
+    localStorage.removeItem('isocity_sprite_test');
+    
+    // Clear any other temporary keys
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('isocity_temp_')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+  } catch (e) {
+    console.error('Failed to free localStorage space:', e);
+  }
+}
+
 // Save game state to localStorage with lz-string compression
 // Compression typically reduces size by 60-80%, allowing much larger cities
 function saveGameState(state: GameState): void {
@@ -294,7 +347,9 @@ function saveGameState(state: GameState): void {
       return;
     }
     
-    const serialized = JSON.stringify(state);
+    // Optimize state to reduce size
+    const optimizedState = optimizeStateForSave(state);
+    const serialized = JSON.stringify(optimizedState);
     
     // Compress the JSON string using lz-string
     // compressToUTF16 produces valid UTF-16 strings that localStorage handles well
@@ -307,11 +362,29 @@ function saveGameState(state: GameState): void {
       return;
     }
     
-    localStorage.setItem(STORAGE_KEY, compressed);
+    try {
+      localStorage.setItem(STORAGE_KEY, compressed);
+    } catch (quotaError) {
+      // If quota exceeded, try to free up space and retry
+      if (quotaError instanceof DOMException && (quotaError.code === 22 || quotaError.code === 1014)) {
+        console.warn('localStorage quota exceeded, trying to free space...');
+        tryFreeLocalStorageSpace();
+        // Retry the save
+        try {
+          localStorage.setItem(STORAGE_KEY, compressed);
+          console.log('Save succeeded after freeing space');
+        } catch (retryError) {
+          console.error('localStorage still full after cleanup. Compressed size:', compressed.length, 'chars');
+          throw retryError;
+        }
+      } else {
+        throw quotaError;
+      }
+    }
   } catch (e) {
     // Handle quota exceeded errors
     if (e instanceof DOMException && (e.code === 22 || e.code === 1014)) {
-      console.error('localStorage quota exceeded, cannot save game state');
+      console.error('localStorage quota exceeded, cannot save game state. City may be too large.');
     } else {
       console.error('Failed to save game state:', e);
     }
