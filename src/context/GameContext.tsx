@@ -1043,6 +1043,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return grid;
       };
       
+      // Create new boolean grids with expanded size (all initialized to false)
+      const createBoolGrid = (): boolean[][] => {
+        const grid: boolean[][] = [];
+        for (let y = 0; y < newSize; y++) {
+          grid.push(new Array(newSize).fill(false));
+        }
+        return grid;
+      };
+      
       // Copy old service values to new positions (offset by 15)
       const expandServiceGrid = (oldGrid: number[][]): number[][] => {
         const newServiceGrid = createServiceGrid();
@@ -1064,19 +1073,38 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return newServiceGrid;
       };
       
+      // Copy old boolean grid values to new positions (offset by 15)
+      const expandBoolGrid = (oldGrid: boolean[][]): boolean[][] => {
+        const newBoolGrid = createBoolGrid();
+        const offset = 15;
+        if (oldGrid && Array.isArray(oldGrid)) {
+          for (let y = 0; y < prev.gridSize; y++) {
+            const row = oldGrid[y];
+            if (row && Array.isArray(row)) {
+              for (let x = 0; x < prev.gridSize; x++) {
+                const value = row[x];
+                if (typeof value === 'boolean') {
+                  newBoolGrid[y + offset][x + offset] = value;
+                }
+              }
+            }
+          }
+        }
+        return newBoolGrid;
+      };
+      
       return {
         ...prev,
         grid: newGrid,
         gridSize: newSize,
         // Expand all service grids
         services: {
-          power: expandServiceGrid(prev.services.power),
-          water: expandServiceGrid(prev.services.water),
+          power: expandBoolGrid(prev.services.power),
+          water: expandBoolGrid(prev.services.water),
           fire: expandServiceGrid(prev.services.fire),
           police: expandServiceGrid(prev.services.police),
           health: expandServiceGrid(prev.services.health),
           education: expandServiceGrid(prev.services.education),
-          subway: expandServiceGrid(prev.services.subway),
         },
         // Update bounds
         bounds: {
@@ -1114,6 +1142,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return grid;
       };
       
+      // Create new boolean grids with shrunken size
+      const createBoolGrid = (): boolean[][] => {
+        const grid: boolean[][] = [];
+        for (let y = 0; y < newSize; y++) {
+          grid.push(new Array(newSize).fill(false));
+        }
+        return grid;
+      };
+      
       // Copy old service values from interior positions (offset by 15)
       const shrinkServiceGrid = (oldGrid: number[][]): number[][] => {
         const newServiceGrid = createServiceGrid();
@@ -1135,19 +1172,38 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return newServiceGrid;
       };
       
+      // Copy old boolean grid values from interior positions (offset by 15)
+      const shrinkBoolGrid = (oldGrid: boolean[][]): boolean[][] => {
+        const newBoolGrid = createBoolGrid();
+        const offset = 15;
+        if (oldGrid && Array.isArray(oldGrid)) {
+          for (let y = 0; y < newSize; y++) {
+            const oldRow = oldGrid[y + offset];
+            if (oldRow && Array.isArray(oldRow)) {
+              for (let x = 0; x < newSize; x++) {
+                const value = oldRow[x + offset];
+                if (typeof value === 'boolean') {
+                  newBoolGrid[y][x] = value;
+                }
+              }
+            }
+          }
+        }
+        return newBoolGrid;
+      };
+      
       return {
         ...prev,
         grid: newGrid,
         gridSize: newSize,
         // Shrink all service grids
         services: {
-          power: shrinkServiceGrid(prev.services.power),
-          water: shrinkServiceGrid(prev.services.water),
+          power: shrinkBoolGrid(prev.services.power),
+          water: shrinkBoolGrid(prev.services.water),
           fire: shrinkServiceGrid(prev.services.fire),
           police: shrinkServiceGrid(prev.services.police),
           health: shrinkServiceGrid(prev.services.health),
           education: shrinkServiceGrid(prev.services.education),
-          subway: shrinkServiceGrid(prev.services.subway),
         },
         // Update bounds
         bounds: {
