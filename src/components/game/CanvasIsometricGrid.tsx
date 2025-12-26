@@ -154,6 +154,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const lightingCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderPendingRef = useRef<number | null>(null); // PERF: Track pending render frame
+  const lastMainRenderTimeRef = useRef<number>(0); // PERF: Throttle main renders at high speed
   const [offset, setOffset] = useState({ x: isMobile ? 200 : 620, y: isMobile ? 100 : 160 });
   const [isDragging, setIsDragging] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
@@ -927,6 +928,18 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     // PERF: Defer render to next animation frame - batches multiple state updates into one render
     renderPendingRef.current = requestAnimationFrame(() => {
       renderPendingRef.current = null;
+      
+      // PERF: Throttle main renders at 3x speed to reduce dropped frames
+      // At high speed, we can skip some renders since simulation ticks are frequent
+      const currentSpeed = worldStateRef.current.speed;
+      const now = performance.now();
+      const timeSinceLastRender = now - lastMainRenderTimeRef.current;
+      const minRenderInterval = currentSpeed === 3 ? 50 : 0; // Skip renders within 50ms at 3x speed
+      
+      if (timeSinceLastRender < minRenderInterval) {
+        return; // Skip this render, next tick will trigger a new one
+      }
+      lastMainRenderTimeRef.current = now;
       
       const dpr = window.devicePixelRatio || 1;
     

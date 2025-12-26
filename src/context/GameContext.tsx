@@ -656,11 +656,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       );
       
       // Slower tick intervals on mobile to reduce CPU load
-      // Desktop: 500ms, 220ms, 50ms for speeds 1, 2, 3
+      // Desktop: 500ms, 220ms, 80ms for speeds 1, 2, 3 (3x increased from 50ms for large city perf)
       // Mobile: 750ms, 400ms, 150ms for speeds 1, 2, 3 (50% slower)
       const interval = isMobileDevice
         ? (state.speed === 1 ? 750 : state.speed === 2 ? 400 : 150)
-        : (state.speed === 1 ? 500 : state.speed === 2 ? 220 : 50);
+        : (state.speed === 1 ? 500 : state.speed === 2 ? 220 : 80);
         
       timer = setInterval(() => {
         setState((prev) => simulateTick(prev));
