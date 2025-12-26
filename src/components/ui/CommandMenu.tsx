@@ -32,6 +32,7 @@ interface MenuItem {
 
 const MENU_CATEGORIES = [
   { key: 'tools', label: 'Tools' },
+  { key: 'zones', label: 'Zones' },
   { key: 'zoning', label: 'Zoning' },
   { key: 'services', label: 'Services' },
   { key: 'parks', label: 'Parks' },
@@ -64,8 +65,24 @@ function buildMenuItems(): MenuItem[] {
     });
   });
 
-  // Zoning category
-  const zoningCategory: Tool[] = ['zone_residential', 'zone_commercial', 'zone_industrial', 'zone_dezone', 'zone_water'];
+  // Zones category (R/C/I)
+  const zonesCategory: Tool[] = ['zone_residential', 'zone_commercial', 'zone_industrial'];
+  zonesCategory.forEach(tool => {
+    const info = TOOL_INFO[tool];
+    items.push({
+      id: tool,
+      type: 'tool',
+      tool,
+      name: info.name,
+      description: info.description,
+      cost: info.cost,
+      category: 'zones',
+      keywords: [info.name.toLowerCase(), tool, 'zone'],
+    });
+  });
+
+  // Zoning category (de-zone and water terraform)
+  const zoningCategory: Tool[] = ['zone_dezone', 'zone_water'];
   zoningCategory.forEach(tool => {
     const info = TOOL_INFO[tool];
     items.push({
@@ -76,7 +93,7 @@ function buildMenuItems(): MenuItem[] {
       description: info.description,
       cost: info.cost,
       category: 'zoning',
-      keywords: [info.name.toLowerCase(), tool, 'zone', 'zoning', ...(tool === 'zone_water' ? ['water', 'terraform', 'lake', 'ocean'] : [])],
+      keywords: [info.name.toLowerCase(), tool, 'zoning', ...(tool === 'zone_water' ? ['water', 'terraform', 'lake', 'ocean'] : ['remove', 'clear'])],
     });
   });
 

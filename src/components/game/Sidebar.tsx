@@ -210,12 +210,10 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
                   className={`w-full justify-start gap-2 px-3 py-2 h-auto text-sm transition-all duration-150 ${
                     isSelected ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted/60'
                   }`}
-                  title={`${info.description}${info.cost > 0 ? ` - Cost: $${info.cost}` : ''}`}
+                  title={`${info.description} - Cost: $${info.cost.toLocaleString()}`}
                 >
                   <span className="flex-1 text-left truncate">{info.name}</span>
-                  {info.cost > 0 && (
-                    <span className={`text-xs ${isSelected ? 'opacity-80' : 'opacity-50'}`}>${info.cost.toLocaleString()}</span>
-                  )}
+                  <span className={`text-xs ${isSelected ? 'opacity-80' : 'opacity-50'}`}>${info.cost.toLocaleString()}</span>
                 </Button>
               );
             })}
@@ -284,9 +282,10 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
     onExit?.();
   }, [onExit]);
   
-  // Direct tool categories (shown inline) - removed ZONES, now a submenu
+  // Direct tool categories (shown inline)
   const directCategories = useMemo(() => ({
     'TOOLS': ['select', 'bulldoze', 'road', 'rail', 'subway'] as Tool[],
+    'ZONES': ['zone_residential', 'zone_commercial', 'zone_industrial'] as Tool[],
   }), []);
   
   // Submenu categories (hover to expand) - includes all new assets from main
@@ -294,7 +293,7 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
     {
       key: 'zoning',
       label: 'Zoning',
-      tools: ['zone_residential', 'zone_commercial', 'zone_industrial', 'zone_dezone', 'zone_water'] as Tool[]
+      tools: ['zone_dezone', 'zone_water'] as Tool[]
     },
     { 
       key: 'services', 

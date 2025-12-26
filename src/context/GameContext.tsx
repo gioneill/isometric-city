@@ -709,10 +709,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       if (tool === 'zone_water') {
         // Already water
         if (tile.building.type === 'water') return prev;
-        // Can only terraform grass tiles or tiles with zone but no developed building
-        // Can't terraform existing buildings (except grass, trees)
-        const allowedTypes: BuildingType[] = ['grass', 'tree'];
-        if (!allowedTypes.includes(tile.building.type)) return prev;
         
         const nextState = placeWaterTerraform(prev, x, y);
         if (nextState === prev) return prev;
