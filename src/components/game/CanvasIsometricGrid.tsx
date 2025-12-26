@@ -1687,14 +1687,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       const style = bridgeStyles[bridgeType]?.[variant] || bridgeStyles.small[0];
       
-      // Diamond corners for the tile
-      const topCorner = { x: cx, y: y };
-      const rightCorner = { x: x + w, y: cy };
-      const bottomCorner = { x: cx, y: y + h };
-      const leftCorner = { x: x, y: cy };
-      
-      // Bridge width - wider than roads (0.38) for visual prominence
-      const bridgeWidthRatio = 0.38;
+      // Bridge width - 50% fatter than roads for visual prominence
+      const bridgeWidthRatio = 0.21;
       const halfWidth = w * bridgeWidthRatio * 0.5;
       
       // For bridges, we draw a SINGLE continuous parallelogram from edge to edge
@@ -1713,39 +1707,31 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       let perpY: number;
       
       if (orientation === 'ns') {
-        // NS bridge connects tiles that differ in grid X (north-south in grid terms)
-        // Grid "north" (gx-1) connects via NE screen edge, grid "south" (gx+1) via SW screen edge
-        // So NS bridges go from NE edge (eastEdge) to SW edge (westEdge) in screen space
-        const baseStart = eastEdge;   // NE screen edge - connects to grid "north"
-        const baseEnd = westEdge;     // SW screen edge - connects to grid "south"
+        // NS bridges span the grid X direction (tiles at gx-1 and gx+1)
+        // In screen space, grid X direction corresponds to NW-SE diagonal
+        // So NS bridges connect the NW edge (northEdge) to SE edge (southEdge)
+        startEdge = { x: northEdge.x, y: northEdge.y };
+        endEdge = { x: southEdge.x, y: southEdge.y };
         
-        // Direction vector along the bridge
-        const dx = baseEnd.x - baseStart.x;
-        const dy = baseEnd.y - baseStart.y;
+        // Calculate perpendicular as 90° rotation of bridge direction (like roads do)
+        const dx = endEdge.x - startEdge.x;
+        const dy = endEdge.y - startEdge.y;
         const len = Math.hypot(dx, dy);
-        
-        startEdge = { x: baseStart.x, y: baseStart.y };
-        endEdge = { x: baseEnd.x, y: baseEnd.y };
-        
-        // Perpendicular direction (pointing toward NW / SE in screen space)
+        // Perpendicular: rotate direction by 90° = (-dy, dx)
         perpX = -dy / len;
         perpY = dx / len;
       } else {
-        // EW bridge connects tiles that differ in grid Y (east-west in grid terms)
-        // Grid "east" (gy-1) connects via NW screen edge, grid "west" (gy+1) via SE screen edge
-        // So EW bridges go from NW edge (northEdge) to SE edge (southEdge) in screen space
-        const baseStart = northEdge;  // NW screen edge - connects to grid "east"
-        const baseEnd = southEdge;    // SE screen edge - connects to grid "west"
+        // EW bridges span the grid Y direction (tiles at gy-1 and gy+1)
+        // In screen space, grid Y direction corresponds to NE-SW diagonal
+        // So EW bridges connect the NE edge (eastEdge) to SW edge (westEdge)
+        startEdge = { x: eastEdge.x, y: eastEdge.y };
+        endEdge = { x: westEdge.x, y: westEdge.y };
         
-        // Direction vector along the bridge
-        const dx = baseEnd.x - baseStart.x;
-        const dy = baseEnd.y - baseStart.y;
+        // Calculate perpendicular as 90° rotation of bridge direction (like roads do)
+        const dx = endEdge.x - startEdge.x;
+        const dy = endEdge.y - startEdge.y;
         const len = Math.hypot(dx, dy);
-        
-        startEdge = { x: baseStart.x, y: baseStart.y };
-        endEdge = { x: baseEnd.x, y: baseEnd.y };
-        
-        // Perpendicular direction (pointing toward NE / SW in screen space)
+        // Perpendicular: rotate direction by 90° = (-dy, dx)
         perpX = -dy / len;
         perpY = dx / len;
       }
@@ -1854,60 +1840,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       const startY = startEdge.y - deckElevation;
       const endY = endEdge.y - deckElevation;
       
-      // For proper grid alignment, the deck ends should be cut along tile edges, not perpendicular to bridge
-      // Tile edges are at isometric angles - we need to find where deck edges intersect tile edges
-      
-      // Direction along the bridge
-      const bridgeDx = endEdge.x - startEdge.x;
-      const bridgeDy = endEdge.y - startEdge.y;
-      const bridgeLen = Math.hypot(bridgeDx, bridgeDy);
-      const bridgeDirX = bridgeDx / bridgeLen;
-      const bridgeDirY = bridgeDy / bridgeLen;
-      
-      // Tile edge directions (for computing proper end caps)
-      // NW edge (topCorner to leftCorner): direction (-w/2, h/2) normalized
-      // SE edge (rightCorner to bottomCorner): direction (-w/2, h/2) normalized  
-      // NE edge (topCorner to rightCorner): direction (w/2, h/2) normalized
-      // SW edge (leftCorner to bottomCorner): direction (w/2, h/2) normalized
-      
-      // For NS bridges: ends align with NW/SE edges (direction proportional to (-1, 1))
-      // For EW bridges: ends align with NE/SW edges (direction proportional to (1, 1))
-      const tileEdgeDirX = orientation === 'ns' ? -1 : 1;
-      const tileEdgeDirY = 1;
-      const tileEdgeLen = Math.hypot(tileEdgeDirX, tileEdgeDirY);
-      const normTileEdgeX = tileEdgeDirX / tileEdgeLen;
-      const normTileEdgeY = tileEdgeDirY / tileEdgeLen;
-      
-      // Project halfWidth onto the tile edge direction to get the proper offset for aligned ends
-      // We want corners that lie along the tile edge direction, not perpendicular to bridge
-      const dotProduct = perpX * normTileEdgeX + perpY * normTileEdgeY;
-      const projectedHalfWidth = Math.abs(dotProduct) > 0.01 ? halfWidth / dotProduct : halfWidth;
-      
-      // Calculate the deck corner points with tile-edge-aligned ends
-      const startLeft = { 
-        x: startEdge.x + normTileEdgeX * projectedHalfWidth, 
-        y: startY + normTileEdgeY * projectedHalfWidth 
-      };
-      const startRight = { 
-        x: startEdge.x - normTileEdgeX * projectedHalfWidth, 
-        y: startY - normTileEdgeY * projectedHalfWidth 
-      };
-      const endLeft = { 
-        x: endEdge.x + normTileEdgeX * projectedHalfWidth, 
-        y: endY + normTileEdgeY * projectedHalfWidth 
-      };
-      const endRight = { 
-        x: endEdge.x - normTileEdgeX * projectedHalfWidth, 
-        y: endY - normTileEdgeY * projectedHalfWidth 
-      };
-      
-      // Draw the deck as a parallelogram with tile-edge-aligned ends
+      // Draw the deck as a simple parallelogram using perpendicular offsets
       ctx.fillStyle = style.asphalt;
       ctx.beginPath();
-      ctx.moveTo(startLeft.x, startLeft.y);
-      ctx.lineTo(endLeft.x, endLeft.y);
-      ctx.lineTo(endRight.x, endRight.y);
-      ctx.lineTo(startRight.x, startRight.y);
+      ctx.moveTo(startEdge.x + perpX * halfWidth, startY + perpY * halfWidth);
+      ctx.lineTo(endEdge.x + perpX * halfWidth, endY + perpY * halfWidth);
+      ctx.lineTo(endEdge.x - perpX * halfWidth, endY - perpY * halfWidth);
+      ctx.lineTo(startEdge.x - perpX * halfWidth, startY - perpY * halfWidth);
       ctx.closePath();
       ctx.fill();
       
@@ -1916,42 +1855,23 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       // ============================================================
       if (currentZoom >= 0.4) {
         const barrierW = 2;
-        const barrierProjectedWidth = Math.abs(dotProduct) > 0.01 ? barrierW / dotProduct : barrierW;
         ctx.fillStyle = style.barrier;
         
-        // Left barrier (outer edge)
-        const startLeftOuter = { 
-          x: startEdge.x + normTileEdgeX * (projectedHalfWidth + barrierProjectedWidth), 
-          y: startY + normTileEdgeY * (projectedHalfWidth + barrierProjectedWidth) 
-        };
-        const endLeftOuter = { 
-          x: endEdge.x + normTileEdgeX * (projectedHalfWidth + barrierProjectedWidth), 
-          y: endY + normTileEdgeY * (projectedHalfWidth + barrierProjectedWidth) 
-        };
-        
+        // Left barrier
         ctx.beginPath();
-        ctx.moveTo(startLeft.x, startLeft.y);
-        ctx.lineTo(endLeft.x, endLeft.y);
-        ctx.lineTo(endLeftOuter.x, endLeftOuter.y);
-        ctx.lineTo(startLeftOuter.x, startLeftOuter.y);
+        ctx.moveTo(startEdge.x + perpX * halfWidth, startY + perpY * halfWidth);
+        ctx.lineTo(endEdge.x + perpX * halfWidth, endY + perpY * halfWidth);
+        ctx.lineTo(endEdge.x + perpX * (halfWidth + barrierW), endY + perpY * (halfWidth + barrierW));
+        ctx.lineTo(startEdge.x + perpX * (halfWidth + barrierW), startY + perpY * (halfWidth + barrierW));
         ctx.closePath();
         ctx.fill();
         
-        // Right barrier (outer edge)
-        const startRightOuter = { 
-          x: startEdge.x - normTileEdgeX * (projectedHalfWidth + barrierProjectedWidth), 
-          y: startY - normTileEdgeY * (projectedHalfWidth + barrierProjectedWidth) 
-        };
-        const endRightOuter = { 
-          x: endEdge.x - normTileEdgeX * (projectedHalfWidth + barrierProjectedWidth), 
-          y: endY - normTileEdgeY * (projectedHalfWidth + barrierProjectedWidth) 
-        };
-        
+        // Right barrier  
         ctx.beginPath();
-        ctx.moveTo(startRight.x, startRight.y);
-        ctx.lineTo(endRight.x, endRight.y);
-        ctx.lineTo(endRightOuter.x, endRightOuter.y);
-        ctx.lineTo(startRightOuter.x, startRightOuter.y);
+        ctx.moveTo(startEdge.x - perpX * halfWidth, startY - perpY * halfWidth);
+        ctx.lineTo(endEdge.x - perpX * halfWidth, endY - perpY * halfWidth);
+        ctx.lineTo(endEdge.x - perpX * (halfWidth + barrierW), endY - perpY * (halfWidth + barrierW));
+        ctx.lineTo(startEdge.x - perpX * (halfWidth + barrierW), startY - perpY * (halfWidth + barrierW));
         ctx.closePath();
         ctx.fill();
       }
