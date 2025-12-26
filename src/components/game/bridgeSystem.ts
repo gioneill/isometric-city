@@ -191,6 +191,8 @@ export function detectBridgeOpportunity(
  * Get the appropriate bridge type for a given span
  */
 export function getBridgeTypeForSpan(span: number): BridgeType {
+  // 1-tile bridges are simple bridges without trusses
+  if (span === 1) return 'small';
   if (span <= BRIDGE_TYPE_THRESHOLDS.large) return 'large';
   return 'suspension';
 }
@@ -311,6 +313,8 @@ export function drawBridge(
   const orientation = building.bridgeOrientation || 'ns';
   const variant = building.bridgeVariant || 0;
   const position = building.bridgePosition || 'middle';
+  const bridgeSpan = building.bridgeSpan ?? 1;
+  const isRailBridge = building.bridgeTrackType === 'rail';
   
   const w = TILE_WIDTH;
   const h = TILE_HEIGHT;
@@ -342,7 +346,7 @@ export function drawBridge(
       drawMediumBridge(ctx, screenX, screenY, orientation, position, colors, zoom);
       break;
     case 'large':
-      drawLargeBridge(ctx, screenX, screenY, orientation, position, colors, zoom);
+      drawLargeBridge(ctx, screenX, screenY, orientation, position, colors, zoom, isRailBridge, bridgeSpan);
       break;
     case 'suspension':
       drawSuspensionBridge(ctx, screenX, screenY, orientation, position, colors, zoom);
@@ -550,7 +554,9 @@ function drawLargeBridge(
   orientation: BridgeOrientation,
   position: 'start' | 'middle' | 'end',
   colors: { deck: string; support: string; accent: string },
-  zoom: number
+  zoom: number,
+  isRailBridge: boolean = false,
+  bridgeSpan: number = 1
 ): void {
   const w = TILE_WIDTH;
   const h = TILE_HEIGHT;
@@ -572,12 +578,13 @@ function drawLargeBridge(
     }
   }
   
-  // Draw steel truss structure above deck
-  ctx.strokeStyle = colors.accent;
-  ctx.lineWidth = 1.5;
-  
-  const trussHeight = h * 0.25;
-  const deckY = cy;
+  // Draw steel truss structure above deck (skip for rail bridges and 1-tile bridges)
+  if (!isRailBridge && bridgeSpan > 1) {
+    ctx.strokeStyle = colors.accent;
+    ctx.lineWidth = 1.5;
+    
+    const trussHeight = h * 0.25;
+    const deckY = cy;
   
   if (orientation === 'ns') {
     const leftEdge = x + w * 0.2;
@@ -637,6 +644,7 @@ function drawLargeBridge(
       ctx.lineTo(cx - trussHeight, py);
       ctx.stroke();
     }
+  }
   }
   
   // Draw the deck
