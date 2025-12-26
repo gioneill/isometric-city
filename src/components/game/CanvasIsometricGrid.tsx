@@ -3113,7 +3113,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
                 sourceY += tileHeight * 0.15; // Shift down ~15% to avoid row above
                 // For row 3 mall variants, crop bottom to avoid picking up industrial assets from row 4
                 if (useModernVariant.row === 3) {
-                  sourceH = tileHeight * 0.80; // Crop 20% off bottom to exclude industrial asset below
+                  sourceH = tileHeight * 1.10; // Extend slightly into row below but will be cropped by rendering
                 } else {
                   sourceH = tileHeight * 0.85; // Crop 15% off bottom for other mall rows
                 }
