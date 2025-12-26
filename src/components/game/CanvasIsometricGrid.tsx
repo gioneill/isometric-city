@@ -991,6 +991,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       return type === 'road' || type === 'bridge';
     }
     
+    // Helper function to check if a tile is a bridge (for beach exclusion)
+    function isBridge(gridX: number, gridY: number): boolean {
+      if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) return false;
+      return grid[gridY][gridX].building.type === 'bridge';
+    }
+    
     // Helper function to check if a tile has a marina dock or pier (no beaches next to these)
     // Also checks 'empty' tiles that are part of multi-tile marina buildings
     function hasMarinaPier(gridX: number, gridY: number): boolean {
@@ -2135,7 +2141,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       // Skip drawing green base for tiles adjacent to water (will be drawn later over water)
       // This includes grass, empty, and tree tiles - all have green bases
-      const shouldSkipDrawing = skipGreenBase && (tile.building.type === 'grass' || tile.building.type === 'empty' || tile.building.type === 'tree');
+      // Also skip bridge tiles - they will have water drawn underneath them in the road queue
+      const shouldSkipDrawing = (skipGreenBase && (tile.building.type === 'grass' || tile.building.type === 'empty' || tile.building.type === 'tree')) || 
+                                tile.building.type === 'bridge';
       
       // Draw the isometric diamond (top face)
       if (!shouldSkipDrawing) {
@@ -3177,12 +3185,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       const { tile, screenX, screenY } = waterQueue[i];
       // Compute land adjacency for each edge (opposite of water adjacency)
       // Only consider tiles within bounds - don't draw beaches on map edges
-      // Also exclude beaches next to marina docks and piers
+      // Also exclude beaches next to marina docks, piers, and bridges (bridges are over water)
       const adjacentLand = {
-        north: (tile.x - 1 >= 0 && tile.x - 1 < gridSize && tile.y >= 0 && tile.y < gridSize) && !isWater(tile.x - 1, tile.y) && !hasMarinaPier(tile.x - 1, tile.y),
-        east: (tile.x >= 0 && tile.x < gridSize && tile.y - 1 >= 0 && tile.y - 1 < gridSize) && !isWater(tile.x, tile.y - 1) && !hasMarinaPier(tile.x, tile.y - 1),
-        south: (tile.x + 1 >= 0 && tile.x + 1 < gridSize && tile.y >= 0 && tile.y < gridSize) && !isWater(tile.x + 1, tile.y) && !hasMarinaPier(tile.x + 1, tile.y),
-        west: (tile.x >= 0 && tile.x < gridSize && tile.y + 1 >= 0 && tile.y + 1 < gridSize) && !isWater(tile.x, tile.y + 1) && !hasMarinaPier(tile.x, tile.y + 1),
+        north: (tile.x - 1 >= 0 && tile.x - 1 < gridSize && tile.y >= 0 && tile.y < gridSize) && !isWater(tile.x - 1, tile.y) && !hasMarinaPier(tile.x - 1, tile.y) && !isBridge(tile.x - 1, tile.y),
+        east: (tile.x >= 0 && tile.x < gridSize && tile.y - 1 >= 0 && tile.y - 1 < gridSize) && !isWater(tile.x, tile.y - 1) && !hasMarinaPier(tile.x, tile.y - 1) && !isBridge(tile.x, tile.y - 1),
+        south: (tile.x + 1 >= 0 && tile.x + 1 < gridSize && tile.y >= 0 && tile.y < gridSize) && !isWater(tile.x + 1, tile.y) && !hasMarinaPier(tile.x + 1, tile.y) && !isBridge(tile.x + 1, tile.y),
+        west: (tile.x >= 0 && tile.x < gridSize && tile.y + 1 >= 0 && tile.y + 1 < gridSize) && !isWater(tile.x, tile.y + 1) && !hasMarinaPier(tile.x, tile.y + 1) && !isBridge(tile.x, tile.y + 1),
       };
       drawBeachOnWater(ctx, screenX, screenY, adjacentLand);
     }
@@ -3198,17 +3206,24 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     // PERF: Use for loop instead of forEach
     for (let i = 0; i < roadQueue.length; i++) {
       const { tile, screenX, screenY } = roadQueue[i];
-      // Draw road base tile first (grey diamond)
-      ctx.fillStyle = '#4a4a4a';
-      ctx.beginPath();
-      ctx.moveTo(screenX + halfTileWidth, screenY);
-      ctx.lineTo(screenX + tileWidth, screenY + halfTileHeight);
-      ctx.lineTo(screenX + halfTileWidth, screenY + tileHeight);
-      ctx.lineTo(screenX, screenY + halfTileHeight);
-      ctx.closePath();
-      ctx.fill();
       
-      // Draw road markings and sidewalks
+      // For bridges, draw water underneath instead of grey base tile
+      if (tile.building.type === 'bridge') {
+        // Draw water tile underneath the bridge
+        drawWaterTileAt(ctx, screenX, screenY, tile.x, tile.y);
+      } else {
+        // Draw road base tile first (grey diamond)
+        ctx.fillStyle = '#4a4a4a';
+        ctx.beginPath();
+        ctx.moveTo(screenX + halfTileWidth, screenY);
+        ctx.lineTo(screenX + tileWidth, screenY + halfTileHeight);
+        ctx.lineTo(screenX + halfTileWidth, screenY + tileHeight);
+        ctx.lineTo(screenX, screenY + halfTileHeight);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      // Draw road markings and sidewalks (or bridge structure)
       drawBuilding(ctx, screenX, screenY, tile);
       
       // If this road has a rail overlay, draw just the rail tracks (ties and rails, no ballast)
