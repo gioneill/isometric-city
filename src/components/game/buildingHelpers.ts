@@ -11,6 +11,10 @@ export interface TileMetadata {
   needsGreyBase: boolean;
   needsGreenBaseOverWater: boolean;
   needsGreenBaseForPark: boolean;
+  /** PERF: Pre-computed road adjacency flip for buildings - avoids O(n) calculation during render */
+  shouldFlipForRoad: boolean;
+  /** Whether the tile has an adjacent road (for building orientation) */
+  hasAdjacentRoad: boolean;
 }
 
 // Park building types that get green bases
@@ -101,6 +105,13 @@ export function useBuildingHelpers(grid: Tile[][], gridSize: number) {
       }
     }
     
+    // Helper to check if a position has a road or bridge (for building orientation)
+    const isRoad = (checkX: number, checkY: number): boolean => {
+      if (checkX < 0 || checkY < 0 || checkX >= gridSize || checkY >= gridSize) return false;
+      const type = grid[checkY][checkX].building.type;
+      return type === 'road' || type === 'bridge';
+    };
+    
     // Second pass: compute all derived metadata
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
@@ -149,6 +160,62 @@ export function useBuildingHelpers(grid: Tile[][], gridSize: number) {
         const needsGreenBaseForPark = (buildingType === 'park' || buildingType === 'park_large') ||
                                       (buildingType === 'empty' && isPartOfParkBuilding);
         
+        // PERF: Pre-compute road adjacency and flip direction for building orientation
+        // This replaces the expensive per-frame getRoadAdjacency() call during rendering
+        // For multi-tile buildings, we only compute this for origin tiles (building type != 'empty')
+        let hasAdjacentRoad = false;
+        let shouldFlipForRoad = false;
+        
+        // Only compute for actual building tiles (not 'empty' parts of multi-tile buildings)
+        // The render loop will use the origin tile's metadata
+        if (isDirectBuilding) {
+          const buildingSize = getBuildingSize(buildingType);
+          const width = buildingSize.width;
+          const height = buildingSize.height;
+          
+          // Check all four edges for roads - same logic as getRoadAdjacency
+          let roadOnSouthOrEast = false; // "Front" sides - no flip needed
+          let roadOnNorthOrWest = false; // "Back" sides - flip needed
+          
+          // Check south edge (y + height) - front-right in isometric view
+          for (let dx = 0; dx < width && !roadOnSouthOrEast; dx++) {
+            if (isRoad(x + dx, y + height)) {
+              roadOnSouthOrEast = true;
+            }
+          }
+          
+          // Check east edge (x + width) - front-left in isometric view
+          if (!roadOnSouthOrEast) {
+            for (let dy = 0; dy < height && !roadOnSouthOrEast; dy++) {
+              if (isRoad(x + width, y + dy)) {
+                roadOnSouthOrEast = true;
+              }
+            }
+          }
+          
+          // Check north edge (y - 1) - back-left in isometric view
+          if (!roadOnSouthOrEast) {
+            for (let dx = 0; dx < width && !roadOnNorthOrWest; dx++) {
+              if (isRoad(x + dx, y - 1)) {
+                roadOnNorthOrWest = true;
+              }
+            }
+          }
+          
+          // Check west edge (x - 1) - back-right in isometric view
+          if (!roadOnSouthOrEast && !roadOnNorthOrWest) {
+            for (let dy = 0; dy < height && !roadOnNorthOrWest; dy++) {
+              if (isRoad(x - 1, y + dy)) {
+                roadOnNorthOrWest = true;
+              }
+            }
+          }
+          
+          hasAdjacentRoad = roadOnSouthOrEast || roadOnNorthOrWest;
+          // Should flip if road is on back sides (north/west) to face the road
+          shouldFlipForRoad = roadOnNorthOrWest && !roadOnSouthOrEast;
+        }
+        
         map.set(key, {
           isPartOfMultiTileBuilding,
           isPartOfParkBuilding,
@@ -157,6 +224,8 @@ export function useBuildingHelpers(grid: Tile[][], gridSize: number) {
           needsGreyBase,
           needsGreenBaseOverWater,
           needsGreenBaseForPark,
+          shouldFlipForRoad,
+          hasAdjacentRoad,
         });
       }
     }

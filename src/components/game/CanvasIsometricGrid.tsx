@@ -3,7 +3,7 @@
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useGame } from '@/context/GameContext';
 import { TOOL_INFO, Tile, Building, BuildingType, AdjacentCity, Tool } from '@/types/game';
-import { getBuildingSize, requiresWaterAdjacency, getWaterAdjacency, getRoadAdjacency } from '@/lib/simulation';
+import { getBuildingSize, requiresWaterAdjacency, getWaterAdjacency } from '@/lib/simulation';
 import { FireIcon, SafetyIcon } from '@/components/ui/Icons';
 import { getSpriteCoords, BUILDING_TO_SPRITE, SPRITE_VERTICAL_OFFSETS, SPRITE_HORIZONTAL_OFFSETS, getActiveSpritePack } from '@/lib/renderConfig';
 
@@ -2749,15 +2749,16 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               // Check if this is a waterfront asset - these use water-facing logic set at build time
               const isWaterfrontAsset = requiresWaterAdjacency(buildingType);
               
-              // Determine flip based on road adjacency for non-waterfront buildings
+              // PERF: Determine flip based on cached road adjacency (O(1) lookup instead of O(n) per frame)
               // Buildings should face roads when possible, otherwise fall back to random
               const shouldRoadMirror = (() => {
                 if (isWaterfrontAsset) return false; // Waterfront buildings use water-facing logic
                 
-                const roadCheck = getRoadAdjacency(grid, tile.x, tile.y, buildingSize.width, buildingSize.height, gridSize);
-                if (roadCheck.hasRoad) {
+                // PERF: Use pre-computed road adjacency from tile metadata cache
+                const originMetadata = getTileMetadata(tile.x, tile.y);
+                if (originMetadata?.hasAdjacentRoad) {
                   // Face the road
-                  return roadCheck.shouldFlip;
+                  return originMetadata.shouldFlipForRoad;
                 }
                 
                 // No road adjacent - fall back to deterministic random mirroring for visual variety
