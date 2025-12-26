@@ -2702,6 +2702,14 @@ export function bulldozeTile(state: GameState, x: number, y: number): GameState 
 
   const newGrid = state.grid.map(row => row.map(t => ({ ...t, building: { ...t.building } })));
   
+  // Special handling for bridges - restore water instead of grass
+  if (tile.building.type === 'bridge') {
+    newGrid[y][x].building = createBuilding('water');
+    newGrid[y][x].zone = 'none';
+    newGrid[y][x].hasRailOverlay = false;
+    return { ...state, grid: newGrid };
+  }
+  
   // Check if this tile is part of a multi-tile building
   const origin = findBuildingOrigin(newGrid, x, y, state.gridSize);
   
