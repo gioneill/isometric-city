@@ -5,6 +5,7 @@ export type BuildingType =
   | 'grass'
   | 'water'
   | 'road'
+  | 'bridge'
   | 'rail'
   | 'tree'
   // Residential
@@ -203,6 +204,12 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   mountain_trailhead: { name: 'Trailhead', cost: 400, description: 'Hiking trail entrance (3x3)', size: 3 },
 };
 
+// Bridge type based on span width
+export type BridgeType = 'small' | 'medium' | 'large' | 'suspension';
+
+// Bridge orientation
+export type BridgeOrientation = 'ns' | 'ew';
+
 export interface Building {
   type: BuildingType;
   level: number;
@@ -217,6 +224,11 @@ export interface Building {
   abandoned: boolean; // Building is abandoned due to low demand, produces nothing
   flipped?: boolean; // Horizontally mirror the sprite (used for waterfront buildings to face water)
   cityId?: string; // ID of the city this building belongs to (for multi-city support)
+  // Bridge-specific properties
+  bridgeType?: BridgeType; // Type of bridge (small, medium, large, suspension)
+  bridgeOrientation?: BridgeOrientation; // Direction the bridge spans (ns or ew)
+  bridgeVariant?: number; // Visual variant for this bridge type (0-2)
+  bridgePosition?: 'start' | 'middle' | 'end'; // Position within the bridge span
 }
 
 // City definition for multi-city maps
@@ -394,6 +406,7 @@ export const BUILDING_STATS: Record<BuildingType, { maxPop: number; maxJobs: num
   grass: { maxPop: 0, maxJobs: 0, pollution: 0, landValue: 0 },
   water: { maxPop: 0, maxJobs: 0, pollution: 0, landValue: 5 },
   road: { maxPop: 0, maxJobs: 0, pollution: 2, landValue: 0 },
+  bridge: { maxPop: 0, maxJobs: 0, pollution: 1, landValue: 5 },
   rail: { maxPop: 0, maxJobs: 0, pollution: 1, landValue: -2 },
   tree: { maxPop: 0, maxJobs: 0, pollution: -5, landValue: 2 },
   house_small: { maxPop: 6, maxJobs: 0, pollution: 0, landValue: 10 },

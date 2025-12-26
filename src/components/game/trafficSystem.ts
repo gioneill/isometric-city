@@ -100,7 +100,8 @@ export const ROAD_COLORS = {
  */
 function isRoad(grid: Tile[][], gridSize: number, x: number, y: number): boolean {
   if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return false;
-  return grid[y][x].building.type === 'road';
+  const type = grid[y][x].building.type;
+  return type === 'road' || type === 'bridge';
 }
 
 /**

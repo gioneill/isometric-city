@@ -906,7 +906,8 @@ export function countRoadTiles(
   let count = 0;
   for (let y = 0; y < gridSize; y++) {
     for (let x = 0; x < gridSize; x++) {
-      if (grid[y][x].building.type === 'road') {
+      const type = grid[y][x].building.type;
+      if (type === 'road' || type === 'bridge') {
         count++;
       }
     }

@@ -338,6 +338,7 @@ export function useVehicleSystems(
         const isBuilding = tile.building.type !== 'grass' && 
             tile.building.type !== 'water' && 
             tile.building.type !== 'road' && 
+            tile.building.type !== 'bridge' && 
             tile.building.type !== 'tree' &&
             tile.building.type !== 'empty';
         const hasActivity = tile.building.population > 0 || tile.building.jobs > 0;
@@ -952,7 +953,8 @@ export function useVehicleSystems(
       roadTileCount = 0;
       for (let y = 0; y < currentGridSize; y++) {
         for (let x = 0; x < currentGridSize; x++) {
-          if (currentGrid[y][x].building.type === 'road') {
+          const type = currentGrid[y][x].building.type;
+          if (type === 'road' || type === 'bridge') {
             roadTileCount++;
           }
         }
