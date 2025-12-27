@@ -169,7 +169,7 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   power_plant: { name: 'Power Plant', cost: 3000, description: 'Generate electricity (2x2)', size: 2 },
   water_tower: { name: 'Water Tower', cost: 1000, description: 'Provide water', size: 1 },
   subway_station: { name: 'Subway Station', cost: 750, description: 'Access to subway network', size: 1 },
-  rail_station: { name: 'Rail Station', cost: 1000, description: 'Passenger rail station', size: 2 },
+  rail_station: { name: 'Rail Station', cost: 1000, description: 'Passenger and freight station', size: 2 },
   stadium: { name: 'Stadium', cost: 5000, description: 'Boosts commercial demand (3x3)', size: 3 },
   museum: { name: 'Museum', cost: 4000, description: 'Boosts commercial & residential demand (3x3)', size: 3 },
   airport: { name: 'Airport', cost: 10000, description: 'Boosts commercial & industrial demand (4x4)', size: 4 },
