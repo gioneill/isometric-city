@@ -16,8 +16,8 @@ import { Card } from '@/components/ui/card';
 const LANGUAGES = [
   { code: 'en', name: 'English' },
   { code: 'es', name: 'Español' },
-  { code: 'ja', name: '日本語' },
   { code: 'zh', name: '中文' },
+  { code: 'ja', name: '日本語' },
   { code: 'fr', name: 'Français' },
   { code: 'de', name: 'Deutsch' },
   { code: 'pt-BR', name: 'Português' },

@@ -3,8 +3,8 @@
   "locales": [
     "en",
     "es",
-    "ja",
     "zh",
+    "ja",
     "fr",
     "de",
     "pt-BR",
@@ -18,5 +18,5 @@
     }
   },
   "framework": "next-app",
-  "_versionId": "7a204e65f117c2f5252efd3c98fa0e282facc4e473fffa0a57f35f4bc49073c4"
+  "_versionId": "f083b5c58113dc0377d6b19ff72df0be950e676ec1883a8abf58a6bee894777d"
 }
