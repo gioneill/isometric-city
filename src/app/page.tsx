@@ -9,7 +9,7 @@ import { CoopModal } from '@/components/multiplayer/CoopModal';
 import { useMobile } from '@/hooks/useMobile';
 import { getSpritePack, getSpriteCoords, DEFAULT_SPRITE_PACK_ID } from '@/lib/renderConfig';
 import { SavedCityMeta, GameState } from '@/types/game';
-import { decompressFromUTF16 } from 'lz-string';
+import { decompressFromUTF16, compressToUTF16 } from 'lz-string';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Users } from 'lucide-react';
 
@@ -333,14 +333,24 @@ export default function HomePage() {
     
     if (isHost && initialState) {
       // Host starts with the state they created - save it so GameProvider loads it
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialState));
+      try {
+        const compressed = compressToUTF16(JSON.stringify(initialState));
+        localStorage.setItem(STORAGE_KEY, compressed);
+      } catch (e) {
+        console.error('Failed to save co-op state:', e);
+      }
       setStartFreshGame(false);
     } else if (isHost) {
       // Host without state - fallback to fresh game
       setStartFreshGame(true);
     } else if (initialState) {
       // Guest received state from host - save it so GameProvider loads it
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialState));
+      try {
+        const compressed = compressToUTF16(JSON.stringify(initialState));
+        localStorage.setItem(STORAGE_KEY, compressed);
+      } catch (e) {
+        console.error('Failed to save co-op state:', e);
+      }
       setStartFreshGame(false);
     } else {
       // Guest without state - fallback to fresh game
@@ -416,7 +426,12 @@ export default function HomePage() {
               onClick={async () => {
                 const response = await fetch('/example-states/example_state_9.json');
                 const exampleState = await response.json();
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(exampleState));
+                try {
+                  const compressed = compressToUTF16(JSON.stringify(exampleState));
+                  localStorage.setItem(STORAGE_KEY, compressed);
+                } catch (e) {
+                  console.error('Failed to save example state:', e);
+                }
                 setShowGame(true);
               }}
               variant="outline"
@@ -497,7 +512,12 @@ export default function HomePage() {
                 onClick={async () => {
                   const response = await fetch('/example-states/example_state_9.json');
                   const exampleState = await response.json();
-                  localStorage.setItem(STORAGE_KEY, JSON.stringify(exampleState));
+                  try {
+                    const compressed = compressToUTF16(JSON.stringify(exampleState));
+                    localStorage.setItem(STORAGE_KEY, compressed);
+                  } catch (e) {
+                    console.error('Failed to save example state:', e);
+                  }
                   setShowGame(true);
                 }}
                 variant="outline"
