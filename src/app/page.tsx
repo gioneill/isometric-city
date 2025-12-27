@@ -252,28 +252,6 @@ function SavedCityCard({ city, onLoad }: { city: SavedCityMeta; onLoad: () => vo
 
 const SAVED_CITY_PREFIX = 'isocity-city-';
 
-// Load current game state for multiplayer sharing
-function loadCurrentGameState(): GameState | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      let jsonString = decompressFromUTF16(saved);
-      if (!jsonString || !jsonString.startsWith('{')) {
-        if (saved.startsWith('{')) {
-          jsonString = saved;
-        } else {
-          return null;
-        }
-      }
-      return JSON.parse(jsonString) as GameState;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
 export default function HomePage() {
   const [showGame, setShowGame] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -358,11 +336,6 @@ export default function HomePage() {
     }
     
     setShowGame(true);
-  };
-
-  // Get current game state for sharing in co-op
-  const getCurrentGameState = (): GameState | undefined => {
-    return loadCurrentGameState() || undefined;
   };
 
   if (isChecking) {
@@ -475,7 +448,6 @@ export default function HomePage() {
             open={showCoopModal}
             onOpenChange={setShowCoopModal}
             onStartGame={handleCoopStart}
-            currentGameState={getCurrentGameState()}
             pendingRoomCode={pendingRoomCode}
           />
         </main>
@@ -568,7 +540,6 @@ export default function HomePage() {
           open={showCoopModal}
           onOpenChange={setShowCoopModal}
           onStartGame={handleCoopStart}
-          currentGameState={getCurrentGameState()}
           pendingRoomCode={pendingRoomCode}
         />
       </main>
