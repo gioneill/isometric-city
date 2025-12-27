@@ -349,9 +349,12 @@ export class MultiplayerProvider {
   }
 
   private async handleSignal(signal: SignalMessage): Promise<void> {
+    console.log(`[MP] Signal received: ${signal.type} from ${signal.from}`);
+    
     // Handle announcement (peer joined) - has a special 'announce' type in payload
     const payloadType = (signal.payload as { type?: string })?.type;
     if (signal.type === 'offer' && payloadType === 'announce') {
+      console.log('[MP] Guest announced, creating offer...');
       if (this.isHost) {
         await this.createPeerConnection(signal.from, true);
       }
@@ -361,8 +364,10 @@ export class MultiplayerProvider {
     // Handle real WebRTC offer (bundled format with sdp+candidates, or legacy format)
     const hasSdpPayload = (signal.payload as { sdp?: unknown })?.sdp;
     if (signal.type === 'offer' && (payloadType === 'offer' || hasSdpPayload)) {
+      console.log('[MP] Processing WebRTC offer...');
       await this.handleOffer(signal);
     } else if (signal.type === 'answer') {
+      console.log('[MP] Processing WebRTC answer...');
       await this.handleAnswer(signal);
     } else if (signal.type === 'ice-candidate') {
       await this.handleLegacyIceCandidate(signal);
@@ -374,25 +379,44 @@ export class MultiplayerProvider {
     let pc = this.peerConnections.get(remotePeerId);
     if (pc) return pc;
 
-    // Use STUN servers for connectivity
+    // Use STUN and TURN servers for connectivity
+    // TURN servers are essential for connections through restrictive NATs/firewalls
     pc = new RTCPeerConnection({
       iceServers: [
+        // Google STUN servers
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
+        // Free TURN servers from Open Relay Project
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
+        // Backup TURN with UDP
+        {
+          urls: 'turn:openrelay.metered.ca:80?transport=udp',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
       ],
       iceCandidatePoolSize: 10,
     });
     
     // ICE connection state handling
     pc.oniceconnectionstatechange = () => {
-      // Connection state is handled by onconnectionstatechange
+      console.log(`[MP] ICE state: ${pc!.iceConnectionState}`);
+      if (pc!.iceConnectionState === 'failed') {
+        console.error('[MP] ICE connection failed - may need TURN server');
+      }
     };
-    
+
     pc.onicegatheringstatechange = () => {
-      // Gathering state changes are handled in offer/answer creation
+      console.log(`[MP] ICE gathering: ${pc!.iceGatheringState}`);
     };
 
     this.peerConnections.set(remotePeerId, pc);
