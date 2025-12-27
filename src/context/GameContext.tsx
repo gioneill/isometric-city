@@ -63,7 +63,8 @@ type GameContextValue = {
   setTaxRate: (rate: number) => void;
   setActivePanel: (panel: GameState['activePanel']) => void;
   setBudgetFunding: (key: keyof Budget, funding: number) => void;
-  placeAtTile: (x: number, y: number) => void;
+  placeAtTile: (x: number, y: number, isRemote?: boolean) => void;
+  setPlaceCallback: (callback: ((x: number, y: number, tool: Tool) => void) | null) => void;
   finishTrackDrag: (pathTiles: { x: number; y: number }[], trackType: 'road' | 'rail') => void; // Create bridges after road/rail drag
   connectToCity: (cityId: string) => void;
   discoverCity: (cityId: string) => void;
@@ -640,8 +641,8 @@ function deleteCityState(cityId: string): void {
   }
 }
 
-export function GameProvider({ children }: { children: React.ReactNode }) {
-  // Start with a default state, we'll load from localStorage after mount
+export function GameProvider({ children, startFresh = false }: { children: React.ReactNode; startFresh?: boolean }) {
+  // Start with a default state, we'll load from localStorage after mount (unless startFresh is true)
   const [state, setState] = useState<GameState>(() => createInitialGameState(DEFAULT_GRID_SIZE, 'IsoCity'));
   
   const [hasExistingGame, setHasExistingGame] = useState(false);
@@ -649,6 +650,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextSaveRef = useRef(false);
   const hasLoadedRef = useRef(false);
+  
+  // Callback for multiplayer action broadcast
+  const placeCallbackRef = useRef<((x: number, y: number, tool: Tool) => void) | null>(null);
   
   // Sprite pack state
   const [currentSpritePack, setCurrentSpritePack] = useState<SpritePack>(() => getSpritePack(DEFAULT_SPRITE_PACK_ID));
@@ -675,18 +679,24 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const cities = loadSavedCitiesIndex();
     setSavedCities(cities);
     
-    // Load game state
-    const saved = loadGameState();
-    if (saved) {
-      skipNextSaveRef.current = true; // Set skip flag BEFORE updating state
-      setState(saved);
-      setHasExistingGame(true);
+    // Load game state (unless startFresh is true - used for co-op to start with a new city)
+    console.log('[GameContext] Loading state, startFresh=', startFresh);
+    if (!startFresh) {
+      const saved = loadGameState();
+      console.log('[GameContext] loadGameState returned:', saved ? { cityName: saved.cityName, gridSize: saved.gridSize } : null);
+      if (saved) {
+        skipNextSaveRef.current = true; // Set skip flag BEFORE updating state
+        setState(saved);
+        setHasExistingGame(true);
+      } else {
+        setHasExistingGame(false);
+      }
     } else {
       setHasExistingGame(false);
     }
     // Mark as loaded immediately - the skipNextSaveRef will handle skipping the first save
     hasLoadedRef.current = true;
-  }, []);
+  }, [startFresh]);
   
   // Track the state that needs to be saved
   const lastSaveTimeRef = useRef<number>(0);
@@ -854,7 +864,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const placeAtTile = useCallback((x: number, y: number) => {
+  const placeAtTile = useCallback((x: number, y: number, isRemote = false) => {
+    // Capture the current tool before setState
+    const toolToPlace = latestStateRef.current.selectedTool;
+    
     setState((prev) => {
       const tool = prev.selectedTool;
       if (tool === 'select') return prev;
@@ -946,7 +959,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
       return nextState;
     });
-  }, []);
+    
+    // Broadcast to multiplayer if this is a local action (not remote)
+    if (!isRemote && toolToPlace !== 'select' && placeCallbackRef.current) {
+      placeCallbackRef.current(x, y, toolToPlace);
+    }
+  }, [latestStateRef]);
 
   // Called after a road/rail drag operation to create bridges for water crossings
   const finishTrackDrag = useCallback((pathTiles: { x: number; y: number }[], trackType: 'road' | 'rail') => {
@@ -1051,6 +1069,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const setDisastersEnabled = useCallback((enabled: boolean) => {
     setState((prev) => ({ ...prev, disastersEnabled: enabled }));
+  }, []);
+  
+  const setPlaceCallback = useCallback((callback: ((x: number, y: number, tool: Tool) => void) | null) => {
+    placeCallbackRef.current = callback;
   }, []);
 
   const setSpritePack = useCallback((packId: string) => {
@@ -1585,6 +1607,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setActivePanel,
     setBudgetFunding,
     placeAtTile,
+    setPlaceCallback,
     finishTrackDrag,
     connectToCity,
     discoverCity,

@@ -15,6 +15,8 @@ import { VinnieDialog } from '@/components/VinnieDialog';
 import { CommandMenu } from '@/components/ui/CommandMenu';
 import { TipToast } from '@/components/ui/TipToast';
 import { useTipSystem } from '@/hooks/useTipSystem';
+import { useMultiplayerSync } from '@/hooks/useMultiplayerSync';
+import { Users, Copy, Check } from 'lucide-react';
 
 // Import game components
 import { OverlayMode } from '@/components/game/types';
@@ -61,6 +63,28 @@ export default function Game({ onExit }: { onExit?: () => void }) {
     onContinue: onTipContinue,
     onSkipAll: onTipSkipAll,
   } = useTipSystem(state);
+  
+  // Multiplayer sync
+  const {
+    isMultiplayer,
+    isHost,
+    playerCount,
+    roomCode,
+    players,
+    broadcastPlace,
+    leaveRoom,
+  } = useMultiplayerSync();
+  
+  // Copy room link state
+  const [copiedRoomLink, setCopiedRoomLink] = useState(false);
+  
+  const handleCopyRoomLink = useCallback(() => {
+    if (!roomCode) return;
+    const url = `${window.location.origin}/?room=${roomCode}`;
+    navigator.clipboard.writeText(url);
+    setCopiedRoomLink(true);
+    setTimeout(() => setCopiedRoomLink(false), 2000);
+  }, [roomCode]);
   const initialSelectedToolRef = useRef<Tool | null>(null);
   const previousSelectedToolRef = useRef<Tool | null>(null);
   const hasCapturedInitialTool = useRef(false);
@@ -239,6 +263,36 @@ export default function Game({ onExit }: { onExit?: () => void }) {
               isMobile={true}
               onBargeDelivery={handleBargeDelivery}
             />
+            
+            {/* Multiplayer Players Indicator - Mobile */}
+            {isMultiplayer && (
+              <div className="absolute top-2 right-2 z-20">
+                <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 shadow-lg">
+                  <div className="flex items-center gap-1.5 text-xs text-white">
+                    <Users className="w-3 h-3 text-green-400" />
+                    <span>{playerCount}</span>
+                    {roomCode && (
+                      <>
+                        <span className="text-slate-400 font-mono">
+                          #{roomCode}
+                        </span>
+                        <button
+                          onClick={handleCopyRoomLink}
+                          className="p-0.5 hover:bg-white/10 rounded transition-colors"
+                          title="Copy invite link"
+                        >
+                          {copiedRoomLink ? (
+                            <Check className="w-3 h-3 text-green-400" />
+                          ) : (
+                            <Copy className="w-3 h-3 text-slate-400" />
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Mobile Bottom Toolbar */}
@@ -289,6 +343,48 @@ export default function Game({ onExit }: { onExit?: () => void }) {
             />
             <OverlayModeToggle overlayMode={overlayMode} setOverlayMode={setOverlayMode} />
             <MiniMap onNavigate={(x, y) => setNavigationTarget({ x, y })} viewport={viewport} />
+            
+            {/* Multiplayer Players Indicator */}
+            {isMultiplayer && (
+              <div className="absolute top-4 right-4 z-20">
+                <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 shadow-lg">
+                  <div className="flex items-center gap-2 text-sm text-white">
+                    <Users className="w-4 h-4 text-green-400" />
+                    <span className="font-medium">{playerCount} Players</span>
+                    {roomCode && (
+                      <>
+                        <span className="text-slate-400 text-xs font-mono">
+                          #{roomCode}
+                        </span>
+                        <button
+                          onClick={handleCopyRoomLink}
+                          className="p-1 hover:bg-white/10 rounded transition-colors"
+                          title="Copy invite link"
+                        >
+                          {copiedRoomLink ? (
+                            <Check className="w-3 h-3 text-green-400" />
+                          ) : (
+                            <Copy className="w-3 h-3 text-slate-400 hover:text-white" />
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {players.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1">
+                      {players.slice(0, 4).map((player) => (
+                        <div
+                          key={player.id}
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: player.color }}
+                          title={player.name}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         
