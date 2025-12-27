@@ -4,6 +4,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react';
 import { compressToUTF16, decompressFromUTF16 } from 'lz-string';
 import { serializeAndCompressAsync } from '@/lib/saveWorkerManager';
+import { simulateTick } from '@/lib/simulation';
 import {
   Budget,
   BuildingType,
@@ -23,7 +24,6 @@ import {
   placeSubway,
   placeWaterTerraform,
   placeLandTerraform,
-  simulateTick,
   checkForDiscoverableCities,
   generateRandomAdvancedCity,
   createBridgesOnPath,
@@ -55,6 +55,9 @@ export type SavedCityInfo = {
 
 type GameContextValue = {
   state: GameState;
+  // PERF: Ref to latest state for real-time access without React re-renders
+  // Canvas should use this instead of state.grid for smooth updates
+  latestStateRef: React.RefObject<GameState>;
   setTool: (tool: Tool) => void;
   setSpeed: (speed: 0 | 1 | 2 | 3) => void;
   setTaxRate: (rate: number) => void;
@@ -769,26 +772,45 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Simulation loop - with mobile performance optimization
+  // PERF: Track tick count to only sync UI-visible changes to React periodically
+  const tickCountRef = useRef(0);
+  const lastUiSyncRef = useRef(0);
+  
+  // Simulation loop - PERF: Runs simulation but throttles React updates aggressively
+  // Grid updates go to ref (canvas reads from ref), React only gets UI updates
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
 
     if (state.speed > 0) {
       // Check if running on mobile for performance optimization
       const isMobileDevice = typeof window !== 'undefined' && (
-        window.innerWidth < 768 || 
+        window.innerWidth < 768 ||
         /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
       );
-      
-      // Slower tick intervals on mobile to reduce CPU load
-      // Desktop: 500ms, 220ms, 80ms for speeds 1, 2, 3 (3x increased from 50ms for large city perf)
-      // Mobile: 750ms, 400ms, 150ms for speeds 1, 2, 3 (50% slower)
+
+      // PERF: Balanced tick intervals
+      // Desktop: 500ms, 300ms, 200ms for speeds 1, 2, 3
+      // Mobile: 750ms, 450ms, 300ms for speeds 1, 2, 3
       const interval = isMobileDevice
-        ? (state.speed === 1 ? 750 : state.speed === 2 ? 400 : 150)
-        : (state.speed === 1 ? 500 : state.speed === 2 ? 220 : 80);
-        
+        ? (state.speed === 1 ? 750 : state.speed === 2 ? 450 : 300)
+        : (state.speed === 1 ? 500 : state.speed === 2 ? 300 : 200);
+
       timer = setInterval(() => {
-        setState((prev) => simulateTick(prev));
+        tickCountRef.current++;
+        const now = performance.now();
+        
+        // PERF: Run simulation and update ref immediately (for canvas)
+        const newState = simulateTick(latestStateRef.current);
+        latestStateRef.current = newState;
+        stateChangedRef.current = true;
+        
+        // PERF: Only sync to React every 500ms to avoid expensive reconciliation
+        // Canvas reads from latestStateRef so it sees updates immediately
+        // React state is only needed for UI elements (stats, budget display)
+        if (now - lastUiSyncRef.current >= 500) {
+          lastUiSyncRef.current = now;
+          setState(newState);
+        }
       }, interval);
     }
 
@@ -1556,6 +1578,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const value: GameContextValue = {
     state,
+    latestStateRef,
     setTool,
     setSpeed,
     setTaxRate,

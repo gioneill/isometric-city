@@ -148,8 +148,11 @@ export interface CanvasIsometricGridProps {
 
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
 export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMobile = false, navigationTarget, onNavigationComplete, onViewportChange, onBargeDelivery }: CanvasIsometricGridProps) {
-  const { state, placeAtTile, finishTrackDrag, connectToCity, checkAndDiscoverCities, currentSpritePack, visualHour } = useGame();
+  const { state, latestStateRef, placeAtTile, finishTrackDrag, connectToCity, checkAndDiscoverCities, currentSpritePack, visualHour } = useGame();
   const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, gameVersion } = state;
+  
+  // PERF: Use latestStateRef for real-time grid access in animation loops
+  // This avoids waiting for React state sync which is throttled for performance
   const m = useMessages();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverCanvasRef = useRef<HTMLCanvasElement>(null); // PERF: Separate canvas for hover/selection highlights
@@ -466,14 +469,43 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     drawSmog,
   } = useEffectsSystems(effectsSystemRefs, effectsSystemState);
   
+  // PERF: Sync worldStateRef from latestStateRef (real-time) instead of React state (throttled)
+  // This runs on every animation frame via the render loop, not on React state changes
   useEffect(() => {
+    // Initial sync from React state
     worldStateRef.current.grid = grid;
     worldStateRef.current.gridSize = gridSize;
-    // Increment grid version to invalidate cached calculations
     gridVersionRef.current++;
-    // Cache crossing positions for O(n) iteration instead of O(n²) grid scan
     crossingPositionsRef.current = findRailroadCrossings(grid, gridSize);
   }, [grid, gridSize]);
+  
+  // PERF: Continuously sync from latestStateRef for real-time grid updates
+  // This allows canvas to see simulation changes before React state syncs
+  useEffect(() => {
+    let animFrameId: number;
+    let lastGridVersion = 0;
+    
+    const syncFromRef = () => {
+      animFrameId = requestAnimationFrame(syncFromRef);
+      
+      // Only update if latestStateRef has newer data
+      const latest = latestStateRef.current;
+      if (latest && latest.grid !== worldStateRef.current.grid) {
+        worldStateRef.current.grid = latest.grid;
+        worldStateRef.current.gridSize = latest.gridSize;
+        // Only recalculate crossings if grid actually changed
+        const newVersion = gridVersionRef.current + 1;
+        if (newVersion !== lastGridVersion) {
+          lastGridVersion = newVersion;
+          gridVersionRef.current = newVersion;
+          crossingPositionsRef.current = findRailroadCrossings(latest.grid, latest.gridSize);
+        }
+      }
+    };
+    
+    animFrameId = requestAnimationFrame(syncFromRef);
+    return () => cancelAnimationFrame(animFrameId);
+  }, [latestStateRef]);
 
   useEffect(() => {
     worldStateRef.current.offset = offset;
