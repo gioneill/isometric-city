@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { SpriteTestPanel } from './SpriteTestPanel';
 import { SavedCityMeta } from '@/types/game';
+import { LocaleSelector } from 'gt-next';
 
 // Format a date for display
 function formatDate(timestamp: number): string {
@@ -206,8 +207,14 @@ export function SettingsPanel() {
                 ))}
               </div>
             </div>
+
+            <div className="py-2">
+              <Label>Language</Label>
+              <p className="text-muted-foreground text-xs mb-2">Choose your preferred language</p>
+              <LocaleSelector />
+            </div>
           </div>
-          
+
           <div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">City Information</div>
             <div className="space-y-2 text-sm">
