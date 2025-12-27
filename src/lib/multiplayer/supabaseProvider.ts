@@ -7,6 +7,7 @@ import {
   Player,
   generatePlayerId,
   generatePlayerColor,
+  generatePlayerName,
 } from './types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -17,7 +18,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export interface MultiplayerProviderOptions {
   roomCode: string;
   cityName: string;
-  playerName: string;
+  playerName?: string; // Optional - auto-generated if not provided
   initialGameState?: unknown; // If provided, this player has state to share
   onConnectionChange?: (connected: boolean, peerCount: number) => void;
   onPlayersChange?: (players: Player[]) => void;
@@ -47,7 +48,7 @@ export class MultiplayerProvider {
     // Create player info (no host flag needed)
     this.player = {
       id: this.peerId,
-      name: options.playerName,
+      name: options.playerName || generatePlayerName(),
       color: generatePlayerColor(),
       joinedAt: Date.now(),
       isHost: false, // No longer meaningful, kept for type compatibility

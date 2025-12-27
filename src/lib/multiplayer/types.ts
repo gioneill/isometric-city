@@ -86,6 +86,26 @@ export interface AwarenessState {
   selectedTool?: Tool;
 }
 
+// Word lists for random name generation
+const ADJECTIVES = [
+  'Red', 'Blue', 'Green', 'Golden', 'Silver', 'Purple', 'Orange', 'Pink',
+  'Swift', 'Brave', 'Clever', 'Happy', 'Lucky', 'Cosmic', 'Mighty', 'Gentle',
+  'Wild', 'Calm', 'Bold', 'Bright', 'Fluffy', 'Speedy', 'Tiny', 'Giant',
+];
+
+const ANIMALS = [
+  'Panda', 'Fox', 'Wolf', 'Bear', 'Eagle', 'Owl', 'Tiger', 'Lion',
+  'Falcon', 'Dolphin', 'Otter', 'Koala', 'Penguin', 'Rabbit', 'Deer', 'Hawk',
+  'Lynx', 'Raven', 'Cobra', 'Crane', 'Shark', 'Whale', 'Badger', 'Moose',
+];
+
+// Generate a random player name (e.g., "SwiftPanda", "BlueFox")
+export function generatePlayerName(): string {
+  const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+  return `${adjective}${animal}`;
+}
+
 // Generate a random player color
 export function generatePlayerColor(): string {
   const colors = [

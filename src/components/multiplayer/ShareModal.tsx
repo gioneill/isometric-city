@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useMultiplayer } from '@/context/MultiplayerContext';
 import { useGame } from '@/context/GameContext';
-import { Copy, Check, Users, Loader2 } from 'lucide-react';
+import { Copy, Check, Loader2 } from 'lucide-react';
 
 interface ShareModalProps {
   open: boolean;
@@ -21,7 +21,6 @@ interface ShareModalProps {
 export function ShareModal({ open, onOpenChange }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [playerName] = useState(() => `Player ${Math.floor(Math.random() * 9999)}`);
   
   const { roomCode, players, createRoom, connectionState } = useMultiplayer();
   const { state } = useGame();
@@ -30,7 +29,7 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
   useEffect(() => {
     if (open && !roomCode && !isCreating) {
       setIsCreating(true);
-      createRoom(state.cityName, playerName, state)
+      createRoom(state.cityName, state)
         .then((code) => {
           // Update URL to show room code
           window.history.replaceState({}, '', `/?room=${code}`);
@@ -42,7 +41,7 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
           setIsCreating(false);
         });
     }
-  }, [open, roomCode, isCreating, createRoom, state, playerName]);
+  }, [open, roomCode, isCreating, createRoom, state]);
 
   // Reset copied state when modal closes
   useEffect(() => {
@@ -66,8 +65,7 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
         <DialogHeader>
-          <DialogTitle className="text-white flex items-center gap-2">
-            <Users className="w-5 h-5" />
+          <DialogTitle className="text-white">
             Invite Players
           </DialogTitle>
           <DialogDescription className="text-slate-400">
@@ -109,9 +107,16 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
                 </Button>
               </div>
 
-              {/* Player Count */}
-              <div className="text-center text-sm text-slate-400">
-                <span className="text-white font-medium">{players.length}</span> player{players.length !== 1 ? 's' : ''} connected
+              {/* Players */}
+              <div className="bg-slate-800/50 rounded-lg p-4">
+                <p className="text-slate-400 text-sm mb-2">{players.length} player{players.length !== 1 ? 's' : ''}</p>
+                <div className="space-y-1">
+                  {players.map((player) => (
+                    <div key={player.id} className="text-sm text-white">
+                      {player.name}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Continue Button */}

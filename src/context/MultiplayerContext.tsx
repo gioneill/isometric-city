@@ -39,8 +39,8 @@ interface MultiplayerContextValue {
   error: string | null;
 
   // Actions
-  createRoom: (cityName: string, playerName: string, initialState: GameState) => Promise<string>;
-  joinRoom: (roomCode: string, playerName: string) => Promise<RoomData>;
+  createRoom: (cityName: string, initialState: GameState) => Promise<string>;
+  joinRoom: (roomCode: string) => Promise<RoomData>;
   leaveRoom: () => void;
   
   // Game action dispatch
@@ -89,7 +89,7 @@ export function MultiplayerContextProvider({
 
   // Create a room (first player to start a session)
   const createRoom = useCallback(
-    async (cityName: string, playerName: string, gameState: GameState): Promise<string> => {
+    async (cityName: string, gameState: GameState): Promise<string> => {
       setConnectionState('connecting');
       setError(null);
 
@@ -97,11 +97,10 @@ export function MultiplayerContextProvider({
         // Generate room code (no API needed - Supabase channels are created on-demand)
         const newRoomCode = generateRoomCode();
 
-        // Create multiplayer provider with initial state
+        // Create multiplayer provider with initial state (name auto-generated)
         const provider = await createMultiplayerProvider({
           roomCode: newRoomCode,
           cityName,
-          playerName,
           initialGameState: gameState, // This player has the state to share
           onConnectionChange: (connected, peerCount) => {
             setConnectionState(connected ? 'connected' : 'disconnected');
@@ -132,18 +131,17 @@ export function MultiplayerContextProvider({
 
   // Join an existing room
   const joinRoom = useCallback(
-    async (code: string, playerName: string): Promise<RoomData> => {
+    async (code: string): Promise<RoomData> => {
       setConnectionState('connecting');
       setError(null);
 
       try {
         const normalizedCode = code.toUpperCase();
         
-        // Create multiplayer provider (will receive state from other players)
+        // Create multiplayer provider (name auto-generated, will receive state from others)
         const provider = await createMultiplayerProvider({
           roomCode: normalizedCode,
           cityName: 'Co-op City',
-          playerName,
           // No initialGameState - we'll receive it from others
           onConnectionChange: (connected, peerCount) => {
             setConnectionState(connected ? 'connected' : 'disconnected');
