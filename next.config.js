@@ -1,6 +1,8 @@
-const withGTConfig = require("gt-next/config").withGTConfig; /** @type {import('next').NextConfig} */
+const { withGTConfig } = require("gt-next/config");
+
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true
 };
 
-module.exports = nextConfig;
+module.exports = withGTConfig(nextConfig);

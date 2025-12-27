@@ -18,6 +18,7 @@ import {
   CheckIcon,
 } from '@/components/ui/Icons';
 import { copyShareUrl } from '@/lib/shareState';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 
 // ============================================================================
 // TIME OF DAY ICON
@@ -249,6 +250,10 @@ export const TopBar = React.memo(function TopBar() {
           />
           <span className="text-foreground text-xs font-mono tabular-nums w-8">{taxRate}%</span>
         </div>
+        
+        <Separator orientation="vertical" className="h-8" />
+        
+        <LanguageSelector iconOnly={false} variant="ghost" iconSize={14} />
       </div>
     </div>
   );

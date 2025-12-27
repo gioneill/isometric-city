@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 
 // Sun/Moon icon for time of day
 function TimeOfDayIcon({ hour }: { hour: number }) {
@@ -187,6 +188,9 @@ export function MobileTopBar({
                 </div>
               </button>
             </div>
+
+            {/* Language selector */}
+            <LanguageSelector iconOnly className="mr-1" iconSize={12} />
 
             {/* Exit button */}
             {onExit && (

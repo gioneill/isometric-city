@@ -8,6 +8,7 @@ import { useMobile } from '@/hooks/useMobile';
 import { getSpritePack, getSpriteCoords, DEFAULT_SPRITE_PACK_ID } from '@/lib/renderConfig';
 import { SavedCityMeta } from '@/types/game';
 import { decompressFromUTF16 } from 'lz-string';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 
 const STORAGE_KEY = 'isocity-game-state';
 const SAVED_CITIES_INDEX_KEY = 'isocity-saved-cities-index';
@@ -340,14 +341,17 @@ export default function HomePage() {
           >
             Load Example
           </Button>
-          <a
-            href="https://github.com/amilich/isometric-city"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
-          >
-            Open GitHub
-          </a>
+          <div className="flex items-center justify-between w-full">
+            <a
+              href="https://github.com/amilich/isometric-city"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+            >
+              Open GitHub
+            </a>
+            <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
+          </div>
         </div>
         
         {/* Saved Cities */}
@@ -400,14 +404,17 @@ export default function HomePage() {
             >
               Load Example
             </Button>
-            <a
-              href="https://github.com/amilich/isometric-city"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-64 text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
-            >
-              Open GitHub
-            </a>
+            <div className="flex items-center justify-between w-64">
+              <a
+                href="https://github.com/amilich/isometric-city"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+              >
+                Open GitHub
+              </a>
+              <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
+            </div>
           </div>
           
           {/* Saved Cities */}
