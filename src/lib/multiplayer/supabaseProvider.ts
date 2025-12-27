@@ -1,6 +1,7 @@
 // Simple Supabase Realtime multiplayer provider (peer-to-peer, no host required)
 
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 import {
   GameAction,
   GameActionInput,
@@ -101,10 +102,12 @@ export class MultiplayerProvider {
               // Small delay to avoid race conditions with multiple senders
               setTimeout(() => {
                 if (!this.destroyed && this.gameState) {
+                  // Compress state for bandwidth efficiency (~70-80% reduction)
+                  const compressed = compressToEncodedURIComponent(JSON.stringify(this.gameState));
                   this.channel.send({
                     type: 'broadcast',
                     event: 'state-sync',
-                    payload: { state: this.gameState, to: key, from: this.peerId },
+                    payload: { compressed, to: key, from: this.peerId },
                   });
                 }
               }, Math.random() * 200); // Random delay 0-200ms to stagger responses
@@ -127,12 +130,23 @@ export class MultiplayerProvider {
         }
       })
       .on('broadcast', { event: 'state-sync' }, ({ payload }) => {
-        const { state, to } = payload as { state: unknown; to?: string; from?: string };
+        const { compressed, to } = payload as { compressed: string; to?: string; from?: string };
         // Only process if it's for us and we haven't received state yet
         if (to === this.peerId && !this.hasReceivedState && this.options.onStateReceived) {
-          this.hasReceivedState = true;
-          this.gameState = state; // Now we have state too
-          this.options.onStateReceived(state);
+          try {
+            // Decompress state
+            const decompressed = decompressFromEncodedURIComponent(compressed);
+            if (!decompressed) {
+              console.error('[Multiplayer] Failed to decompress state');
+              return;
+            }
+            const state = JSON.parse(decompressed);
+            this.hasReceivedState = true;
+            this.gameState = state; // Now we have state too
+            this.options.onStateReceived(state);
+          } catch (e) {
+            console.error('[Multiplayer] Failed to parse state:', e);
+          }
         }
       })
       .on('broadcast', { event: 'state-request' }, ({ payload }) => {
@@ -142,10 +156,12 @@ export class MultiplayerProvider {
           // Random delay to avoid multiple simultaneous responses
           setTimeout(() => {
             if (!this.destroyed && this.gameState) {
+              // Compress state for bandwidth efficiency (~70-80% reduction)
+              const compressed = compressToEncodedURIComponent(JSON.stringify(this.gameState));
               this.channel.send({
                 type: 'broadcast',
                 event: 'state-sync',
-                payload: { state: this.gameState, to: from, from: this.peerId },
+                payload: { compressed, to: from, from: this.peerId },
               });
             }
           }, Math.random() * 200);
