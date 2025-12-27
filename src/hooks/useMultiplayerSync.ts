@@ -60,7 +60,6 @@ export function useMultiplayerSync() {
         
       case 'placeBatch':
         // Apply multiple placements from a single message (e.g., road drag)
-        console.log(`[Multiplayer] Received batch with ${action.placements.length} placements`);
         const originalTool = game.state.selectedTool;
         for (const placement of action.placements) {
           game.setTool(placement.tool);
@@ -131,8 +130,6 @@ export function useMultiplayerSync() {
     
     const placements = [...placementBufferRef.current];
     placementBufferRef.current = [];
-    
-    console.log(`[Multiplayer] Flushing ${placements.length} placements`);
     
     if (placements.length === 1) {
       // Single placement - send as regular place action
