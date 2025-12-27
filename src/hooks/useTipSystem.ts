@@ -236,26 +236,14 @@ export function useTipSystem(state: GameState): UseTipSystemReturn {
 
   // Check for conditions and show tip - uses refs to get latest values
   const checkAndShowTip = useCallback(() => {
-    if (!hasLoadedRef.current) {
-      console.log('[TipSystem] Not loaded yet');
-      return;
-    }
-    
-    if (!tipsEnabled) {
-      console.log('[TipSystem] Tips disabled');
-      return;
-    }
-    
-    if (isVisible) {
-      console.log('[TipSystem] Tip already visible');
-      return;
-    }
+    if (!hasLoadedRef.current) return;
+    if (!tipsEnabled) return;
+    if (isVisible) return;
     
     const now = Date.now();
     
     // Rate limiting - don't show tips too frequently (skip for first tip)
     if (lastTipTimeRef.current > 0 && now - lastTipTimeRef.current < MIN_TIP_INTERVAL_MS) {
-      console.log('[TipSystem] Rate limited');
       return;
     }
     
@@ -264,19 +252,11 @@ export function useTipSystem(state: GameState): UseTipSystemReturn {
     
     // Find the first applicable tip that hasn't been shown
     const applicableTips = TIP_DEFINITIONS
-      .filter(tip => {
-        const notShown = !currentShownTips.has(tip.id);
-        const conditionMet = tip.check(currentState);
-        console.log(`[TipSystem] Tip ${tip.id}: notShown=${notShown}, conditionMet=${conditionMet}`);
-        return notShown && conditionMet;
-      })
+      .filter(tip => !currentShownTips.has(tip.id) && tip.check(currentState))
       .sort((a, b) => a.priority - b.priority);
-    
-    console.log('[TipSystem] Applicable tips:', applicableTips.map(t => t.id));
     
     if (applicableTips.length > 0) {
       const tip = applicableTips[0];
-      console.log('[TipSystem] Showing tip:', tip.id, tip.message);
       setCurrentTip(tip.message);
       setIsVisible(true);
       lastTipTimeRef.current = now;
