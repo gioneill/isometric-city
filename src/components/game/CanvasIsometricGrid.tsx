@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import { useMessages } from 'gt-next';
 import { useGame } from '@/context/GameContext';
 import { TOOL_INFO, Tile, Building, BuildingType, AdjacentCity, Tool } from '@/types/game';
 import { getBuildingSize, requiresWaterAdjacency, getWaterAdjacency } from '@/lib/simulation';
@@ -149,6 +150,7 @@ export interface CanvasIsometricGridProps {
 export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMobile = false, navigationTarget, onNavigationComplete, onViewportChange, onBargeDelivery }: CanvasIsometricGridProps) {
   const { state, placeAtTile, finishTrackDrag, connectToCity, checkAndDiscoverCities, currentSpritePack, visualHour } = useGame();
   const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, gameVersion } = state;
+  const m = useMessages();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverCanvasRef = useRef<HTMLCanvasElement>(null); // PERF: Separate canvas for hover/selection highlights
   const carsCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -3828,16 +3830,16 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           }`}>
             {isDragging && dragStartTile && dragEndTile && showsDragGrid ? (
               <>
-                {TOOL_INFO[selectedTool].name} - {Math.abs(dragEndTile.x - dragStartTile.x) + 1}x{Math.abs(dragEndTile.y - dragStartTile.y) + 1} area
+                {m(TOOL_INFO[selectedTool].name)} - {Math.abs(dragEndTile.x - dragStartTile.x) + 1}x{Math.abs(dragEndTile.y - dragStartTile.y) + 1} area
                 {TOOL_INFO[selectedTool].cost > 0 && ` - $${TOOL_INFO[selectedTool].cost * (Math.abs(dragEndTile.x - dragStartTile.x) + 1) * (Math.abs(dragEndTile.y - dragStartTile.y) + 1)}`}
               </>
             ) : isWaterfrontPlacementInvalid ? (
               <>
-                {TOOL_INFO[selectedTool].name} must be placed next to water
+                {m(TOOL_INFO[selectedTool].name)} must be placed next to water
               </>
             ) : (
               <>
-                {TOOL_INFO[selectedTool].name} at ({hoveredTile.x}, {hoveredTile.y})
+                {m(TOOL_INFO[selectedTool].name)} at ({hoveredTile.x}, {hoveredTile.y})
                 {TOOL_INFO[selectedTool].cost > 0 && ` - $${TOOL_INFO[selectedTool].cost}`}
                 {showsDragGrid && ' - Drag to zone area'}
                 {supportsDragPlace && !showsDragGrid && ' - Drag to place'}
