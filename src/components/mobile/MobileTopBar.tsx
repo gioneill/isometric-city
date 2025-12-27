@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 
 // Sun/Moon icon for time of day
 function TimeOfDayIcon({ hour }: { hour: number }) {
@@ -188,23 +189,27 @@ export function MobileTopBar({
               </button>
             </div>
 
-            {/* Exit button */}
-            {onExit && (
-              <button
-                onClick={() => setShowExitDialog(true)}
-                className="h-6 w-5 p-0 m-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
-                title="Exit to Main Menu"
-              >
-                <svg 
-                  className="w-3 h-3 -scale-x-100" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor"
+            {/* Language selector and Exit button group */}
+            <div className="flex items-center gap-0">
+              <LanguageSelector useDrawer iconSize={12} />
+
+              {onExit && (
+                <button
+                  onClick={() => setShowExitDialog(true)}
+                  className="h-6 w-5 p-0 m-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  title="Exit to Main Menu"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            )}
+                  <svg 
+                    className="w-3 h-3 -scale-x-100" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
         </div>
