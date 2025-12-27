@@ -23,7 +23,7 @@ export interface TipDefinition {
 const TIP_DEFINITIONS: TipDefinition[] = [
   {
     id: 'get_started',
-    message: 'Welcome! Start by zoning areas for residential, commercial, and industrial buildings. Then add roads, power, and water to help them grow.',
+    message: 'Welcome! Start by zoning areas for residential, commercial, and industrial buildings. Then add roads, power, and water to build your city.',
     priority: 0, // Highest priority - shows first on fresh cities
     check: (state: GameState) => {
       // Check if this is a fresh/empty city - no zones placed yet
@@ -50,7 +50,7 @@ const TIP_DEFINITIONS: TipDefinition[] = [
   },
   {
     id: 'needs_utilities',
-    message: 'Buildings need power, water, and roads nearby to grow and thrive.',
+    message: 'Buildings need power, water, and roads for construction to begin.',
     priority: 1,
     check: (state: GameState) => {
       // Check if there are zoned tiles (even just grass) but no utilities infrastructure
