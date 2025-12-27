@@ -5,6 +5,7 @@ import { GameState } from '@/types/game';
 
 // Tip definitions with their conditions and messages
 export type TipId = 
+  | 'get_started'
   | 'needs_utilities'
   | 'negative_demand'
   | 'needs_safety_services'
@@ -21,48 +22,58 @@ export interface TipDefinition {
 // Define all tips with their conditions
 const TIP_DEFINITIONS: TipDefinition[] = [
   {
-    id: 'needs_utilities',
-    message: 'Buildings need power, water, and roads nearby to grow and thrive.',
-    priority: 1,
+    id: 'get_started',
+    message: 'Welcome! Start by zoning areas for residential, commercial, and industrial buildings. Then add roads, power, and water to help them grow.',
+    priority: 0, // Highest priority - shows first on fresh cities
     check: (state: GameState) => {
-      // Check if there are zoned buildings that lack power, water, or road access
-      let zonesWithoutUtilities = 0;
-      let totalZones = 0;
+      // Check if this is a fresh/empty city - no zones placed yet
+      let hasAnyZone = false;
+      let hasAnyBuilding = false;
       
       for (let y = 0; y < state.gridSize; y++) {
         for (let x = 0; x < state.gridSize; x++) {
           const tile = state.grid[y][x];
-          if (tile.zone !== 'none' && tile.building.type !== 'grass') {
-            totalZones++;
-            const hasPower = state.services.power[y]?.[x] ?? false;
-            const hasWater = state.services.water[y]?.[x] ?? false;
-            
-            if (!hasPower || !hasWater) {
-              zonesWithoutUtilities++;
-            }
+          if (tile.zone !== 'none') {
+            hasAnyZone = true;
+          }
+          const type = tile.building.type;
+          // Check for any placed buildings (not natural terrain)
+          if (type !== 'grass' && type !== 'water' && type !== 'tree') {
+            hasAnyBuilding = true;
           }
         }
       }
       
-      // Also check if there are no power plants or water towers at all
+      // Show on fresh cities with no zones and no buildings
+      return !hasAnyZone && !hasAnyBuilding;
+    },
+  },
+  {
+    id: 'needs_utilities',
+    message: 'Buildings need power, water, and roads nearby to grow and thrive.',
+    priority: 1,
+    check: (state: GameState) => {
+      // Check if there are zoned tiles (even just grass) but no utilities infrastructure
+      let hasZonedTiles = false;
       let hasPowerPlant = false;
       let hasWaterTower = false;
       let hasRoad = false;
       
       for (let y = 0; y < state.gridSize; y++) {
         for (let x = 0; x < state.gridSize; x++) {
-          const type = state.grid[y][x].building.type;
+          const tile = state.grid[y][x];
+          if (tile.zone !== 'none') {
+            hasZonedTiles = true;
+          }
+          const type = tile.building.type;
           if (type === 'power_plant') hasPowerPlant = true;
           if (type === 'water_tower') hasWaterTower = true;
           if (type === 'road' || type === 'bridge') hasRoad = true;
         }
       }
       
-      // Trigger if: have zones but no utilities infrastructure, OR many zones without power/water
-      return totalZones >= 3 && (
-        (!hasPowerPlant || !hasWaterTower || !hasRoad) ||
-        (zonesWithoutUtilities / totalZones > 0.5 && zonesWithoutUtilities >= 5)
-      );
+      // Trigger if: have zones but missing any utility infrastructure
+      return hasZonedTiles && (!hasPowerPlant || !hasWaterTower || !hasRoad);
     },
   },
   {
@@ -99,7 +110,7 @@ const TIP_DEFINITIONS: TipDefinition[] = [
         }
       }
       
-      // Has at least 5 population but no safety services
+      // Has at least 50 population but no safety services
       return hasBuildings && state.stats.population >= 50 && (!hasFireStation || !hasPoliceStation);
     },
   },
@@ -139,6 +150,7 @@ const STORAGE_KEY = 'isocity-tips-disabled';
 const SHOWN_TIPS_KEY = 'isocity-tips-shown';
 const MIN_TIP_INTERVAL_MS = 45000; // Minimum 45 seconds between tips
 const TIP_CHECK_INTERVAL_MS = 5000; // Check for tip conditions every 5 seconds
+const INITIAL_TIP_DELAY_MS = 3000; // Wait 3 seconds before first tip
 
 interface UseTipSystemReturn {
   currentTip: string | null;
@@ -157,6 +169,10 @@ export function useTipSystem(state: GameState): UseTipSystemReturn {
   const lastTipTimeRef = useRef<number>(0);
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasLoadedRef = useRef(false);
+  
+  // Use a ref to always have the latest state without causing effect re-runs
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   // Load preferences from localStorage
   useEffect(() => {
@@ -210,36 +226,63 @@ export function useTipSystem(state: GameState): UseTipSystemReturn {
     }
   }, []);
 
-  // Check for conditions and show tip
+  // Track shown tips in a ref as well for synchronous access
+  const shownTipsRef = useRef<Set<TipId>>(new Set());
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    shownTipsRef.current = shownTips;
+  }, [shownTips]);
+
+  // Check for conditions and show tip - uses refs to get latest values
   const checkAndShowTip = useCallback(() => {
-    if (!tipsEnabled || !hasLoadedRef.current) return;
+    if (!hasLoadedRef.current) {
+      console.log('[TipSystem] Not loaded yet');
+      return;
+    }
+    
+    if (!tipsEnabled) {
+      console.log('[TipSystem] Tips disabled');
+      return;
+    }
+    
+    if (isVisible) {
+      console.log('[TipSystem] Tip already visible');
+      return;
+    }
     
     const now = Date.now();
     
-    // Rate limiting - don't show tips too frequently
-    if (now - lastTipTimeRef.current < MIN_TIP_INTERVAL_MS) {
+    // Rate limiting - don't show tips too frequently (skip for first tip)
+    if (lastTipTimeRef.current > 0 && now - lastTipTimeRef.current < MIN_TIP_INTERVAL_MS) {
+      console.log('[TipSystem] Rate limited');
       return;
     }
     
-    // Don't show a new tip if one is already visible
-    if (isVisible) {
-      return;
-    }
+    const currentState = stateRef.current;
+    const currentShownTips = shownTipsRef.current;
     
     // Find the first applicable tip that hasn't been shown
-    // Sort by priority (lower number = higher priority)
     const applicableTips = TIP_DEFINITIONS
-      .filter(tip => !shownTips.has(tip.id) && tip.check(state))
+      .filter(tip => {
+        const notShown = !currentShownTips.has(tip.id);
+        const conditionMet = tip.check(currentState);
+        console.log(`[TipSystem] Tip ${tip.id}: notShown=${notShown}, conditionMet=${conditionMet}`);
+        return notShown && conditionMet;
+      })
       .sort((a, b) => a.priority - b.priority);
+    
+    console.log('[TipSystem] Applicable tips:', applicableTips.map(t => t.id));
     
     if (applicableTips.length > 0) {
       const tip = applicableTips[0];
+      console.log('[TipSystem] Showing tip:', tip.id, tip.message);
       setCurrentTip(tip.message);
       setIsVisible(true);
       lastTipTimeRef.current = now;
       setShownTips(prev => new Set([...prev, tip.id]));
     }
-  }, [tipsEnabled, isVisible, shownTips, state]);
+  }, [tipsEnabled, isVisible]);
 
   // Set up periodic check for tip conditions
   useEffect(() => {
@@ -250,10 +293,10 @@ export function useTipSystem(state: GameState): UseTipSystemReturn {
     
     if (!tipsEnabled) return;
     
-    // Initial check after a delay (give time for game to initialize)
+    // Initial check after a short delay (give time for game to initialize)
     const initialTimeout = setTimeout(() => {
       checkAndShowTip();
-    }, 10000); // Wait 10 seconds before first tip check
+    }, INITIAL_TIP_DELAY_MS);
     
     // Set up periodic checking
     checkIntervalRef.current = setInterval(checkAndShowTip, TIP_CHECK_INTERVAL_MS);

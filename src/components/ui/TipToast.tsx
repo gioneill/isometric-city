@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Lightbulb, SkipForward, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -12,7 +13,7 @@ export interface TipToastProps {
   onSkipAll: () => void;
 }
 
-export function TipToast({ message, isVisible, onContinue, onSkipAll }: TipToastProps) {
+function TipToastContent({ message, isVisible, onContinue, onSkipAll }: TipToastProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
 
@@ -20,9 +21,12 @@ export function TipToast({ message, isVisible, onContinue, onSkipAll }: TipToast
     if (isVisible) {
       setShouldRender(true);
       // Small delay to trigger animation
-      requestAnimationFrame(() => {
-        setIsAnimating(true);
+      const frame = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimating(true);
+        });
       });
+      return () => cancelAnimationFrame(frame);
     } else {
       setIsAnimating(false);
       // Wait for exit animation before unmounting
@@ -38,12 +42,13 @@ export function TipToast({ message, isVisible, onContinue, onSkipAll }: TipToast
   return (
     <div
       className={cn(
-        'fixed bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto',
+        'fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] pointer-events-auto',
         'transition-all duration-300 ease-out',
         isAnimating 
           ? 'opacity-100 translate-y-0' 
           : 'opacity-0 translate-y-4'
       )}
+      style={{ position: 'fixed' }}
     >
       <div className="relative bg-card border border-sidebar-border rounded-sm shadow-lg overflow-hidden max-w-md">
         {/* Top accent border */}
@@ -100,5 +105,23 @@ export function TipToast({ message, isVisible, onContinue, onSkipAll }: TipToast
         <div className="absolute bottom-0 right-0 w-3 h-3 border-r border-b border-primary/30" />
       </div>
     </div>
+  );
+}
+
+export function TipToast(props: TipToastProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Use portal to render at document body level to avoid z-index/overflow issues
+  if (!mounted || typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    <TipToastContent {...props} />,
+    document.body
   );
 }
