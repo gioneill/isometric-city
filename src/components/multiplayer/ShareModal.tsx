@@ -22,7 +22,7 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   
-  const { roomCode, players, createRoom, connectionState } = useMultiplayer();
+  const { roomCode, createRoom } = useMultiplayer();
   const { state } = useGame();
 
   // Create room when modal opens (if not already in a room)
@@ -90,33 +90,27 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
               </div>
 
               {/* Copy Link */}
-              <div className="flex gap-2 overflow-hidden">
-                <div className="flex-1 min-w-0 bg-slate-800 rounded-lg px-4 py-3 text-sm text-slate-300 truncate">
+              <div className="space-y-2 overflow-hidden">
+                <div className="w-full bg-slate-800 rounded-lg px-4 py-3 text-sm text-slate-300 truncate">
                   {inviteUrl}
                 </div>
                 <Button
                   onClick={handleCopyLink}
                   variant="outline"
-                  className="shrink-0 border-slate-600 hover:bg-slate-700"
+                  className="w-full border-slate-600 hover:bg-slate-700"
                 >
                   {copied ? (
-                    <Check className="w-4 h-4 text-green-400" />
+                    <>
+                      <Check className="w-4 h-4 mr-2 text-green-400" />
+                      Copied!
+                    </>
                   ) : (
-                    <Copy className="w-4 h-4" />
+                    <>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copy Invite Link
+                    </>
                   )}
                 </Button>
-              </div>
-
-              {/* Players */}
-              <div className="bg-slate-800/50 rounded-lg p-4">
-                <p className="text-slate-400 text-sm mb-2">{players.length} player{players.length !== 1 ? 's' : ''}</p>
-                <div className="space-y-1">
-                  {players.map((player) => (
-                    <div key={player.id} className="text-sm text-white">
-                      {player.name}
-                    </div>
-                  ))}
-                </div>
               </div>
 
               {/* Close Button */}

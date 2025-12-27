@@ -1073,7 +1073,7 @@ export function GameProvider({ children, startFresh = false }: { children: React
     setState((prev) => ({ ...prev, disastersEnabled: enabled }));
   }, []);
   
-  const setPlaceCallback = useCallback((callback: ((x: number, y: number, tool: Tool) => void) | null) => {
+  const setPlaceCallback = useCallback((callback: ((args: { x: number; y: number; tool: Tool }) => void) | null) => {
     placeCallbackRef.current = callback;
   }, []);
 

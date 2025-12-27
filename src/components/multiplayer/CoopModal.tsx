@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { useMultiplayer } from '@/context/MultiplayerContext';
 import { GameState } from '@/types/game';
 import { createInitialGameState, DEFAULT_GRID_SIZE } from '@/lib/simulation';
-import { Copy, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Copy, Check, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface CoopModalProps {
   open: boolean;
@@ -171,11 +171,38 @@ export function CoopModal({
     setMode('select');
   };
 
+  // Handle back from auto-join to go to select mode
+  const handleBackFromAutoJoin = () => {
+    // Keep autoJoinAttempted true to prevent re-triggering auto-join
+    // (pendingRoomCode prop is still set from parent)
+    setWaitingForState(false);
+    setIsLoading(false);
+    leaveRoom();
+    // Clear the URL parameter
+    window.history.replaceState({}, '', '/');
+    setMode('select');
+  };
+
   // If auto-joining, show loading state
   if (autoJoinAttempted && (isLoading || waitingForState)) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
+          {/* Back button in top left */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleBackFromAutoJoin();
+            }}
+            className="absolute left-4 top-4 z-50 text-slate-400 hover:text-white hover:bg-slate-800"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          
           <div className="flex flex-col items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-slate-400 mb-4" />
             <p className="text-slate-300">Joining city...</p>
