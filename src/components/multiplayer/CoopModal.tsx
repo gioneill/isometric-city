@@ -75,16 +75,20 @@ export function CoopModal({
     }
   }, [open, pendingRoomCode, autoJoinAttempted, joinRoom]);
 
-  // Reset state when modal closes
+  // Reset state when modal closes - cleanup any pending connection
   useEffect(() => {
     if (!open) {
+      // If we were waiting for state (mid-join), clean up the connection
+      if (waitingForState || (autoJoinAttempted && !initialState)) {
+        leaveRoom();
+      }
       setMode('select');
       setIsLoading(false);
       setCopied(false);
       setAutoJoinAttempted(false);
       setWaitingForState(false);
     }
-  }, [open]);
+  }, [open, waitingForState, autoJoinAttempted, initialState, leaveRoom]);
 
   const handleCreateRoom = async () => {
     if (!cityName.trim()) return;
@@ -174,7 +178,7 @@ export function CoopModal({
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
           <div className="flex flex-col items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-slate-400 mb-4" />
-            <p className="text-slate-300">Joining room...</p>
+            <p className="text-slate-300">Joining city...</p>
             <p className="text-slate-500 text-sm mt-1">Waiting for game state</p>
           </div>
         </DialogContent>
@@ -201,14 +205,14 @@ export function CoopModal({
               onClick={() => setMode('create')}
               className="w-full py-6 text-lg font-light bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
             >
-              Create Room
+              Create City
             </Button>
             <Button
               onClick={() => setMode('join')}
               variant="outline"
               className="w-full py-6 text-lg font-light bg-transparent hover:bg-white/10 text-white/70 hover:text-white border border-white/15 rounded-none"
             >
-              Join Room
+              Join City
             </Button>
           </div>
         </DialogContent>
@@ -223,13 +227,13 @@ export function CoopModal({
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
             <DialogTitle className="text-2xl font-light text-white">
-              Create Co-op Room
-            </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              {roomCode 
-                ? 'Share the room code with friends to invite them'
-                : 'Set up your co-op city'
-              }
+            Create Co-op City
+          </DialogTitle>
+          <DialogDescription className="text-slate-400">
+            {roomCode
+              ? 'Share the invite code with friends'
+              : 'Set up your co-op city'
+            }
             </DialogDescription>
           </DialogHeader>
 
@@ -274,16 +278,16 @@ export function CoopModal({
                       Creating...
                     </>
                   ) : (
-                    'Create Room'
+                    'Create City'
                   )}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="flex flex-col gap-4 mt-4">
-              {/* Room Code Display */}
+              {/* Invite Code Display */}
               <div className="bg-slate-800 rounded-lg p-6 text-center">
-                <p className="text-slate-400 text-sm mb-2">Room Code</p>
+                <p className="text-slate-400 text-sm mb-2">Invite Code</p>
                 <p className="text-4xl font-mono font-bold tracking-widest text-white">
                   {roomCode}
                 </p>
@@ -342,17 +346,17 @@ export function CoopModal({
       <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
         <DialogHeader>
           <DialogTitle className="text-2xl font-light text-white">
-            Join Co-op Room
+            Join Co-op City
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Enter the 5-character room code to join
+            Enter the 5-character invite code to join
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 mt-4">
           <div className="space-y-2">
             <Label htmlFor="joinCode" className="text-slate-300">
-              Room Code
+              Invite Code
             </Label>
             <Input
               id="joinCode"
@@ -375,7 +379,7 @@ export function CoopModal({
           {connectionState === 'connecting' && !waitingForState && (
             <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Connecting to room...
+              Connecting...
             </div>
           )}
           
@@ -407,7 +411,7 @@ export function CoopModal({
                   Joining...
                 </>
               ) : (
-                'Join Room'
+                'Join City'
               )}
             </Button>
           </div>

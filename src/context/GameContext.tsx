@@ -64,7 +64,7 @@ type GameContextValue = {
   setActivePanel: (panel: GameState['activePanel']) => void;
   setBudgetFunding: (key: keyof Budget, funding: number) => void;
   placeAtTile: (x: number, y: number, isRemote?: boolean) => void;
-  setPlaceCallback: (callback: ((x: number, y: number, tool: Tool) => void) | null) => void;
+  setPlaceCallback: (callback: ((args: { x: number; y: number; tool: Tool }) => void) | null) => void;
   finishTrackDrag: (pathTiles: { x: number; y: number }[], trackType: 'road' | 'rail') => void; // Create bridges after road/rail drag
   connectToCity: (cityId: string) => void;
   discoverCity: (cityId: string) => void;
@@ -652,7 +652,7 @@ export function GameProvider({ children, startFresh = false }: { children: React
   const hasLoadedRef = useRef(false);
   
   // Callback for multiplayer action broadcast
-  const placeCallbackRef = useRef<((x: number, y: number, tool: Tool) => void) | null>(null);
+  const placeCallbackRef = useRef<((args: { x: number; y: number; tool: Tool }) => void) | null>(null);
   
   // Sprite pack state
   const [currentSpritePack, setCurrentSpritePack] = useState<SpritePack>(() => getSpritePack(DEFAULT_SPRITE_PACK_ID));
@@ -964,7 +964,7 @@ export function GameProvider({ children, startFresh = false }: { children: React
     
     // Broadcast to multiplayer if this is a local action (not remote) and placement succeeded
     if (!isRemote && actualToolUsed && actualToolUsed !== 'select' && placeCallbackRef.current) {
-      placeCallbackRef.current(x, y, actualToolUsed);
+      placeCallbackRef.current({ x, y, tool: actualToolUsed });
     }
   }, []);
 

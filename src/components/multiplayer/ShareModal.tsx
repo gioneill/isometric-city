@@ -63,7 +63,7 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
+      <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-white">
             Invite Players
@@ -73,25 +73,25 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6 py-4 overflow-hidden">
           {isCreating || !roomCode ? (
             <div className="flex items-center justify-center gap-2 py-8">
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-              <span className="text-slate-400">Creating room...</span>
+              <span className="text-slate-400">Creating co-op session...</span>
             </div>
           ) : (
             <>
-              {/* Room Code */}
+              {/* Invite Code */}
               <div className="text-center">
                 <div className="text-4xl font-mono font-bold tracking-widest text-white mb-2">
                   {roomCode}
                 </div>
-                <div className="text-sm text-slate-400">Room Code</div>
+                <div className="text-sm text-slate-400">Invite Code</div>
               </div>
 
               {/* Copy Link */}
-              <div className="flex gap-2">
-                <div className="flex-1 bg-slate-800 rounded-lg px-4 py-3 text-sm text-slate-300 truncate">
+              <div className="flex gap-2 overflow-hidden">
+                <div className="flex-1 min-w-0 bg-slate-800 rounded-lg px-4 py-3 text-sm text-slate-300 truncate">
                   {inviteUrl}
                 </div>
                 <Button
@@ -119,12 +119,12 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
                 </div>
               </div>
 
-              {/* Continue Button */}
+              {/* Close Button */}
               <Button
                 onClick={() => onOpenChange(false)}
                 className="w-full bg-slate-700 hover:bg-slate-600 text-white border border-slate-600"
               >
-                Continue Playing
+                Close
               </Button>
             </>
           )}

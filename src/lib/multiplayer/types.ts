@@ -11,6 +11,7 @@ interface BaseAction {
 // Game actions that get synced via Supabase Realtime
 export type GameAction =
   | (BaseAction & { type: 'place'; x: number; y: number; tool: Tool })
+  | (BaseAction & { type: 'placeBatch'; placements: Array<{ x: number; y: number; tool: Tool }> })
   | (BaseAction & { type: 'bulldoze'; x: number; y: number })
   | (BaseAction & { type: 'setTaxRate'; rate: number })
   | (BaseAction & { type: 'setBudget'; key: keyof Budget; funding: number })
@@ -21,6 +22,7 @@ export type GameAction =
 
 // Action input types (without timestamp and playerId, which are added automatically)
 export type PlaceAction = { type: 'place'; x: number; y: number; tool: Tool };
+export type PlaceBatchAction = { type: 'placeBatch'; placements: Array<{ x: number; y: number; tool: Tool }> };
 export type BulldozeAction = { type: 'bulldoze'; x: number; y: number };
 export type SetTaxRateAction = { type: 'setTaxRate'; rate: number };
 export type SetBudgetAction = { type: 'setBudget'; key: keyof Budget; funding: number };
@@ -31,6 +33,7 @@ export type TickAction = { type: 'tick'; tickData: TickData };
 
 export type GameActionInput = 
   | PlaceAction
+  | PlaceBatchAction
   | BulldozeAction
   | SetTaxRateAction
   | SetBudgetAction

@@ -6,6 +6,10 @@ import { useGame } from '@/context/GameContext';
 import { GameAction, GameActionInput } from '@/lib/multiplayer/types';
 import { Tool, Budget } from '@/types/game';
 
+// Batch placement buffer for reducing message count during drags
+const BATCH_FLUSH_INTERVAL = 50; // ms - flush every 50ms during drag
+const BATCH_MAX_SIZE = 50; // Max placements before force flush
+
 /**
  * Hook to sync game actions with multiplayer.
  * 
@@ -19,6 +23,10 @@ export function useMultiplayerSync() {
   const game = useGame();
   const lastActionRef = useRef<string | null>(null);
   const initialStateLoadedRef = useRef(false);
+  
+  // Batching for placements
+  const placementBufferRef = useRef<Array<{ x: number; y: number; tool: Tool }>>([]);
+  const flushTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load initial state when joining a room (received from other players)
   useEffect(() => {
@@ -42,6 +50,16 @@ export function useMultiplayerSync() {
         game.setTool(action.tool);
         game.placeAtTile(action.x, action.y, true); // isRemote = true
         game.setTool(currentTool);
+        break;
+        
+      case 'placeBatch':
+        // Apply multiple placements from a single message (e.g., road drag)
+        const originalTool = game.state.selectedTool;
+        for (const placement of action.placements) {
+          game.setTool(placement.tool);
+          game.placeAtTile(placement.x, placement.y, true); // isRemote = true
+        }
+        game.setTool(originalTool);
         break;
         
       case 'bulldoze':
@@ -94,25 +112,71 @@ export function useMultiplayerSync() {
     };
   }, [multiplayer, applyRemoteAction]);
   
-  // Register callback to broadcast local placements
+  // Flush batched placements
+  const flushPlacements = useCallback(() => {
+    if (!multiplayer || placementBufferRef.current.length === 0) return;
+    
+    if (flushTimeoutRef.current) {
+      clearTimeout(flushTimeoutRef.current);
+      flushTimeoutRef.current = null;
+    }
+    
+    const placements = [...placementBufferRef.current];
+    placementBufferRef.current = [];
+    
+    if (placements.length === 1) {
+      // Single placement - send as regular place action
+      const p = placements[0];
+      multiplayer.dispatchAction({ type: 'place', x: p.x, y: p.y, tool: p.tool });
+    } else {
+      // Multiple placements - send as batch
+      multiplayer.dispatchAction({ type: 'placeBatch', placements });
+    }
+  }, [multiplayer]);
+  
+  // Register callback to broadcast local placements (with batching)
   useEffect(() => {
     if (!multiplayer || multiplayer.connectionState !== 'connected') {
       game.setPlaceCallback(null);
+      // Flush any pending placements
+      if (placementBufferRef.current.length > 0) {
+        placementBufferRef.current = [];
+      }
+      if (flushTimeoutRef.current) {
+        clearTimeout(flushTimeoutRef.current);
+        flushTimeoutRef.current = null;
+      }
       return;
     }
     
-    game.setPlaceCallback((x: number, y: number, tool: Tool) => {
+    game.setPlaceCallback(({ x, y, tool }: { x: number; y: number; tool: Tool }) => {
       if (tool === 'bulldoze') {
+        // Bulldoze is sent immediately (not batched)
+        flushPlacements(); // Flush any pending placements first
         multiplayer.dispatchAction({ type: 'bulldoze', x, y });
       } else if (tool !== 'select') {
-        multiplayer.dispatchAction({ type: 'place', x, y, tool });
+        // Add to batch
+        placementBufferRef.current.push({ x, y, tool });
+        
+        // Force flush if batch is large
+        if (placementBufferRef.current.length >= BATCH_MAX_SIZE) {
+          flushPlacements();
+        } else if (!flushTimeoutRef.current) {
+          // Schedule flush after interval
+          flushTimeoutRef.current = setTimeout(() => {
+            flushTimeoutRef.current = null;
+            flushPlacements();
+          }, BATCH_FLUSH_INTERVAL);
+        }
       }
     });
     
     return () => {
+      // Flush remaining placements before disconnecting
+      flushPlacements();
       game.setPlaceCallback(null);
     };
-  }, [multiplayer, multiplayer?.connectionState, game]);
+  }, [multiplayer, multiplayer?.connectionState, game, flushPlacements]);
 
   // Keep the shared game state updated (any player can share with new peers)
   // Throttled to avoid excessive updates - only updates every 2 seconds
