@@ -863,8 +863,8 @@ export function GameProvider({ children, startFresh = false }: { children: React
   );
 
   const placeAtTile = useCallback((x: number, y: number, isRemote = false) => {
-    // Capture the current tool before setState
-    const toolToPlace = latestStateRef.current.selectedTool;
+    // Track the actual tool used inside setState for accurate multiplayer broadcast
+    let actualToolUsed: Tool | null = null;
     
     setState((prev) => {
       const tool = prev.selectedTool;
@@ -898,6 +898,7 @@ export function GameProvider({ children, startFresh = false }: { children: React
         const nextState = placeSubway(prev, x, y);
         if (nextState === prev) return prev;
         
+        actualToolUsed = tool;
         return {
           ...nextState,
           stats: { ...nextState.stats, money: nextState.stats.money - cost },
@@ -914,6 +915,7 @@ export function GameProvider({ children, startFresh = false }: { children: React
         const nextState = placeWaterTerraform(prev, x, y);
         if (nextState === prev) return prev;
         
+        actualToolUsed = tool;
         return {
           ...nextState,
           stats: { ...nextState.stats, money: nextState.stats.money - cost },
@@ -928,6 +930,7 @@ export function GameProvider({ children, startFresh = false }: { children: React
         const nextState = placeLandTerraform(prev, x, y);
         if (nextState === prev) return prev;
         
+        actualToolUsed = tool;
         return {
           ...nextState,
           stats: { ...nextState.stats, money: nextState.stats.money - cost },
@@ -955,14 +958,15 @@ export function GameProvider({ children, startFresh = false }: { children: React
         };
       }
 
+      actualToolUsed = tool;
       return nextState;
     });
     
-    // Broadcast to multiplayer if this is a local action (not remote)
-    if (!isRemote && toolToPlace !== 'select' && placeCallbackRef.current) {
-      placeCallbackRef.current(x, y, toolToPlace);
+    // Broadcast to multiplayer if this is a local action (not remote) and placement succeeded
+    if (!isRemote && actualToolUsed && actualToolUsed !== 'select' && placeCallbackRef.current) {
+      placeCallbackRef.current(x, y, actualToolUsed);
     }
-  }, [latestStateRef]);
+  }, []);
 
   // Called after a road/rail drag operation to create bridges for water crossings
   const finishTrackDrag = useCallback((pathTiles: { x: number; y: number }[], trackType: 'road' | 'rail') => {
