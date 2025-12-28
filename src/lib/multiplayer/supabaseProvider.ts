@@ -108,8 +108,9 @@ export class MultiplayerProvider {
       this.options.onStateReceived?.(roomData.gameState);
     }
 
-    // Set up presence (track who's in the room)
+    // Set up all channel listeners in a single chain
     this.channel
+      // Presence: track who's in the room
       .on('presence', { event: 'sync' }, () => {
         const state = this.channel.presenceState();
         this.players.clear();
@@ -137,6 +138,24 @@ export class MultiplayerProvider {
             this.players.set(key, presence.player);
             this.notifyPlayersChange();
             this.updateConnectionStatus();
+            
+            // When a new player joins, send them the current state via broadcast
+            // This ensures they get the latest state (database might be stale)
+            if (this.gameState) {
+              setTimeout(() => {
+                if (!this.destroyed && this.gameState) {
+                  this.channel.send({
+                    type: 'broadcast',
+                    event: 'state-sync',
+                    payload: { 
+                      state: this.gameState, 
+                      to: key, 
+                      from: this.peerId 
+                    },
+                  });
+                }
+              }, Math.random() * 200); // Stagger to avoid multiple simultaneous sends
+            }
           }
         }
       })
@@ -147,15 +166,21 @@ export class MultiplayerProvider {
         
         // Update player count in database
         updatePlayerCount(this.roomCode, this.players.size);
-      });
-
-    // Set up broadcast listeners for actions only
-    // State is now persisted in database, not broadcast between peers
-    this.channel
+      })
+      // Broadcast: real-time game actions from other players
       .on('broadcast', { event: 'action' }, ({ payload }) => {
         const action = payload as GameAction;
         if (action.playerId !== this.peerId && this.options.onAction) {
           this.options.onAction(action);
+        }
+      })
+      // Broadcast: state sync from existing players (for new joiners)
+      .on('broadcast', { event: 'state-sync' }, ({ payload }) => {
+        const { state, to } = payload as { state: GameState; to: string; from: string };
+        // Only process if it's for us
+        if (to === this.peerId && state && this.options.onStateReceived) {
+          this.gameState = state;
+          this.options.onStateReceived(state);
         }
       });
 
