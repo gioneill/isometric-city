@@ -871,6 +871,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       if (currentSpritePack.modernSrc) {
         loadSpriteImage(currentSpritePack.modernSrc, true).catch(console.error);
       }
+      if (currentSpritePack.mansionsSrc) {
+        loadSpriteImage(currentSpritePack.mansionsSrc, true).catch(console.error);
+      }
       // Load airplane sprite sheet (always loaded, not dependent on sprite pack)
       loadSpriteImage(AIRPLANE_SPRITE_SRC, false).catch(console.error);
     };
