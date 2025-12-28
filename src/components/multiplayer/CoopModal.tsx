@@ -121,8 +121,9 @@ export function CoopModal({
       // Update URL to show room code
       window.history.replaceState({}, '', `/?room=${code}`);
       
-      // Start the game immediately with the state
+      // Start the game immediately with the state and close the modal
       onStartGame(true, stateToShare);
+      onOpenChange(false);
     } catch (err) {
       console.error('Failed to create room:', err);
     } finally {

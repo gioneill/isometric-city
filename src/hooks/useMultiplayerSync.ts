@@ -148,6 +148,11 @@ export function useMultiplayerSync() {
         game.setDisastersEnabled(action.enabled);
         break;
         
+      case 'createBridges':
+        // Create bridges along a drag path (for road/rail drags across water)
+        game.finishTrackDrag(action.pathTiles, action.trackType, true); // isRemote = true
+        break;
+        
       case 'fullState':
         // Load the full state from the host
         game.loadState(JSON.stringify(action.state));
@@ -241,6 +246,22 @@ export function useMultiplayerSync() {
       game.setPlaceCallback(null);
     };
   }, [multiplayer, multiplayer?.connectionState, game, flushPlacements]);
+
+  // Register callback to broadcast bridge creation
+  useEffect(() => {
+    if (!multiplayer || multiplayer.connectionState !== 'connected') {
+      game.setBridgeCallback(null);
+      return;
+    }
+    
+    game.setBridgeCallback(({ pathTiles, trackType }) => {
+      multiplayer.dispatchAction({ type: 'createBridges', pathTiles, trackType });
+    });
+    
+    return () => {
+      game.setBridgeCallback(null);
+    };
+  }, [multiplayer, multiplayer?.connectionState, game]);
 
   // Keep the shared game state updated (any player can share with new peers)
   // Throttled to avoid excessive updates - only updates every 2 seconds
