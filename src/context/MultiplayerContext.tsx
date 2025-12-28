@@ -94,15 +94,16 @@ export function MultiplayerContextProvider({
       setError(null);
 
       try {
-        // Generate room code (no API needed - Supabase channels are created on-demand)
+        // Generate room code
         const newRoomCode = generateRoomCode();
 
-        // Create multiplayer provider with initial state (name auto-generated)
+        // Create multiplayer provider with initial state
+        // State will be saved to Supabase database
         const provider = await createMultiplayerProvider({
           roomCode: newRoomCode,
           cityName,
-          initialGameState: gameState, // This player has the state to share
-          onConnectionChange: (connected, peerCount) => {
+          initialGameState: gameState,
+          onConnectionChange: (connected) => {
             setConnectionState(connected ? 'connected' : 'disconnected');
           },
           onPlayersChange: (newPlayers) => {
@@ -112,6 +113,10 @@ export function MultiplayerContextProvider({
             if (onRemoteActionRef.current) {
               onRemoteActionRef.current(action);
             }
+          },
+          onError: (errorMsg) => {
+            setError(errorMsg);
+            setConnectionState('error');
           },
         });
 
@@ -138,12 +143,12 @@ export function MultiplayerContextProvider({
       try {
         const normalizedCode = code.toUpperCase();
         
-        // Create multiplayer provider (name auto-generated, will receive state from others)
+        // Create multiplayer provider - state will be loaded from Supabase database
         const provider = await createMultiplayerProvider({
           roomCode: normalizedCode,
           cityName: 'Co-op City',
-          // No initialGameState - we'll receive it from others
-          onConnectionChange: (connected, peerCount) => {
+          // No initialGameState - we'll load from database
+          onConnectionChange: (connected) => {
             setConnectionState(connected ? 'connected' : 'disconnected');
           },
           onPlayersChange: (newPlayers) => {
@@ -155,7 +160,12 @@ export function MultiplayerContextProvider({
             }
           },
           onStateReceived: (state) => {
-            setInitialState(state as GameState);
+            // State loaded from database
+            setInitialState(state);
+          },
+          onError: (errorMsg) => {
+            setError(errorMsg);
+            setConnectionState('error');
           },
         });
 

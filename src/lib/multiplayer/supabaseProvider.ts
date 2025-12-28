@@ -1,7 +1,6 @@
-// Simple Supabase Realtime multiplayer provider (peer-to-peer, no host required)
+// Supabase Realtime multiplayer provider with database-backed state persistence
 
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 import {
   GameAction,
   GameActionInput,
@@ -10,49 +9,65 @@ import {
   generatePlayerColor,
   generatePlayerName,
 } from './types';
+import {
+  createGameRoom,
+  loadGameRoom,
+  updateGameRoom,
+  updatePlayerCount,
+} from './database';
+import { GameState } from '@/types/game';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Throttle state saves to avoid excessive database writes
+const STATE_SAVE_INTERVAL = 3000; // Save state every 3 seconds max
+
 export interface MultiplayerProviderOptions {
   roomCode: string;
   cityName: string;
   playerName?: string; // Optional - auto-generated if not provided
-  initialGameState?: unknown; // If provided, this player has state to share
+  initialGameState?: GameState; // If provided, this player is creating the room
   onConnectionChange?: (connected: boolean, peerCount: number) => void;
   onPlayersChange?: (players: Player[]) => void;
   onAction?: (action: GameAction) => void;
-  onStateReceived?: (state: unknown) => void;
+  onStateReceived?: (state: GameState) => void;
+  onError?: (error: string) => void;
 }
 
 export class MultiplayerProvider {
   public readonly roomCode: string;
   public readonly peerId: string;
+  public readonly isCreator: boolean; // Whether this player created the room
 
   private channel: RealtimeChannel;
   private player: Player;
   private options: MultiplayerProviderOptions;
   private players: Map<string, Player> = new Map();
-  private gameState: unknown = null;
-  private hasReceivedState = false; // Prevent duplicate state processing
+  private gameState: GameState | null = null;
   private destroyed = false;
+  
+  // State save throttling
+  private lastStateSave = 0;
+  private pendingStateSave: GameState | null = null;
+  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: MultiplayerProviderOptions) {
     this.options = options;
     this.roomCode = options.roomCode;
     this.peerId = generatePlayerId();
     this.gameState = options.initialGameState || null;
-    this.hasReceivedState = !!options.initialGameState; // If we have state, we don't need to receive it
+    this.isCreator = !!options.initialGameState;
 
-    // Create player info (no host flag needed)
+    // Create player info
     this.player = {
       id: this.peerId,
       name: options.playerName || generatePlayerName(),
       color: generatePlayerColor(),
       joinedAt: Date.now(),
-      isHost: false, // No longer meaningful, kept for type compatibility
+      isHost: false, // Legacy field, kept for compatibility
     };
 
     // Add self to players
@@ -69,6 +84,29 @@ export class MultiplayerProvider {
 
   async connect(): Promise<void> {
     if (this.destroyed) return;
+
+    // If creating a room, save initial state to database
+    if (this.isCreator && this.gameState) {
+      const success = await createGameRoom(
+        this.roomCode,
+        this.options.cityName,
+        this.gameState
+      );
+      if (!success) {
+        this.options.onError?.('Failed to create room in database');
+        throw new Error('Failed to create room in database');
+      }
+    } else {
+      // Joining an existing room - load state from database
+      const roomData = await loadGameRoom(this.roomCode);
+      if (!roomData) {
+        this.options.onError?.('Room not found');
+        throw new Error('Room not found');
+      }
+      this.gameState = roomData.gameState;
+      // Notify that we received state from the database
+      this.options.onStateReceived?.(roomData.gameState);
+    }
 
     // Set up presence (track who's in the room)
     this.channel
@@ -88,6 +126,9 @@ export class MultiplayerProvider {
 
         this.notifyPlayersChange();
         this.updateConnectionStatus();
+        
+        // Update player count in database
+        updatePlayerCount(this.roomCode, this.players.size);
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         if (key !== this.peerId && newPresences.length > 0) {
@@ -96,22 +137,6 @@ export class MultiplayerProvider {
             this.players.set(key, presence.player);
             this.notifyPlayersChange();
             this.updateConnectionStatus();
-
-            // Any player with state sends it to new players
-            if (this.gameState) {
-              // Small delay to avoid race conditions with multiple senders
-              setTimeout(() => {
-                if (!this.destroyed && this.gameState) {
-                  // Compress state for bandwidth efficiency (~70-80% reduction)
-                  const compressed = compressToEncodedURIComponent(JSON.stringify(this.gameState));
-                  this.channel.send({
-                    type: 'broadcast',
-                    event: 'state-sync',
-                    payload: { compressed, to: key, from: this.peerId },
-                  });
-                }
-              }, Math.random() * 200); // Random delay 0-200ms to stagger responses
-            }
           }
         }
       })
@@ -119,52 +144,18 @@ export class MultiplayerProvider {
         this.players.delete(key);
         this.notifyPlayersChange();
         this.updateConnectionStatus();
+        
+        // Update player count in database
+        updatePlayerCount(this.roomCode, this.players.size);
       });
 
-    // Set up broadcast listeners
+    // Set up broadcast listeners for actions only
+    // State is now persisted in database, not broadcast between peers
     this.channel
       .on('broadcast', { event: 'action' }, ({ payload }) => {
         const action = payload as GameAction;
         if (action.playerId !== this.peerId && this.options.onAction) {
           this.options.onAction(action);
-        }
-      })
-      .on('broadcast', { event: 'state-sync' }, ({ payload }) => {
-        const { compressed, to } = payload as { compressed: string; to?: string; from?: string };
-        // Only process if it's for us and we haven't received state yet
-        if (to === this.peerId && !this.hasReceivedState && this.options.onStateReceived) {
-          try {
-            // Decompress state
-            const decompressed = decompressFromEncodedURIComponent(compressed);
-            if (!decompressed) {
-              console.error('[Multiplayer] Failed to decompress state');
-              return;
-            }
-            const state = JSON.parse(decompressed);
-            this.hasReceivedState = true;
-            this.gameState = state; // Now we have state too
-            this.options.onStateReceived(state);
-          } catch (e) {
-            console.error('[Multiplayer] Failed to parse state:', e);
-          }
-        }
-      })
-      .on('broadcast', { event: 'state-request' }, ({ payload }) => {
-        const { from } = payload as { from: string };
-        // Any player with state can respond
-        if (this.gameState && from !== this.peerId) {
-          // Random delay to avoid multiple simultaneous responses
-          setTimeout(() => {
-            if (!this.destroyed && this.gameState) {
-              // Compress state for bandwidth efficiency (~70-80% reduction)
-              const compressed = compressToEncodedURIComponent(JSON.stringify(this.gameState));
-              this.channel.send({
-                type: 'broadcast',
-                event: 'state-sync',
-                payload: { compressed, to: from, from: this.peerId },
-              });
-            }
-          }, Math.random() * 200);
         }
       });
 
@@ -178,15 +169,6 @@ export class MultiplayerProvider {
           this.options.onConnectionChange(true, this.players.size);
         }
         this.notifyPlayersChange();
-
-        // If we don't have state, request it from anyone in the room
-        if (!this.gameState) {
-          this.channel.send({
-            type: 'broadcast',
-            event: 'state-request',
-            payload: { from: this.peerId },
-          });
-        }
       }
     });
   }
@@ -208,9 +190,39 @@ export class MultiplayerProvider {
     });
   }
 
-  updateGameState(state: unknown): void {
+  /**
+   * Update the game state and save to database (throttled)
+   */
+  updateGameState(state: GameState): void {
     this.gameState = state;
-    this.hasReceivedState = true;
+    
+    const now = Date.now();
+    const timeSinceLastSave = now - this.lastStateSave;
+    
+    if (timeSinceLastSave >= STATE_SAVE_INTERVAL) {
+      // Save immediately
+      this.saveStateToDatabase(state);
+    } else {
+      // Queue the save for later
+      this.pendingStateSave = state;
+      
+      if (!this.saveTimeout) {
+        this.saveTimeout = setTimeout(() => {
+          this.saveTimeout = null;
+          if (this.pendingStateSave && !this.destroyed) {
+            this.saveStateToDatabase(this.pendingStateSave);
+            this.pendingStateSave = null;
+          }
+        }, STATE_SAVE_INTERVAL - timeSinceLastSave);
+      }
+    }
+  }
+
+  private saveStateToDatabase(state: GameState): void {
+    this.lastStateSave = Date.now();
+    updateGameRoom(this.roomCode, state).catch((e) => {
+      console.error('[Multiplayer] Failed to save state to database:', e);
+    });
   }
 
   private updateConnectionStatus(): void {
@@ -228,6 +240,19 @@ export class MultiplayerProvider {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    
+    // Save any pending state before disconnecting
+    if (this.pendingStateSave) {
+      this.saveStateToDatabase(this.pendingStateSave);
+      this.pendingStateSave = null;
+    }
+    
+    // Clear save timeout
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    
     this.channel.unsubscribe();
     supabase.removeChannel(this.channel);
   }

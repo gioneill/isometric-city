@@ -4,59 +4,11 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useMultiplayerOptional } from '@/context/MultiplayerContext';
 import { useGame } from '@/context/GameContext';
 import { GameAction, GameActionInput } from '@/lib/multiplayer/types';
-import { Tool, Budget, GameState } from '@/types/game';
-import { compressToUTF16, decompressFromUTF16 } from 'lz-string';
+import { Tool, Budget } from '@/types/game';
 
 // Batch placement buffer for reducing message count during drags
 const BATCH_FLUSH_INTERVAL = 100; // ms - flush every 100ms during drag
 const BATCH_MAX_SIZE = 100; // Max placements before force flush
-
-// Room-specific state storage key prefix
-const ROOM_STATE_PREFIX = 'isocity-room-';
-
-// Save game state for a specific room
-export function saveRoomState(roomCode: string, state: GameState): void {
-  if (typeof window === 'undefined' || !roomCode) return;
-  try {
-    const compressed = compressToUTF16(JSON.stringify(state));
-    localStorage.setItem(ROOM_STATE_PREFIX + roomCode.toUpperCase(), compressed);
-  } catch (e) {
-    console.error('Failed to save room state:', e);
-  }
-}
-
-// Load game state for a specific room
-export function loadRoomState(roomCode: string): GameState | null {
-  if (typeof window === 'undefined' || !roomCode) return null;
-  try {
-    const saved = localStorage.getItem(ROOM_STATE_PREFIX + roomCode.toUpperCase());
-    if (!saved) return null;
-    
-    let jsonString = decompressFromUTF16(saved);
-    if (!jsonString || !jsonString.startsWith('{')) {
-      // Try as raw JSON (legacy)
-      if (saved.startsWith('{')) {
-        jsonString = saved;
-      } else {
-        return null;
-      }
-    }
-    
-    const parsed = JSON.parse(jsonString);
-    if (parsed.grid && parsed.gridSize && parsed.stats) {
-      return parsed as GameState;
-    }
-  } catch (e) {
-    console.error('Failed to load room state:', e);
-  }
-  return null;
-}
-
-// Check if a saved state exists for a room
-export function hasRoomState(roomCode: string): boolean {
-  if (typeof window === 'undefined' || !roomCode) return false;
-  return localStorage.getItem(ROOM_STATE_PREFIX + roomCode.toUpperCase()) !== null;
-}
 
 /**
  * Hook to sync game actions with multiplayer.
@@ -263,9 +215,8 @@ export function useMultiplayerSync() {
     };
   }, [multiplayer, multiplayer?.connectionState, game]);
 
-  // Keep the shared game state updated (any player can share with new peers)
-  // Throttled to avoid excessive updates - only updates every 2 seconds
-  // Also saves the state locally so it can be restored if connection is lost
+  // Keep the game state synced with the Supabase database
+  // The provider handles throttling internally (saves every 3 seconds max)
   const lastUpdateRef = useRef<number>(0);
   useEffect(() => {
     if (!multiplayer || multiplayer.connectionState !== 'connected') return;
@@ -274,13 +225,8 @@ export function useMultiplayerSync() {
     if (now - lastUpdateRef.current < 2000) return; // Throttle to 2 second intervals
     lastUpdateRef.current = now;
     
-    // Update the game state that will be sent to new peers
+    // Update the game state - provider will save to Supabase database (throttled)
     multiplayer.updateGameState(game.state);
-    
-    // Also save locally for this room so we can restore on reconnection
-    if (multiplayer.roomCode) {
-      saveRoomState(multiplayer.roomCode, game.state);
-    }
   }, [multiplayer, game.state]);
 
   // Broadcast a local action to peers

@@ -15,7 +15,6 @@ import { Label } from '@/components/ui/label';
 import { useMultiplayer } from '@/context/MultiplayerContext';
 import { GameState } from '@/types/game';
 import { createInitialGameState, DEFAULT_GRID_SIZE } from '@/lib/simulation';
-import { loadRoomState, hasRoomState } from '@/hooks/useMultiplayerSync';
 import { Copy, Check, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface CoopModalProps {
@@ -60,7 +59,7 @@ export function CoopModal({
       setAutoJoinAttempted(true);
       setIsLoading(true);
       
-      // Join immediately without showing modal
+      // Join immediately - state will be loaded from Supabase database
       joinRoom(pendingRoomCode)
         .then(() => {
           window.history.replaceState({}, '', `/?room=${pendingRoomCode.toUpperCase()}`);
@@ -70,32 +69,18 @@ export function CoopModal({
         .catch((err) => {
           console.error('Failed to auto-join room:', err);
           setIsLoading(false);
-          
-          // Check if we have a saved state for this room
-          const savedState = loadRoomState(pendingRoomCode);
-          if (savedState) {
-            console.log('[CoopModal] Found saved state for room, loading with background sync...');
-            setStartedWithCache(true); // Keep connection alive for background sync
-            onStartGame(false, savedState);
-            onOpenChange(false);
-          } else {
-            // Fall back to showing join modal
-            setJoinCode(pendingRoomCode);
-            setMode('join');
-          }
+          // Fall back to showing join modal with error
+          setJoinCode(pendingRoomCode);
+          setMode('join');
         });
     }
-  }, [open, pendingRoomCode, autoJoinAttempted, joinRoom, onStartGame, onOpenChange]);
+  }, [open, pendingRoomCode, autoJoinAttempted, joinRoom]);
 
-  // Track if we started with cached state (to keep connection alive)
-  const [startedWithCache, setStartedWithCache] = useState(false);
-  
   // Reset state when modal closes - cleanup any pending connection
   useEffect(() => {
     if (!open) {
-      // Only clean up connection if we were mid-join and NOT started with cached state
-      // If we started with cache, keep connection alive for background sync
-      if ((waitingForState || (autoJoinAttempted && !initialState)) && !startedWithCache) {
+      // Only clean up connection if we were mid-join
+      if (waitingForState || (autoJoinAttempted && !initialState)) {
         leaveRoom();
       }
       setMode('select');
@@ -103,9 +88,8 @@ export function CoopModal({
       setCopied(false);
       setAutoJoinAttempted(false);
       setWaitingForState(false);
-      setStartedWithCache(false);
     }
-  }, [open, waitingForState, autoJoinAttempted, initialState, leaveRoom, startedWithCache]);
+  }, [open, waitingForState, autoJoinAttempted, initialState, leaveRoom]);
 
   const handleCreateRoom = async () => {
     if (!cityName.trim()) return;
@@ -137,25 +121,17 @@ export function CoopModal({
     
     setIsLoading(true);
     try {
+      // State will be loaded from Supabase database
       await joinRoom(joinCode);
       // Update URL to show room code
       window.history.replaceState({}, '', `/?room=${joinCode.toUpperCase()}`);
-      // Now wait for state to be received
+      // Now wait for state to be received from provider
       setIsLoading(false);
       setWaitingForState(true);
     } catch (err) {
       console.error('Failed to join room:', err);
       setIsLoading(false);
-      
-      // Check if we have a saved state for this room
-      const savedState = loadRoomState(joinCode);
-      if (savedState) {
-        console.log('[CoopModal] Failed to join but found saved state, loading with background sync...');
-        window.history.replaceState({}, '', `/?room=${joinCode.toUpperCase()}`);
-        setStartedWithCache(true); // Keep connection alive for background sync
-        onStartGame(false, savedState);
-        onOpenChange(false);
-      }
+      // Error is already set by the context
     }
   };
   
@@ -168,36 +144,20 @@ export function CoopModal({
     }
   }, [waitingForState, initialState, onStartGame, onOpenChange]);
   
-  // Timeout after 15 seconds - if no state received, try to load from saved room state
+  // Timeout after 15 seconds - if no state received, show error
   useEffect(() => {
     if (!waitingForState) return;
     
-    const roomToCheck = pendingRoomCode || joinCode;
-    
     const timeout = setTimeout(() => {
       if (waitingForState && !initialState) {
-        console.log('[CoopModal] Timeout waiting for state, checking for saved room state...');
-        
-        // Check if we have a saved state for this room
-        const savedState = roomToCheck ? loadRoomState(roomToCheck) : null;
-        
-        if (savedState) {
-          console.log('[CoopModal] Found saved state for room, loading with background sync...');
-          setWaitingForState(false);
-          setStartedWithCache(true); // Keep connection alive for background sync
-          // Start game with saved state (not as host since we're trying to join)
-          onStartGame(false, savedState);
-          onOpenChange(false);
-        } else {
-          console.error('[CoopModal] No saved state found, timeout');
-          setWaitingForState(false);
-          leaveRoom();
-        }
+        console.error('[CoopModal] Timeout waiting for state');
+        setWaitingForState(false);
+        leaveRoom();
       }
     }, 15000);
     
     return () => clearTimeout(timeout);
-  }, [waitingForState, initialState, leaveRoom, pendingRoomCode, joinCode, onStartGame, onOpenChange]);
+  }, [waitingForState, initialState, leaveRoom]);
 
   const handleCopyLink = () => {
     if (!roomCode) return;
@@ -446,14 +406,6 @@ export function CoopModal({
             <div className="flex items-center gap-2 text-red-400 text-sm">
               <AlertCircle className="w-4 h-4" />
               {error}
-            </div>
-          )}
-
-          {/* Show if we have a saved state for this room */}
-          {joinCode.length === 5 && hasRoomState(joinCode) && !waitingForState && (
-            <div className="bg-slate-800/50 rounded-lg p-3 text-center">
-              <p className="text-slate-300 text-sm">💾 Previously visited city</p>
-              <p className="text-slate-500 text-xs mt-1">Will load saved state if connection fails</p>
             </div>
           )}
 
