@@ -106,8 +106,8 @@ export function useMultiplayerSync() {
         break;
         
       case 'fullState':
-        // Load the full state from the host
-        game.loadState(JSON.stringify(action.state));
+        // Ignore - full state sync is handled separately via state-sync event
+        // Blocking this prevents malicious players from overwriting game state
         break;
         
       case 'tick':
