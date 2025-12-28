@@ -43,6 +43,10 @@ function initWorker(): boolean {
         pending.resolve(compressed);
       } else if (type === 'serialized-compressed-uri') {
         pending.resolve(compressed);
+      } else if (type === 'compressed-transferred') {
+        pending.resolve(compressed);
+      } else if (type === 'compressed-transferred-uri') {
+        pending.resolve(compressed);
       } else if (type === 'decompressed-parsed') {
         pending.resolve(state);
       }
@@ -70,7 +74,10 @@ function initWorker(): boolean {
 
 /**
  * Serialize and compress a game state using the worker (off main thread)
- * Both JSON.stringify and LZ-string compression happen in the worker
+ * PERF: Uses Transferable ArrayBuffer to avoid expensive structuredClone!
+ * - Main thread: JSON.stringify (fast) + encode to ArrayBuffer
+ * - Transfer: Zero-copy ownership transfer to worker
+ * - Worker: Decode + compress (heavy work off main thread)
  * Falls back to main thread if worker is not available
  */
 export async function serializeAndCompressAsync(state: unknown): Promise<string> {
@@ -100,7 +107,17 @@ export async function serializeAndCompressAsync(state: unknown): Promise<string>
     pendingRequests.set(id, { resolve, reject, timeoutId });
     
     try {
-      worker!.postMessage({ type: 'serialize-compress', id, state });
+      // PERF: Serialize to JSON string, then encode to ArrayBuffer for zero-copy transfer
+      // This avoids the expensive structuredClone that postMessage does on complex objects
+      const jsonString = JSON.stringify(state);
+      const encoder = new TextEncoder();
+      const buffer = encoder.encode(jsonString).buffer;
+      
+      // Transfer the buffer (zero-copy, ownership moves to worker)
+      worker!.postMessage(
+        { type: 'compress-transferred', id, buffer },
+        [buffer] // Transfer list - buffer ownership moves to worker
+      );
     } catch (error) {
       clearTimeout(timeoutId);
       pendingRequests.delete(id);
@@ -195,7 +212,7 @@ export const compressAsync = (data: string): Promise<string> => {
 
 /**
  * Serialize and compress for Supabase database (URI-safe encoding)
- * Both JSON.stringify and LZ-string URI compression happen in the worker
+ * PERF: Uses Transferable ArrayBuffer to avoid expensive structuredClone!
  * Falls back to main thread if worker is not available
  */
 export async function serializeAndCompressForDBAsync(state: unknown): Promise<string> {
@@ -225,7 +242,16 @@ export async function serializeAndCompressForDBAsync(state: unknown): Promise<st
     pendingRequests.set(id, { resolve, reject, timeoutId });
     
     try {
-      worker!.postMessage({ type: 'serialize-compress-uri', id, state });
+      // PERF: Serialize to JSON string, then encode to ArrayBuffer for zero-copy transfer
+      const jsonString = JSON.stringify(state);
+      const encoder = new TextEncoder();
+      const buffer = encoder.encode(jsonString).buffer;
+      
+      // Transfer the buffer (zero-copy, ownership moves to worker)
+      worker!.postMessage(
+        { type: 'compress-transferred-uri', id, buffer },
+        [buffer]
+      );
     } catch (error) {
       clearTimeout(timeoutId);
       pendingRequests.delete(id);
