@@ -2237,13 +2237,12 @@ export function simulateTick(state: GameState): GameState {
         }
         
         if (adjacentFireCount > 0) {
-          // Base spread chance per adjacent fire: 1.5% per tick
-          // Each additional adjacent fire increases the chance
+          // Base spread chance per adjacent fire: 0.5% per tick (reduced from 1.5%)
           // Fire coverage significantly reduces spread chance
           const fireCoverage = services.fire[y][x];
           const coverageReduction = fireCoverage / 100; // 0-1 based on coverage (100% coverage = 1)
-          const baseSpreadChance = 0.015 * adjacentFireCount;
-          const spreadChance = baseSpreadChance * (1 - coverageReduction * 0.9); // Fire coverage can reduce spread by up to 90%
+          const baseSpreadChance = 0.005 * adjacentFireCount;
+          const spreadChance = baseSpreadChance * (1 - coverageReduction * 0.95); // Fire coverage can reduce spread by up to 95%
           
           if (Math.random() < spreadChance) {
             tile.building.onFire = true;
