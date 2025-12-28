@@ -16,6 +16,8 @@ import { CommandMenu } from '@/components/ui/CommandMenu';
 import { TipToast } from '@/components/ui/TipToast';
 import { useTipSystem } from '@/hooks/useTipSystem';
 import { useMultiplayerSync } from '@/hooks/useMultiplayerSync';
+import { useMultiplayerOptional } from '@/context/MultiplayerContext';
+import { ShareModal } from '@/components/multiplayer/ShareModal';
 import { Copy, Check } from 'lucide-react';
 
 // Import game components
@@ -36,7 +38,7 @@ import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
 // Cargo type names for notifications
 const CARGO_TYPE_NAMES = [msg('containers'), msg('bulk materials'), msg('oil')];
 
-export default function Game({ onExit, onShare }: { onExit?: () => void; onShare?: () => void }) {
+export default function Game({ onExit }: { onExit?: () => void }) {
   const gt = useGT();
   const m = useMessages();
   const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
@@ -47,6 +49,8 @@ export default function Game({ onExit, onShare }: { onExit?: () => void; onShare
   const isInitialMount = useRef(true);
   const { isMobileDevice, isSmallScreen } = useMobile();
   const isMobile = isMobileDevice || isSmallScreen;
+  const [showShareModal, setShowShareModal] = useState(false);
+  const multiplayer = useMultiplayerOptional();
   
   // Cheat code system
   const {
@@ -251,9 +255,17 @@ export default function Game({ onExit, onShare }: { onExit?: () => void; onShare
             selectedTile={selectedTile && state.selectedTool === 'select' ? state.grid[selectedTile.y][selectedTile.x] : null}
             services={state.services}
             onCloseTile={() => setSelectedTile(null)}
-            onShare={onShare}
+            onShare={() => setShowShareModal(true)}
             onExit={onExit}
           />
+          
+          {/* Share Modal for mobile co-op */}
+          {multiplayer && (
+            <ShareModal
+              open={showShareModal}
+              onOpenChange={setShowShareModal}
+            />
+          )}
           
           {/* Main canvas area - fills remaining space, with padding for top/bottom bars */}
           <div className="flex-1 relative overflow-hidden" style={{ paddingTop: '72px', paddingBottom: '76px' }}>
