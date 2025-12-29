@@ -20,11 +20,6 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.VERCEL_URL ?
-    `https://${process.env.VERCEL_URL}` :
-    'http://localhost:3000'
-  ),
   title: 'ISOCITY — Metropolis Builder',
   description: 'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
   openGraph: {
@@ -33,7 +28,7 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
     {
-      url: '/opengraph-image',
+      url: '/opengraph-image.png',
       width: 1179,
       height: 1406,
       type: 'image/png',
@@ -47,7 +42,7 @@ export const metadata: Metadata = {
     description: 'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
     images: [
     {
-      url: '/opengraph-image',
+      url: '/opengraph-image.png',
       width: 1179,
       height: 1406,
       alt: 'ISOCITY - Isometric city builder game screenshot'
