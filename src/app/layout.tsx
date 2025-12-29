@@ -36,19 +36,6 @@ export const metadata: Metadata = {
     }]
 
   },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'ISOCITY — Metropolis Builder',
-    description: 'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
-    images: [
-    {
-      url: '/opengraph-image.png',
-      width: 1179,
-      height: 1406,
-      alt: 'ISOCITY - Isometric city builder game screenshot'
-    }]
-
-  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
