@@ -618,7 +618,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
   },
   servicesVerticalOffsets: {
     // Adjust vertical positioning for each service building type
-    police_station: -0.2,
+    police_station: -0.3,
     fire_station: -0.3,
     hospital: -0.65,
     school: -0.35,
