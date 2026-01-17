@@ -16,6 +16,7 @@ const HEIGHT_RATIO = 0.60;
 const TILE_HEIGHT = TILE_WIDTH * HEIGHT_RATIO;
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 2.5;
+const HEIGHT_UNIT = 20;
 
 // Background color to filter (red)
 const BACKGROUND_COLOR = { r: 255, g: 0, b: 0 };
@@ -346,6 +347,97 @@ function drawTrackSegment(
   }
 }
 
+const TRACK_DIR_VECTORS: Record<string, { x: number; y: number }> = {
+  north: { x: -TILE_WIDTH / 2, y: -TILE_HEIGHT / 2 },
+  east: { x: TILE_WIDTH / 2, y: -TILE_HEIGHT / 2 },
+  south: { x: TILE_WIDTH / 2, y: TILE_HEIGHT / 2 },
+  west: { x: -TILE_WIDTH / 2, y: TILE_HEIGHT / 2 },
+};
+
+function bezierPoint(p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, p3: { x: number; y: number }, t: number) {
+  const u = 1 - t;
+  const tt = t * t;
+  const uu = u * u;
+  const uuu = uu * u;
+  const ttt = tt * t;
+  
+  return {
+    x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+    y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y,
+  };
+}
+
+function getTrackPoint(
+  trackPiece: NonNullable<Tile['trackPiece']>,
+  centerX: number,
+  centerY: number,
+  t: number
+) {
+  const dirVec = TRACK_DIR_VECTORS[trackPiece.direction];
+  const heightOffset = trackPiece.startHeight + (trackPiece.endHeight - trackPiece.startHeight) * t;
+  const elevatedCenterY = centerY - heightOffset * HEIGHT_UNIT;
+  
+  if (trackPiece.type === 'turn_left_flat' || trackPiece.type === 'turn_right_flat') {
+    const turnRight = trackPiece.type === 'turn_right_flat';
+    const length = Math.sqrt(dirVec.x * dirVec.x + dirVec.y * dirVec.y);
+    const dir = { x: dirVec.x / length, y: dirVec.y / length };
+    const radius = TILE_WIDTH * 0.4;
+    const turnMult = turnRight ? 1 : -1;
+    const perp = { x: -dir.y * turnMult, y: dir.x * turnMult };
+    
+    const p0 = { x: centerX - dir.x * radius, y: elevatedCenterY - dir.y * radius };
+    const p3 = { x: centerX + perp.x * radius, y: elevatedCenterY + perp.y * radius };
+    const p1 = { x: p0.x + dir.x * radius * 0.5, y: p0.y + dir.y * radius * 0.5 };
+    const p2 = { x: p3.x - perp.x * radius * 0.5, y: p3.y - perp.y * radius * 0.5 };
+    
+    return bezierPoint(p0, p1, p2, p3, t);
+  }
+  
+  if (trackPiece.type === 'loop_vertical') {
+    const radius = TILE_WIDTH * 0.12;
+    const angle = t * Math.PI * 2;
+    return {
+      x: centerX + Math.cos(angle) * radius,
+      y: elevatedCenterY - Math.sin(angle) * radius * 0.6,
+    };
+  }
+  
+  // Straight or slope segments
+  const start = {
+    x: centerX - dirVec.x * 0.4,
+    y: elevatedCenterY - dirVec.y * 0.4,
+  };
+  const end = {
+    x: centerX + dirVec.x * 0.4,
+    y: elevatedCenterY + dirVec.y * 0.4,
+  };
+  
+  return {
+    x: start.x + (end.x - start.x) * t,
+    y: start.y + (end.y - start.y) * t,
+  };
+}
+
+function drawCoasterCar(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 6, 6, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Car body
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 6, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Car highlight
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath();
+  ctx.ellipse(x - 1.5, y - 1, 3, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -489,6 +581,33 @@ export function CoasterGrid({
       }
     });
     
+    const carsByTile = new Map<string, { x: number; y: number }[]>();
+    state.coasters.forEach(coaster => {
+      if (coaster.track.length === 0 || coaster.trackTiles.length === 0) return;
+      coaster.trains.forEach(train => {
+        train.cars.forEach(car => {
+          const trackIndex = Math.floor(car.trackProgress) % coaster.track.length;
+          const t = car.trackProgress - Math.floor(car.trackProgress);
+          const trackTile = coaster.trackTiles[trackIndex];
+          const trackPiece = coaster.track[trackIndex];
+          if (!trackTile || !trackPiece) return;
+          
+          const { screenX, screenY } = gridToScreen(trackTile.x, trackTile.y, 0, 0);
+          const centerX = screenX + TILE_WIDTH / 2;
+          const centerY = screenY + TILE_HEIGHT / 2;
+          const pos = getTrackPoint(trackPiece, centerX, centerY, t);
+          
+          const key = `${trackTile.x},${trackTile.y}`;
+          const existing = carsByTile.get(key);
+          if (existing) {
+            existing.push(pos);
+          } else {
+            carsByTile.set(key, [pos]);
+          }
+        });
+      });
+    });
+    
     // Draw tiles (back to front for proper depth)
     for (let sum = 0; sum < gridSize * 2 - 1; sum++) {
       for (let x = 0; x <= sum; x++) {
@@ -533,6 +652,14 @@ export function CoasterGrid({
             drawGuest(ctx, guest, tick);
           });
         }
+
+        // Draw coaster cars on this tile
+        const cars = carsByTile.get(`${x},${y}`);
+        if (cars) {
+          cars.forEach(car => {
+            drawCoasterCar(ctx, car.x, car.y);
+          });
+        }
         
         // Selection highlight
         if (selectedTile && selectedTile.x === x && selectedTile.y === y) {
@@ -562,7 +689,7 @@ export function CoasterGrid({
     }
     
     ctx.restore();
-  }, [grid, gridSize, offset, zoom, canvasSize, tick, selectedTile, hoveredTile, selectedTool, spriteSheets, state.guests]);
+  }, [grid, gridSize, offset, zoom, canvasSize, tick, selectedTile, hoveredTile, selectedTool, spriteSheets, state.guests, state.coasters]);
   
   // Mouse handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {

@@ -12,7 +12,7 @@ import {
   TOOL_INFO,
 } from '@/games/coaster/types';
 import { ParkFinances, ParkStats, ParkSettings, Guest, Staff, DEFAULT_PRICES } from '@/games/coaster/types/economy';
-import { Coaster, TrackDirection, TrackHeight, TrackPiece, TrackPieceType } from '@/games/coaster/types/tracks';
+import { Coaster, CoasterTrain, CoasterCar, TrackDirection, TrackHeight, TrackPiece, TrackPieceType } from '@/games/coaster/types/tracks';
 import { Building, BuildingType } from '@/games/coaster/types/buildings';
 import { spawnGuests, updateGuest } from '@/components/coaster/guests';
 
@@ -208,10 +208,55 @@ function normalizeLoadedState(state: GameState): GameState {
   return {
     ...state,
     grid: normalizedGrid,
+    coasters: state.coasters.map(coaster => ({
+      ...coaster,
+      trackTiles: coaster.trackTiles ?? [],
+    })),
     buildingCoasterId: state.buildingCoasterId ?? null,
     buildingCoasterPath: state.buildingCoasterPath ?? [],
     buildingCoasterHeight: state.buildingCoasterHeight ?? 0,
     buildingCoasterLastDirection: state.buildingCoasterLastDirection ?? null,
+  };
+}
+
+function createDefaultTrain(): CoasterTrain {
+  const car: CoasterCar = {
+    trackProgress: 0,
+    velocity: 0.015,
+    rotation: { pitch: 0, yaw: 0, roll: 0 },
+    screenX: 0,
+    screenY: 0,
+    screenZ: 0,
+    guests: [],
+  };
+  
+  return {
+    id: generateUUID(),
+    cars: [car],
+    state: 'running',
+    stateTimer: 0,
+  };
+}
+
+function createDefaultCoaster(id: string, startTile: { x: number; y: number }): Coaster {
+  return {
+    id,
+    name: 'Custom Coaster',
+    type: 'steel_sit_down',
+    color: { primary: '#dc2626', secondary: '#f59e0b', supports: '#374151' },
+    track: [],
+    trackTiles: [],
+    stationTileX: startTile.x,
+    stationTileY: startTile.y,
+    trains: [createDefaultTrain()],
+    operating: true,
+    broken: false,
+    excitement: 0,
+    intensity: 0,
+    nausea: 0,
+    ridersTotal: 0,
+    income: 0,
+    upkeep: 0,
   };
 }
 
@@ -324,6 +369,22 @@ export function CoasterProvider({ children }: { children: React.ReactNode }) {
           : 0;
         
         const parkRating = Math.min(1000, Math.round(avgHappiness * 10));
+
+        // Update coaster trains
+        const updatedCoasters = prev.coasters.map(coaster => {
+          if (coaster.track.length === 0 || coaster.trains.length === 0) return coaster;
+          const trackLength = coaster.track.length;
+          
+          const updatedTrains = coaster.trains.map(train => {
+            const updatedCars = train.cars.map(car => {
+              const nextProgress = (car.trackProgress + car.velocity * deltaTime) % trackLength;
+              return { ...car, trackProgress: nextProgress };
+            });
+            return { ...train, cars: updatedCars };
+          });
+          
+          return { ...coaster, trains: updatedTrains };
+        });
         
         return {
           ...prev,
@@ -334,6 +395,7 @@ export function CoasterProvider({ children }: { children: React.ReactNode }) {
           month,
           year,
           guests,
+          coasters: updatedCoasters,
           stats: {
             ...prev.stats,
             guestsInPark,
@@ -491,6 +553,32 @@ export function CoasterProvider({ children }: { children: React.ReactNode }) {
           ? buildPath
           : [...buildPath, { x, y }];
         
+        const trackEntries = updatedPath
+          .map(point => {
+            const piece = newGrid[point.y][point.x].trackPiece;
+            return piece ? { point, piece } : null;
+          })
+          .filter((entry): entry is { point: { x: number; y: number }; piece: TrackPiece } => Boolean(entry));
+        const trackPieces = trackEntries.map(entry => entry.piece);
+        const trackTiles = trackEntries.map(entry => entry.point);
+        
+        const coasterIndex = prev.coasters.findIndex(coaster => coaster.id === coasterId);
+        const existingCoaster = coasterIndex >= 0 ? prev.coasters[coasterIndex] : null;
+        const coasterBase = existingCoaster ?? createDefaultCoaster(coasterId, updatedPath[0]);
+        const coaster: Coaster = {
+          ...coasterBase,
+          track: trackPieces,
+          trackTiles,
+          trains: coasterBase.trains.length > 0 ? coasterBase.trains : [createDefaultTrain()],
+        };
+        
+        const updatedCoasters = [...prev.coasters];
+        if (coasterIndex >= 0) {
+          updatedCoasters[coasterIndex] = coaster;
+        } else {
+          updatedCoasters.push(coaster);
+        }
+        
         return {
           ...prev,
           grid: newGrid,
@@ -499,6 +587,7 @@ export function CoasterProvider({ children }: { children: React.ReactNode }) {
           buildingCoasterPath: updatedPath,
           buildingCoasterHeight: endHeight,
           buildingCoasterLastDirection: endDirection,
+          coasters: updatedCoasters,
         };
       }
       

@@ -386,6 +386,7 @@ export interface Coaster {
   type: CoasterType;
   color: { primary: string; secondary: string; supports: string };
   track: TrackPiece[];
+  trackTiles: { x: number; y: number }[];
   stationTileX: number;
   stationTileY: number;
   trains: CoasterTrain[];
