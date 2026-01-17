@@ -50,6 +50,7 @@ export function createGuest(entranceX: number, entranceY: number): Guest {
     
     // State
     state: 'entering' as GuestState,
+    lastState: 'entering' as GuestState,
     targetTileX: entranceX,
     targetTileY: entranceY + 1,
     path: [],
@@ -289,6 +290,7 @@ export function updateGuest(
   deltaTime: number
 ): Guest {
   const updatedGuest = { ...guest };
+  const previousState = updatedGuest.state;
   
   // Update time in park
   updatedGuest.timeInPark += deltaTime;
@@ -332,6 +334,7 @@ export function updateGuest(
         updatedGuest.nausea = Math.min(100, updatedGuest.nausea + 5 + Math.random() * 5);
       }
     }
+    updatedGuest.lastState = previousState;
     return updatedGuest;
   }
 
@@ -385,6 +388,7 @@ export function updateGuest(
           updatedGuest.pathIndex = 0;
           updatedGuest.targetTileX = updatedGuest.tileX;
           updatedGuest.targetTileY = updatedGuest.tileY;
+          updatedGuest.lastState = previousState;
           return updatedGuest;
         }
         
@@ -417,6 +421,7 @@ export function updateGuest(
     }
   }
   
+  updatedGuest.lastState = previousState;
   return updatedGuest;
 }
 

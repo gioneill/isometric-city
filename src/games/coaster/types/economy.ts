@@ -51,6 +51,7 @@ export interface Guest {
   
   // State
   state: GuestState;
+  lastState: GuestState;
   targetTileX: number;
   targetTileY: number;
   path: { x: number; y: number }[];

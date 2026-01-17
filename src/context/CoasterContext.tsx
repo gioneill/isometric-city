@@ -212,6 +212,12 @@ function normalizeLoadedState(state: GameState): GameState {
       ...coaster,
       trackTiles: coaster.trackTiles ?? [],
     })),
+    guests: state.guests.map(guest => ({
+      ...guest,
+      lastState: guest.lastState ?? guest.state,
+      queueTimer: guest.queueTimer ?? 0,
+      decisionCooldown: guest.decisionCooldown ?? 0,
+    })),
     buildingCoasterId: state.buildingCoasterId ?? null,
     buildingCoasterPath: state.buildingCoasterPath ?? [],
     buildingCoasterHeight: state.buildingCoasterHeight ?? 0,
@@ -358,8 +364,35 @@ export function CoasterProvider({ children }: { children: React.ReactNode }) {
         // Update guests
         const deltaTime = 1; // 1 game minute per tick
         const updatedGuests = prev.guests.map(guest => updateGuest(guest, prev.grid, deltaTime));
-        const spawnedGuests = spawnGuests(prev.grid, updatedGuests, prev.stats.parkRating, hour);
-        const guests = [...updatedGuests, ...spawnedGuests];
+        const spawnedGuestsRaw = spawnGuests(prev.grid, updatedGuests, prev.stats.parkRating, hour);
+        const entranceFee = prev.settings.entranceFee;
+        const admissionRevenue = spawnedGuestsRaw.reduce((sum, guest) => sum + Math.min(guest.cash, entranceFee), 0);
+        const spawnedGuests = spawnedGuestsRaw.map(guest => {
+          const fee = Math.min(guest.cash, entranceFee);
+          return {
+            ...guest,
+            cash: guest.cash - fee,
+            totalSpent: guest.totalSpent + fee,
+          };
+        });
+
+        const rideTicket = prev.settings.payPerRide ? DEFAULT_PRICES.rideTicket : 0;
+        let rideRevenue = 0;
+        let rideCompletions = 0;
+        const guests = updatedGuests.map(guest => {
+          if (guest.state === 'riding' && guest.lastState === 'queuing' && rideTicket > 0) {
+            const fee = Math.min(guest.cash, rideTicket);
+            if (fee > 0) {
+              rideRevenue += fee;
+              return { ...guest, cash: guest.cash - fee, totalSpent: guest.totalSpent + fee };
+            }
+          }
+          if (guest.state === 'walking' && guest.lastState === 'riding') {
+            rideCompletions += 1;
+          }
+          return guest;
+        }).concat(spawnedGuests);
+
         
         const guestsInPark = guests.length;
         const guestsSatisfied = guests.filter(guest => guest.happiness >= 70).length;
@@ -404,6 +437,14 @@ export function CoasterProvider({ children }: { children: React.ReactNode }) {
             guestsUnsatisfied,
             averageHappiness: avgHappiness,
             parkRating,
+            totalRidesRidden: prev.stats.totalRidesRidden + rideCompletions,
+          },
+          finances: {
+            ...prev.finances,
+            cash: prev.finances.cash + admissionRevenue + rideRevenue,
+            incomeAdmissions: prev.finances.incomeAdmissions + admissionRevenue,
+            incomeRides: prev.finances.incomeRides + rideRevenue,
+            incomeTotal: prev.finances.incomeTotal + admissionRevenue + rideRevenue,
           },
         };
       });
