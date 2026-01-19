@@ -46,7 +46,7 @@ function SuperFastIcon() {
 // =============================================================================
 
 export function TopBar() {
-  const { state, setSpeed, setActivePanel } = useCoaster();
+  const { state, setSpeed, setActivePanel, addMoney } = useCoaster();
   const { settings, stats, finances, year, month, day, hour, minute, speed } = state;
   
   // Format time
@@ -137,6 +137,14 @@ export function TopBar() {
       
       {/* Panel buttons */}
       <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => addMoney(500000)}
+          className="text-green-400 hover:text-green-300"
+        >
+          +$500k
+        </Button>
         <Button
           variant={state.activePanel === 'finances' ? 'default' : 'ghost'}
           size="sm"

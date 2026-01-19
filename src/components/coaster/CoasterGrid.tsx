@@ -2,8 +2,14 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useCoaster } from '@/context/CoasterContext';
-import { Tile, Tool } from '@/games/coaster/types';
+import { Tile, Tool, TOOL_INFO } from '@/games/coaster/types';
 import { getSpriteInfo, getSpriteRect, COASTER_SPRITE_PACK } from '@/games/coaster/lib/coasterRenderConfig';
+
+// Helper to get building size for a tool (defaults to 1x1)
+function getToolBuildingSize(tool: Tool): { width: number; height: number } {
+  const info = TOOL_INFO[tool];
+  return info?.size ?? { width: 1, height: 1 };
+}
 import { drawStraightTrack, drawCurvedTrack, drawSlopeTrack, drawLoopTrack, drawChainLift } from '@/components/coaster/tracks';
 import { drawGuest } from '@/components/coaster/guests';
 
@@ -12,6 +18,7 @@ const TRACK_DRAG_TOOLS: Tool[] = [
   'coaster_build',
   'coaster_track',
   'path',
+  'bulldoze',
 ];
 
 // =============================================================================
@@ -294,6 +301,13 @@ function drawWaterTile(
   }
 }
 
+// Path colors (stone/concrete, matching road styling)
+const PATH_COLORS = {
+  surface: '#9ca3af',       // Main path surface
+  edge: '#6b7280',          // Edge/border lines  
+  centerLine: '#d1d5db',    // Light center line for decoration
+};
+
 function drawPathTile(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -322,10 +336,15 @@ function drawPathTile(
   // Draw grass base first
   drawGrassTile(ctx, x, y, 1);
 
-  // Path dimensions
-  const pathWidth = w * 0.32;
+  // Path width ratio (similar to road system but slightly narrower)
+  const pathWidthRatio = 0.14;
+  const pathW = w * pathWidthRatio;
+  const halfWidth = pathW * 0.5;
 
-  // Edge midpoints (matching road system)
+  // Edge stop distance (how close to tile edge the path extends)
+  const edgeStop = 0.98;
+
+  // Edge midpoints (matching road system exactly)
   const northEdgeX = x + w * 0.25;
   const northEdgeY = y + h * 0.25;
   const eastEdgeX = x + w * 0.75;
@@ -348,12 +367,8 @@ function drawPathTile(
   // Get perpendicular vector (like road system)
   const getPerp = (dx: number, dy: number) => ({ nx: -dy, ny: dx });
 
-  // Path color (stone/concrete)
-  ctx.fillStyle = '#9ca3af';
-
-  // Edge stop distance
-  const edgeStop = 0.95;
-  const halfWidth = pathWidth * 0.5;
+  // Draw path surface
+  ctx.fillStyle = PATH_COLORS.surface;
 
   // Draw path segments to connected neighbors
   if (north) {
@@ -408,21 +423,47 @@ function drawPathTile(
     ctx.fill();
   }
 
-  // Center diamond intersection
-  const centerSize = pathWidth * 0.8;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - centerSize);
-  ctx.lineTo(cx + centerSize, cy);
-  ctx.lineTo(cx, cy + centerSize);
-  ctx.lineTo(cx - centerSize, cy);
-  ctx.closePath();
-  ctx.fill();
+  // Draw edge lines for definition (like road curbs)
+  ctx.strokeStyle = PATH_COLORS.edge;
+  ctx.lineWidth = 0.8;
+  ctx.lineCap = 'round';
 
-  // Path edge stroke
-  ctx.strokeStyle = '#6b7280';
-  ctx.lineWidth = 0.5;
-  ctx.stroke();
+  // Draw edge lines along each path segment
+  const drawPathEdges = (
+    dirDx: number,
+    dirDy: number,
+    edgeX: number,
+    edgeY: number
+  ) => {
+    const perp = getPerp(dirDx, dirDy);
+    const stopX = cx + (edgeX - cx) * edgeStop;
+    const stopY = cy + (edgeY - cy) * edgeStop;
+
+    // Left edge
+    ctx.beginPath();
+    ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
+    ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
+    ctx.stroke();
+
+    // Right edge
+    ctx.beginPath();
+    ctx.moveTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
+    ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
+    ctx.stroke();
+  };
+
+  if (north) drawPathEdges(northDx, northDy, northEdgeX, northEdgeY);
+  if (east) drawPathEdges(eastDx, eastDy, eastEdgeX, eastEdgeY);
+  if (south) drawPathEdges(southDx, southDy, southEdgeX, southEdgeY);
+  if (west) drawPathEdges(westDx, westDy, westEdgeX, westEdgeY);
 }
+
+// Queue colors
+const QUEUE_COLORS = {
+  post: '#374151',      // Dark gray metal posts
+  rail: '#4b5563',      // Gray metal rails
+  rope: '#1f2937',      // Dark rope/chain between posts
+};
 
 function drawQueueTile(
   ctx: CanvasRenderingContext2D,
@@ -433,16 +474,15 @@ function drawQueueTile(
   grid: Tile[][],
   gridSize: number
 ) {
-  // Draw path first
+  // Draw path first (queue is a path with railings)
   drawPathTile(ctx, x, y, gridX, gridY, grid, gridSize);
   
-  // Add queue railings following the path edges
   const w = TILE_WIDTH;
   const h = TILE_HEIGHT;
   const cx = x + w / 2;
   const cy = y + h / 2;
 
-  // Check adjacent paths for connections (same logic as path)
+  // Check adjacent paths for connections
   const hasPath = (gx: number, gy: number) => {
     if (gx < 0 || gy < 0 || gx >= gridSize || gy >= gridSize) return false;
     return grid[gy][gx].path || grid[gy][gx].queue;
@@ -453,7 +493,7 @@ function drawQueueTile(
   const south = hasPath(gridX + 1, gridY);
   const west = hasPath(gridX, gridY + 1);
 
-  // Edge midpoints
+  // Edge midpoints (must match path exactly)
   const northEdgeX = x + w * 0.25;
   const northEdgeY = y + h * 0.25;
   const eastEdgeX = x + w * 0.75;
@@ -463,7 +503,7 @@ function drawQueueTile(
   const westEdgeX = x + w * 0.25;
   const westEdgeY = y + h * 0.75;
 
-  // Direction vectors from center to each edge
+  // Direction vectors
   const northDx = (northEdgeX - cx) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
   const northDy = (northEdgeY - cy) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
   const eastDx = (eastEdgeX - cx) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
@@ -473,20 +513,23 @@ function drawQueueTile(
   const westDx = (westEdgeX - cx) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
   const westDy = (westEdgeY - cy) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
 
-  // Get perpendicular vector
   const getPerp = (dx: number, dy: number) => ({ nx: -dy, ny: dx });
 
-  // Path dimensions (must match drawPathTile)
-  const pathWidth = w * 0.32;
-  const halfWidth = pathWidth * 0.5;
-  const railInset = halfWidth * 0.75; // Position rails along path edges
-  const edgeStop = 0.95;
+  // Path dimensions (must match drawPathTile exactly)
+  const pathWidthRatio = 0.14;
+  const pathW = w * pathWidthRatio;
+  const halfWidth = pathW * 0.5;
+  
+  // Rail offset - position rails AT the path edges, not far outside
+  // This makes the queue corridor narrower and rails closer together
+  const railOffset = halfWidth * 0.85;
+  const edgeStop = 0.98;
 
-  // Queue styling
-  const postSize = 1.5;
-  ctx.fillStyle = '#374151';
+  // Queue railing styling
+  const postSize = 1.2;
+  const postSpacing = 12; // Distance between posts along the rail
 
-  // Draw queue railings parallel to path edges for each connected direction
+  // Draw queue railings along path edges
   const drawQueueRailsForSegment = (
     dirDx: number, 
     dirDy: number, 
@@ -497,42 +540,70 @@ function drawQueueTile(
     const stopX = cx + (edgeX - cx) * edgeStop;
     const stopY = cy + (edgeY - cy) * edgeStop;
 
-    // Two rails - one on each side of the path, parallel to path direction
-    for (const side of [-1, 1]) {
-      const railOffX = perp.nx * railInset * side;
-      const railOffY = perp.ny * railInset * side;
+    // Calculate segment length for post placement
+    const segLen = Math.hypot(stopX - cx, stopY - cy);
+    const numPosts = Math.max(2, Math.floor(segLen / postSpacing) + 1);
 
-      // Rail endpoints
+    // Two rails - one on each side of the path
+    for (const side of [-1, 1]) {
+      const railOffX = perp.nx * railOffset * side;
+      const railOffY = perp.ny * railOffset * side;
+
       const startX = cx + railOffX;
       const startY = cy + railOffY;
       const endX = stopX + railOffX;
       const endY = stopY + railOffY;
 
-      // Draw posts at both ends
-      ctx.beginPath();
-      ctx.arc(startX, startY, postSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(endX, endY, postSize, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw rope/chain between posts
-      ctx.strokeStyle = '#1f2937';
-      ctx.lineWidth = 0.8;
-      ctx.setLineDash([2, 2]);
+      // Draw the continuous rail bar (solid metal bar)
+      ctx.strokeStyle = QUEUE_COLORS.rail;
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(startX, startY);
       ctx.lineTo(endX, endY);
       ctx.stroke();
+
+      // Draw posts at regular intervals
+      ctx.fillStyle = QUEUE_COLORS.post;
+      for (let i = 0; i < numPosts; i++) {
+        const t = i / (numPosts - 1);
+        const postX = startX + (endX - startX) * t;
+        const postY = startY + (endY - startY) * t;
+        
+        ctx.beginPath();
+        ctx.arc(postX, postY, postSize, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Draw rope/barrier between the two rails (the actual queue rope)
+    // This goes ACROSS the path at regular intervals
+    ctx.strokeStyle = QUEUE_COLORS.rope;
+    ctx.lineWidth = 0.6;
+    ctx.setLineDash([1.5, 2]);
+    
+    const numRopes = Math.max(2, Math.floor(segLen / (postSpacing * 1.5)));
+    for (let i = 1; i < numRopes; i++) {
+      const t = i / numRopes;
+      const baseX = cx + (stopX - cx) * t;
+      const baseY = cy + (stopY - cy) * t;
+      
+      // Draw rope across the path (perpendicular)
+      ctx.beginPath();
+      ctx.moveTo(baseX + perp.nx * railOffset, baseY + perp.ny * railOffset);
+      ctx.lineTo(baseX - perp.nx * railOffset, baseY - perp.ny * railOffset);
+      ctx.stroke();
     }
   };
 
-  // Draw rails for each connected path segment
+  // Draw rails for each connected direction
   if (north) drawQueueRailsForSegment(northDx, northDy, northEdgeX, northEdgeY);
   if (east) drawQueueRailsForSegment(eastDx, eastDy, eastEdgeX, eastEdgeY);
   if (south) drawQueueRailsForSegment(southDx, southDy, southEdgeX, southEdgeY);
   if (west) drawQueueRailsForSegment(westDx, westDy, westEdgeX, westEdgeY);
 
+  // Reset dash pattern
   ctx.setLineDash([]);
 }
 
@@ -606,80 +677,125 @@ function drawTrackSegment(
     drawStraightTrack(ctx, x, y, direction, startHeight);
   }
   
-  if (chainLift) {
+  // Only draw chain lift on slope_up pieces (never on slope_down)
+  // Chain lifts pull the coaster UP, not down
+  const shouldDrawChain = chainLift && type === 'slope_up_small';
+  if (shouldDrawChain) {
     drawChainLift(ctx, x, y, direction, startHeight, endHeight, tick);
   }
 }
 
-const TRACK_DIR_VECTORS: Record<string, { x: number; y: number }> = {
-  north: { x: -TILE_WIDTH / 2, y: -TILE_HEIGHT / 2 },
-  east: { x: TILE_WIDTH / 2, y: -TILE_HEIGHT / 2 },
-  south: { x: TILE_WIDTH / 2, y: TILE_HEIGHT / 2 },
-  west: { x: -TILE_WIDTH / 2, y: TILE_HEIGHT / 2 },
-};
-
-function bezierPoint(p0: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }, p3: { x: number; y: number }, t: number) {
-  const u = 1 - t;
-  const tt = t * t;
-  const uu = u * u;
-  const uuu = uu * u;
-  const ttt = tt * t;
-  
-  return {
-    x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
-    y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y,
-  };
-}
-
+/**
+ * Get a point along a track piece at parameter t (0 to 1)
+ * Uses the SAME geometry as the track drawing functions
+ */
 function getTrackPoint(
   trackPiece: NonNullable<Tile['trackPiece']>,
   centerX: number,
   centerY: number,
   t: number
-) {
-  const dirVec = TRACK_DIR_VECTORS[trackPiece.direction];
-  const heightOffset = trackPiece.startHeight + (trackPiece.endHeight - trackPiece.startHeight) * t;
-  const elevatedCenterY = centerY - heightOffset * HEIGHT_UNIT;
+): { x: number; y: number } {
+  const w = TILE_WIDTH;
+  const h = TILE_HEIGHT;
   
-  if (trackPiece.type === 'turn_left_flat' || trackPiece.type === 'turn_right_flat') {
-    const turnRight = trackPiece.type === 'turn_right_flat';
-    const length = Math.sqrt(dirVec.x * dirVec.x + dirVec.y * dirVec.y);
-    const dir = { x: dirVec.x / length, y: dirVec.y / length };
-    const radius = TILE_WIDTH * 0.4;
-    const turnMult = turnRight ? 1 : -1;
-    const perp = { x: -dir.y * turnMult, y: dir.x * turnMult };
-    
-    const p0 = { x: centerX - dir.x * radius, y: elevatedCenterY - dir.y * radius };
-    const p3 = { x: centerX + perp.x * radius, y: elevatedCenterY + perp.y * radius };
-    const p1 = { x: p0.x + dir.x * radius * 0.5, y: p0.y + dir.y * radius * 0.5 };
-    const p2 = { x: p3.x - perp.x * radius * 0.5, y: p3.y - perp.y * radius * 0.5 };
-    
-    return bezierPoint(p0, p1, p2, p3, t);
-  }
+  // Use the same edge midpoints as track drawing
+  const startX = centerX - w / 2;
+  const startY = centerY - h / 2;
   
-  if (trackPiece.type === 'loop_vertical') {
-    const radius = TILE_WIDTH * 0.12;
-    const angle = t * Math.PI * 2;
+  const heightOffset = (trackPiece.startHeight + (trackPiece.endHeight - trackPiece.startHeight) * t) * HEIGHT_UNIT;
+  
+  // Edge midpoints - MUST match track drawing exactly
+  const northEdge = { x: startX + w * 0.25, y: startY + h * 0.25 - heightOffset };
+  const eastEdge = { x: startX + w * 0.75, y: startY + h * 0.25 - heightOffset };
+  const southEdge = { x: startX + w * 0.75, y: startY + h * 0.75 - heightOffset };
+  const westEdge = { x: startX + w * 0.25, y: startY + h * 0.75 - heightOffset };
+  const center = { x: startX + w / 2, y: startY + h / 2 - heightOffset };
+  
+  const { type, direction } = trackPiece;
+  
+  if (type === 'turn_left_flat' || type === 'turn_right_flat') {
+    const turnRight = type === 'turn_right_flat';
+    
+    // Determine which edges to connect based on direction and turn
+    // This MUST match drawCurvedTrack logic exactly
+    let fromEdge: { x: number; y: number };
+    let toEdge: { x: number; y: number };
+    
+    if (direction === 'north') {
+      fromEdge = northEdge;
+      toEdge = turnRight ? eastEdge : westEdge;
+    } else if (direction === 'south') {
+      fromEdge = southEdge;
+      toEdge = turnRight ? westEdge : eastEdge;
+    } else if (direction === 'east') {
+      fromEdge = eastEdge;
+      toEdge = turnRight ? southEdge : northEdge;
+    } else { // west
+      fromEdge = westEdge;
+      toEdge = turnRight ? northEdge : southEdge;
+    }
+    
+    // Quadratic bezier with center as control point (same as drawCurvedTrack)
+    const u = 1 - t;
     return {
-      x: centerX + Math.cos(angle) * radius,
-      y: elevatedCenterY - Math.sin(angle) * radius * 0.6,
+      x: u * u * fromEdge.x + 2 * u * t * center.x + t * t * toEdge.x,
+      y: u * u * fromEdge.y + 2 * u * t * center.y + t * t * toEdge.y,
     };
   }
   
-  // Straight or slope segments
-  const start = {
-    x: centerX - dirVec.x * 0.4,
-    y: elevatedCenterY - dirVec.y * 0.4,
-  };
-  const end = {
-    x: centerX + dirVec.x * 0.4,
-    y: elevatedCenterY + dirVec.y * 0.4,
-  };
+  if (type === 'loop_vertical') {
+    // Match the loop drawing logic
+    const loopRadius = Math.max(28, (trackPiece.endHeight + 3) * HEIGHT_UNIT * 0.4);
+    const angle = t * Math.PI * 2;
+    const forwardOffset = Math.sin(angle) * loopRadius;
+    const vertOffset = (1 - Math.cos(angle)) * loopRadius;
+    
+    // Get direction vector
+    const dirVectors: Record<string, { dx: number; dy: number }> = {
+      north: { dx: -0.5, dy: -0.5 },
+      south: { dx: 0.5, dy: 0.5 },
+      east: { dx: 0.5, dy: -0.5 },
+      west: { dx: -0.5, dy: 0.5 },
+    };
+    const dir = dirVectors[direction] || { dx: 0.5, dy: 0.5 };
+    
+    return {
+      x: center.x + dir.dx * forwardOffset,
+      y: center.y + dir.dy * forwardOffset - vertOffset,
+    };
+  }
   
-  return {
-    x: start.x + (end.x - start.x) * t,
-    y: start.y + (end.y - start.y) * t,
-  };
+  // Straight or slope segments - use edge midpoints
+  // MUST match drawStraightTrack and drawSlopeTrack geometry exactly
+  // Edge positions:
+  //   northEdge: (0.25, 0.25) - top left in isometric
+  //   eastEdge:  (0.75, 0.25) - top right in isometric  
+  //   southEdge: (0.75, 0.75) - bottom right in isometric
+  //   westEdge:  (0.25, 0.75) - bottom left in isometric
+  
+  if (direction === 'north' || direction === 'south') {
+    // Track runs N-S: from northEdge to southEdge
+    const fromX = startX + w * 0.25;
+    const fromY = startY + h * 0.25 - trackPiece.startHeight * HEIGHT_UNIT;
+    const toX = startX + w * 0.75;
+    const toY = startY + h * 0.75 - trackPiece.endHeight * HEIGHT_UNIT;
+    
+    return {
+      x: fromX + (toX - fromX) * t,
+      y: fromY + (toY - fromY) * t,
+    };
+  } else {
+    // Track runs E-W: from eastEdge to westEdge
+    const fromX = startX + w * 0.75;
+    const fromY = startY + h * 0.25 - trackPiece.startHeight * HEIGHT_UNIT;
+    const toX = startX + w * 0.25;
+    const toY = startY + h * 0.75 - trackPiece.endHeight * HEIGHT_UNIT;
+    
+    return {
+      x: fromX + (toX - fromX) * t,
+      y: fromY + (toY - fromY) * t,
+    };
+  }
 }
 
 // Direction angles for isometric view (matching train system)
@@ -903,10 +1019,16 @@ export function CoasterGrid({
     const carsByTile = new Map<string, { x: number; y: number; direction: string }[]>();
     state.coasters.forEach(coaster => {
       if (coaster.track.length === 0 || coaster.trackTiles.length === 0) return;
+      const trackLen = coaster.track.length;
+      
       coaster.trains.forEach(train => {
         train.cars.forEach(car => {
-          const trackIndex = Math.floor(car.trackProgress) % coaster.track.length;
-          const t = car.trackProgress - Math.floor(car.trackProgress);
+          // Handle negative track progress by wrapping around
+          let normalizedProgress = car.trackProgress % trackLen;
+          if (normalizedProgress < 0) normalizedProgress += trackLen;
+          
+          const trackIndex = Math.floor(normalizedProgress);
+          const t = normalizedProgress - trackIndex;
           const trackTile = coaster.trackTiles[trackIndex];
           const trackPiece = coaster.track[trackIndex];
           if (!trackTile || !trackPiece) return;
@@ -1007,16 +1129,46 @@ const tile = grid[y][x];
           ctx.fill();
         }
         
-        // Hover highlight
-        if (hoveredTile && hoveredTile.x === x && hoveredTile.y === y && selectedTool !== 'select' && !isPreviewTile) {
-          ctx.fillStyle = 'rgba(251, 191, 36, 0.3)';
-          ctx.beginPath();
-          ctx.moveTo(screenX + TILE_WIDTH / 2, screenY);
-          ctx.lineTo(screenX + TILE_WIDTH, screenY + TILE_HEIGHT / 2);
-          ctx.lineTo(screenX + TILE_WIDTH / 2, screenY + TILE_HEIGHT);
-          ctx.lineTo(screenX, screenY + TILE_HEIGHT / 2);
-          ctx.closePath();
-          ctx.fill();
+      }
+    }
+    
+    // Draw hover highlights AFTER all tiles (so they appear on top)
+    // Helper to draw an isometric diamond highlight
+    const drawHighlight = (sx: number, sy: number, fillColor = 'rgba(251, 191, 36, 0.3)', strokeColor = '#fbbf24') => {
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      ctx.moveTo(sx + TILE_WIDTH / 2, sy);
+      ctx.lineTo(sx + TILE_WIDTH, sy + TILE_HEIGHT / 2);
+      ctx.lineTo(sx + TILE_WIDTH / 2, sy + TILE_HEIGHT);
+      ctx.lineTo(sx, sy + TILE_HEIGHT / 2);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    };
+    
+    // Draw hovered tile highlight with multi-tile preview for buildings
+    if (hoveredTile && hoveredTile.x >= 0 && hoveredTile.x < gridSize && 
+        hoveredTile.y >= 0 && hoveredTile.y < gridSize && selectedTool !== 'select') {
+      
+      // Check if we're not in track drag preview mode
+      const isPreviewTile = trackDragPreviewTiles.some(t => t.x === hoveredTile.x && t.y === hoveredTile.y);
+      if (!isPreviewTile) {
+        // Get the building size for the current tool
+        const buildingSize = getToolBuildingSize(selectedTool);
+        
+        // Draw highlight for each tile in the building footprint
+        for (let dx = 0; dx < buildingSize.width; dx++) {
+          for (let dy = 0; dy < buildingSize.height; dy++) {
+            const tx = hoveredTile.x + dx;
+            const ty = hoveredTile.y + dy;
+            if (tx >= 0 && tx < gridSize && ty >= 0 && ty < gridSize) {
+              const { screenX, screenY } = gridToScreen(tx, ty, 0, 0);
+              drawHighlight(screenX, screenY);
+            }
+          }
         }
       }
     }
@@ -1109,14 +1261,15 @@ const tile = grid[y][x];
       setTrackDragPreviewTiles([{ x: gridX, y: gridY }]);
       placedTrackTilesRef.current.clear();
       placedTrackTilesRef.current.add(`${gridX},${gridY}`);
-      // Place immediately on first click
-      placeAtTile(gridX, gridY);
+      // Place or bulldoze immediately on first click
+      if (selectedTool === 'bulldoze') {
+        bulldozeTile(gridX, gridY);
+      } else {
+        placeAtTile(gridX, gridY);
+      }
     } else if (selectedTool === 'select') {
       // Select tool just selects, doesn't pan
       setSelectedTile({ x: gridX, y: gridY });
-    } else if (selectedTool === 'bulldoze') {
-      // Bulldoze immediately on click
-      bulldozeTile(gridX, gridY);
     } else {
       // Other tools (shops, decorations, etc.) - place on click
       placeAtTile(gridX, gridY);
@@ -1161,12 +1314,16 @@ const tile = grid[y][x];
       const lineTiles = calculateLineTiles(trackDragStartTile, { x: gridX, y: gridY }, direction);
       setTrackDragPreviewTiles(lineTiles);
       
-      // Place track on new tiles as we drag
+      // Place track or bulldoze on new tiles as we drag
       for (const tile of lineTiles) {
         const key = `${tile.x},${tile.y}`;
         if (!placedTrackTilesRef.current.has(key)) {
           placedTrackTilesRef.current.add(key);
-          placeAtTile(tile.x, tile.y);
+          if (selectedTool === 'bulldoze') {
+            bulldozeTile(tile.x, tile.y);
+          } else {
+            placeAtTile(tile.x, tile.y);
+          }
         }
       }
     } else if (isDragging) {
@@ -1176,7 +1333,7 @@ const tile = grid[y][x];
         y: e.clientY - dragStart.y,
       });
     }
-  }, [isDragging, isTrackDragging, dragStart, offset, zoom, gridSize, trackDragStartTile, trackDragDirection, calculateLineTiles, placeAtTile]);
+  }, [isDragging, isTrackDragging, dragStart, offset, zoom, gridSize, trackDragStartTile, trackDragDirection, calculateLineTiles, placeAtTile, bulldozeTile, selectedTool]);
   
   const handleMouseUp = useCallback(() => {
     if (isTrackDragging) {

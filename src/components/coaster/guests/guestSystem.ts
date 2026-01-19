@@ -120,44 +120,44 @@ export function drawGuest(
   
   // Walking animation
   const walkCycle = Math.sin((tick * 0.2 + guest.walkOffset) * 2);
-  const bobY = Math.abs(walkCycle) * 2;
+  const bobY = Math.abs(walkCycle) * 0.5;
   
   // Draw shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
   ctx.beginPath();
-  ctx.ellipse(x, y + 2, 5, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 0.5, 1.25, 0.75, 0, 0, Math.PI * 2);
   ctx.fill();
   
-  // Draw body (simple sprite-like representation)
-  const guestY = y - 12 - bobY;
+  // Draw body (simple sprite-like representation) - scaled to 25% of original
+  const guestY = y - 3 - bobY;
   
   // Pants/legs
   ctx.fillStyle = guest.pantsColor;
-  ctx.fillRect(x - 3, guestY + 6, 2, 6);
-  ctx.fillRect(x + 1, guestY + 6, 2, 6);
+  ctx.fillRect(x - 0.75, guestY + 1.5, 0.5, 1.5);
+  ctx.fillRect(x + 0.25, guestY + 1.5, 0.5, 1.5);
   
   // Torso
   ctx.fillStyle = guest.shirtColor;
-  ctx.fillRect(x - 4, guestY - 2, 8, 8);
+  ctx.fillRect(x - 1, guestY - 0.5, 2, 2);
   
   // Head
   ctx.fillStyle = guest.skinColor;
   ctx.beginPath();
-  ctx.arc(x, guestY - 6, 4, 0, Math.PI * 2);
+  ctx.arc(x, guestY - 1.5, 1, 0, Math.PI * 2);
   ctx.fill();
   
   // Hat
   if (guest.hasHat) {
     ctx.fillStyle = guest.hatColor;
-    ctx.fillRect(x - 5, guestY - 11, 10, 3);
-    ctx.fillRect(x - 3, guestY - 14, 6, 3);
+    ctx.fillRect(x - 1.25, guestY - 2.75, 2.5, 0.75);
+    ctx.fillRect(x - 0.75, guestY - 3.5, 1.5, 0.75);
   }
   
   // Arms (animated)
-  const armSwing = walkCycle * 3;
+  const armSwing = walkCycle * 0.75;
   ctx.fillStyle = guest.shirtColor;
-  ctx.fillRect(x - 6, guestY + armSwing, 2, 5);
-  ctx.fillRect(x + 4, guestY - armSwing, 2, 5);
+  ctx.fillRect(x - 1.5, guestY + armSwing, 0.5, 1.25);
+  ctx.fillRect(x + 1, guestY - armSwing, 0.5, 1.25);
 }
 
 // =============================================================================
