@@ -207,13 +207,17 @@ function normalizeLoadedState(state: GameState): GameState {
       hasCoasterTrack: tile.hasCoasterTrack || Boolean(tile.trackPiece),
     }))
   );
-  
+
   return {
     ...state,
     grid: normalizedGrid,
     coasters: state.coasters.map(coaster => ({
       ...coaster,
       trackTiles: coaster.trackTiles ?? [],
+      // Regenerate trains with updated car configuration
+      trains: coaster.trains.length > 0 
+        ? coaster.trains.map(() => createDefaultTrain())
+        : [createDefaultTrain()],
     })),
     guests: state.guests.map(guest => ({
       ...guest,
@@ -266,19 +270,27 @@ function calculateStaffWages(staff: Staff[]): number {
 }
 
 function createDefaultTrain(): CoasterTrain {
-  const car: CoasterCar = {
-    trackProgress: 0,
-    velocity: 0.045, // 3x faster than before (was 0.015)
-    rotation: { pitch: 0, yaw: 0, roll: 0 },
-    screenX: 0,
-    screenY: 0,
-    screenZ: 0,
-    guests: [],
-  };
+  // Create multiple cars for a realistic train
+  const numCars = 8;
+  const carSpacing = 0.35; // Spacing between cars in track progress units (0.35 = ~1/3 tile apart)
+  const baseVelocity = 0.045;
   
+  const cars: CoasterCar[] = [];
+  for (let i = 0; i < numCars; i++) {
+    cars.push({
+      trackProgress: -i * carSpacing, // Negative so they trail behind the lead car
+      velocity: baseVelocity,
+      rotation: { pitch: 0, yaw: 0, roll: 0 },
+      screenX: 0,
+      screenY: 0,
+      screenZ: 0,
+      guests: [],
+    });
+  }
+
   return {
     id: generateUUID(),
-    cars: [car],
+    cars,
     state: 'running',
     stateTimer: 0,
   };
@@ -479,7 +491,10 @@ export function CoasterProvider({ children, startFresh = false }: { children: Re
           
           const updatedTrains = coaster.trains.map(train => {
             const updatedCars = train.cars.map(car => {
-              const nextProgress = (car.trackProgress + car.velocity * deltaTime) % trackLength;
+              let nextProgress = car.trackProgress + car.velocity * deltaTime;
+              // Properly wrap around for both positive and negative values
+              nextProgress = nextProgress % trackLength;
+              if (nextProgress < 0) nextProgress += trackLength;
               return { ...car, trackProgress: nextProgress };
             });
             return { ...train, cars: updatedCars };
@@ -639,57 +654,88 @@ export function CoasterProvider({ children, startFresh = false }: { children: Re
         // For auto-build mode, require adjacency
         if (tool === 'coaster_build' && lastTile && !deltaDir) return prev;
         
-        // Check for adjacent existing track to inherit direction and height
+        // ALWAYS check for adjacent existing track to inherit direction and height
+        // This is the most reliable way to connect to existing track
         let adjacentDirection: TrackDirection | null = null;
         let adjacentHeight = prev.buildingCoasterHeight;
+        let connectingToEntry = false; // True if we're feeding INTO adjacent track's entry
+        let targetEntryHeight = 0; // The height we need our exit to be at when connecting to entry
         
-        if (!lastTile) {
-          // No active build path - check adjacent tiles for existing track
-          const adjacentOffsets = [
-            { dx: -1, dy: 0 },
-            { dx: 1, dy: 0 },
-            { dx: 0, dy: -1 },
-            { dx: 0, dy: 1 },
-          ];
-          
-          for (const { dx, dy } of adjacentOffsets) {
-            const adjX = x + dx;
-            const adjY = y + dy;
-            if (adjX >= 0 && adjY >= 0 && adjX < prev.gridSize && adjY < prev.gridSize) {
-              const adjTile = prev.grid[adjY]?.[adjX];
-              if (adjTile?.trackPiece) {
-                adjacentHeight = adjTile.trackPiece.endHeight;
-                
-                // Determine the exit direction of the adjacent track piece
-                const adjPiece = adjTile.trackPiece;
-                let exitDir = adjPiece.direction;
-                
-                // For turns, calculate the actual exit direction
-                if (adjPiece.type === 'turn_left_flat') {
-                  exitDir = rotateDirection(adjPiece.direction, 'left');
-                } else if (adjPiece.type === 'turn_right_flat') {
-                  exitDir = rotateDirection(adjPiece.direction, 'right');
-                }
-                
-                // Check if adjacent track's exit points toward us
-                const exitPointsToUs = (
-                  (exitDir === 'west' && dx === 1) ||
-                  (exitDir === 'east' && dx === -1) ||
-                  (exitDir === 'north' && dy === 1) ||
-                  (exitDir === 'south' && dy === -1)
-                );
-                
-                if (exitPointsToUs) {
-                  adjacentDirection = exitDir;
-                  break;
-                }
+        const adjacentOffsets = [
+          { dx: -1, dy: 0 },
+          { dx: 1, dy: 0 },
+          { dx: 0, dy: -1 },
+          { dx: 0, dy: 1 },
+        ];
+        
+        for (const { dx, dy } of adjacentOffsets) {
+          const adjX = x + dx;
+          const adjY = y + dy;
+          if (adjX >= 0 && adjY >= 0 && adjX < prev.gridSize && adjY < prev.gridSize) {
+            const adjTile = prev.grid[adjY]?.[adjX];
+            if (adjTile?.trackPiece) {
+              const adjPiece = adjTile.trackPiece;
+              
+              // Calculate entry and exit directions for the adjacent piece
+              // Entry is always the side the track comes FROM (opposite of direction)
+              // Exit is where the track goes TO (direction for straights, rotated for turns)
+              const oppositeDir: Record<TrackDirection, TrackDirection> = {
+                north: 'south', south: 'north', east: 'west', west: 'east'
+              };
+              
+              // All tracks enter from the opposite side of their direction
+              // direction 'south' means heading south, so entering from north
+              const entryDir = oppositeDir[adjPiece.direction];
+              
+              // Exit direction depends on track type
+              let exitDir = adjPiece.direction;
+              if (adjPiece.type === 'turn_left_flat') {
+                exitDir = rotateDirection(adjPiece.direction, 'left');
+              } else if (adjPiece.type === 'turn_right_flat') {
+                exitDir = rotateDirection(adjPiece.direction, 'right');
+              }
+              
+              // Check if adjacent track's EXIT points toward us (we connect to receive from it)
+              // Adjacent is at (x + dx, y + dy) relative to our new tile at (x, y)
+              const exitPointsToUs = (
+                (exitDir === 'south' && dx === -1) ||
+                (exitDir === 'north' && dx === 1) ||
+                (exitDir === 'west' && dy === -1) ||
+                (exitDir === 'east' && dy === 1)
+              );
+              
+              // Check if adjacent track's ENTRY points toward us (we connect to feed into it)
+              const entryPointsToUs = (
+                (entryDir === 'south' && dx === -1) ||
+                (entryDir === 'north' && dx === 1) ||
+                (entryDir === 'west' && dy === -1) ||
+                (entryDir === 'east' && dy === 1)
+              );
+              
+              if (exitPointsToUs) {
+                // Adjacent track exits toward us - we continue in that direction
+                // Our startHeight should match their endHeight
+                adjacentDirection = exitDir;
+                adjacentHeight = adjPiece.endHeight;
+                connectingToEntry = false;
+                targetEntryHeight = adjPiece.startHeight; // In case we need it
+                break;
+              } else if (entryPointsToUs) {
+                // Adjacent track's entry is toward us - we feed into it
+                // Our endHeight should match their startHeight
+                adjacentDirection = oppositeDir[entryDir];
+                adjacentHeight = adjPiece.startHeight; // This is what our END height needs to be
+                connectingToEntry = true;
+                targetEntryHeight = adjPiece.startHeight;
+                break;
               }
             }
           }
         }
         
         // Determine track directions
-        const baseDirection = prev.buildingCoasterLastDirection ?? adjacentDirection ?? deltaDir ?? 'south';
+        // Priority: adjacentDirection (from existing track) > deltaDir (from drag) > lastDirection > default
+        const baseDirection = adjacentDirection ?? deltaDir ?? prev.buildingCoasterLastDirection ?? 'south';
         let startDirection: TrackDirection = baseDirection;
         let endDirection: TrackDirection = baseDirection;
         let pieceType: TrackPieceType = 'straight_flat';
@@ -699,17 +745,62 @@ export function CoasterProvider({ children, startFresh = false }: { children: Re
         
         if (tool === 'coaster_turn_left') {
           pieceType = 'turn_left_flat';
+          // For turns, the drawing code interprets direction as "entering FROM" (not traveling TO)
+          if (adjacentDirection) {
+            if (connectingToEntry) {
+              // Feeding into adjacent's entry - our EXIT must go toward adjacent
+              // adjacentDirection is where we need to exit TO
+              // For turn_left: exit = rotateDirection(entry, 'left')
+              // So: entry = rotateDirection(exit, 'right')
+              startDirection = rotateDirection(adjacentDirection, 'right');
+            } else {
+              // Receiving from adjacent's exit - we enter FROM the opposite of where they're going
+              const oppositeDir: Record<TrackDirection, TrackDirection> = {
+                north: 'south', south: 'north', east: 'west', west: 'east'
+              };
+              startDirection = oppositeDir[adjacentDirection];
+            }
+          }
           endDirection = rotateDirection(startDirection, 'left');
         } else if (tool === 'coaster_turn_right') {
           pieceType = 'turn_right_flat';
+          if (adjacentDirection) {
+            if (connectingToEntry) {
+              // For turn_right: exit = rotateDirection(entry, 'right')
+              // So: entry = rotateDirection(exit, 'left')
+              startDirection = rotateDirection(adjacentDirection, 'left');
+            } else {
+              const oppositeDir: Record<TrackDirection, TrackDirection> = {
+                north: 'south', south: 'north', east: 'west', west: 'east'
+              };
+              startDirection = oppositeDir[adjacentDirection];
+            }
+          }
           endDirection = rotateDirection(startDirection, 'right');
         } else if (tool === 'coaster_slope_up') {
           pieceType = 'slope_up_small';
-          endHeight = clampHeight(startHeight + 1);
-          chainLift = true;
+          if (connectingToEntry) {
+            // Our exit needs to match adjacent's entry height
+            // For slope_up: endHeight = startHeight + 1
+            // So: startHeight = targetEntryHeight - 1
+            endHeight = targetEntryHeight;
+            startHeight = clampHeight(targetEntryHeight - 1);
+          } else {
+            endHeight = clampHeight(startHeight + 1);
+          }
+          chainLift = true; // Chain lift pulls coaster UP
         } else if (tool === 'coaster_slope_down') {
           pieceType = 'slope_down_small';
-          endHeight = clampHeight(startHeight - 1);
+          if (connectingToEntry) {
+            // Our exit needs to match adjacent's entry height
+            // For slope_down: endHeight = startHeight - 1
+            // So: startHeight = targetEntryHeight + 1
+            endHeight = targetEntryHeight;
+            startHeight = clampHeight(targetEntryHeight + 1);
+          } else {
+            endHeight = clampHeight(startHeight - 1);
+          }
+          chainLift = false; // No chain on downward slopes - gravity does the work
         } else if (tool === 'coaster_loop') {
           pieceType = 'loop_vertical';
         } else if (tool === 'coaster_build') {
@@ -778,7 +869,8 @@ export function CoasterProvider({ children, startFresh = false }: { children: Re
           ...coasterBase,
           track: trackPieces,
           trackTiles,
-          trains: coasterBase.trains.length > 0 ? coasterBase.trains : [createDefaultTrain()],
+          // Always use fresh trains with correct car count
+          trains: [createDefaultTrain()],
         };
         
         const updatedCoasters = [...prev.coasters];
@@ -1012,15 +1104,16 @@ export function CoasterProvider({ children, startFresh = false }: { children: Re
               }
               
               // Check if this adjacent track's exit points toward us
-              // Adjacent at dx=1 (east of us) should exit 'west' to point to us
-              // Adjacent at dx=-1 (west of us) should exit 'east' to point to us
-              // Adjacent at dy=1 (south of us) should exit 'north' to point to us
-              // Adjacent at dy=-1 (north of us) should exit 'south' to point to us
+              // Adjacent is at (x + dx, y + dy) relative to our tile at (x, y)
+              // dx = -1 means adjacent is north of us (at x-1), so it should exit 'south' to point toward us
+              // dx = 1 means adjacent is south of us (at x+1), so it should exit 'north' to point toward us
+              // dy = -1 means adjacent is east of us (at y-1), so it should exit 'west' to point toward us
+              // dy = 1 means adjacent is west of us (at y+1), so it should exit 'east' to point toward us
               const exitPointsToUs = (
-                (exitDir === 'west' && dx === 1) ||
-                (exitDir === 'east' && dx === -1) ||
-                (exitDir === 'north' && dy === 1) ||
-                (exitDir === 'south' && dy === -1)
+                (exitDir === 'south' && dx === -1) ||
+                (exitDir === 'north' && dx === 1) ||
+                (exitDir === 'west' && dy === -1) ||
+                (exitDir === 'east' && dy === 1)
               );
               
               if (exitPointsToUs) {
@@ -1123,7 +1216,8 @@ export function CoasterProvider({ children, startFresh = false }: { children: Re
         ...coasterBase,
         track: trackPieces,
         trackTiles,
-        trains: coasterBase.trains.length > 0 ? coasterBase.trains : [createDefaultTrain()],
+        // Always use fresh trains with correct car count
+        trains: [createDefaultTrain()],
       };
       
       const updatedCoasters = [...prev.coasters];

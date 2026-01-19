@@ -340,38 +340,65 @@ export function drawSlopeTrack(
   const center = { x: startX + w / 2, y: startY + h / 2 };
   
   // Determine endpoints based on direction
+  // The direction indicates where the track is GOING (exit direction)
+  // So 'south' means entering from north, exiting to south
+  // 'north' means entering from south, exiting to north
   let fromEdge: Point;
   let toEdge: Point;
   let groundPerpX: number;
   let groundPerpY: number;
+  let fromHeight: number;
+  let toHeight: number;
   
-  if (direction === 'north' || direction === 'south') {
+  if (direction === 'south') {
+    // Going south: enter from north (startHeight), exit to south (endHeight)
     fromEdge = northEdge;
     toEdge = southEdge;
+    fromHeight = startHeight;
+    toHeight = endHeight;
     groundPerpX = (eastEdge.x - westEdge.x) / Math.hypot(eastEdge.x - westEdge.x, eastEdge.y - westEdge.y);
     groundPerpY = (eastEdge.y - westEdge.y) / Math.hypot(eastEdge.x - westEdge.x, eastEdge.y - westEdge.y);
-  } else {
+  } else if (direction === 'north') {
+    // Going north: enter from south (startHeight), exit to north (endHeight)
+    fromEdge = southEdge;
+    toEdge = northEdge;
+    fromHeight = startHeight;
+    toHeight = endHeight;
+    groundPerpX = (eastEdge.x - westEdge.x) / Math.hypot(eastEdge.x - westEdge.x, eastEdge.y - westEdge.y);
+    groundPerpY = (eastEdge.y - westEdge.y) / Math.hypot(eastEdge.x - westEdge.x, eastEdge.y - westEdge.y);
+  } else if (direction === 'west') {
+    // Going west: enter from east (startHeight), exit to west (endHeight)
     fromEdge = eastEdge;
     toEdge = westEdge;
+    fromHeight = startHeight;
+    toHeight = endHeight;
+    groundPerpX = (southEdge.x - northEdge.x) / Math.hypot(southEdge.x - northEdge.x, southEdge.y - northEdge.y);
+    groundPerpY = (southEdge.y - northEdge.y) / Math.hypot(southEdge.x - northEdge.x, southEdge.y - northEdge.y);
+  } else {
+    // Going east: enter from west (startHeight), exit to east (endHeight)
+    fromEdge = westEdge;
+    toEdge = eastEdge;
+    fromHeight = startHeight;
+    toHeight = endHeight;
     groundPerpX = (southEdge.x - northEdge.x) / Math.hypot(southEdge.x - northEdge.x, southEdge.y - northEdge.y);
     groundPerpY = (southEdge.y - northEdge.y) / Math.hypot(southEdge.x - northEdge.x, southEdge.y - northEdge.y);
   }
   
   // Apply height offsets
-  const startHeightOffset = startHeight * HEIGHT_UNIT;
-  const endHeightOffset = endHeight * HEIGHT_UNIT;
+  const fromHeightOffset = fromHeight * HEIGHT_UNIT;
+  const toHeightOffset = toHeight * HEIGHT_UNIT;
   
   const x1 = fromEdge.x;
-  const y1 = fromEdge.y - startHeightOffset;
+  const y1 = fromEdge.y - fromHeightOffset;
   const x2 = toEdge.x;
-  const y2 = toEdge.y - endHeightOffset;
+  const y2 = toEdge.y - toHeightOffset;
   
   // Draw supports at start and end if elevated
-  if (startHeight > 0) {
-    drawSupport(ctx, x1, fromEdge.y, startHeight);
+  if (fromHeight > 0) {
+    drawSupport(ctx, x1, fromEdge.y, fromHeight);
   }
-  if (endHeight > 0) {
-    drawSupport(ctx, x2, toEdge.y, endHeight);
+  if (toHeight > 0) {
+    drawSupport(ctx, x2, toEdge.y, toHeight);
   }
   
   // Calculate actual track direction vector (including slope)
