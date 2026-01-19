@@ -10,8 +10,8 @@ Generate consistent sprite sheets for the isometric city game using the Generate
 ## Standard Format
 
 All asset sheets follow this format:
-- **Size**: 2048x2048 pixels (square)
-- **Background**: Solid red (#FF0000)
+- **Size**: Square, max width and height
+- **Background**: Solid red (#FF0000), no variation in red tone
 - **Grid**: 6 rows x 5 columns (30 cells total)
 - **Style**: Hyper-realistic
 - **Lighting**: No shadows
