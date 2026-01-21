@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useCoaster } from '@/context/CoasterContext';
 import { Tool, TOOL_INFO } from '@/games/coaster/types';
 import { WEATHER_DISPLAY, WEATHER_EFFECTS } from '@/games/coaster/types/economy';
+import { COASTER_TYPE_STATS, CoasterType, getCoasterCategory } from '@/games/coaster/types/tracks';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -425,8 +426,49 @@ const SUBMENU_CATEGORIES: { key: string; label: string; tools: Tool[] }[] = [
     ],
   },
   {
-    key: 'coasters',
-    label: 'Coasters',
+    key: 'coasters_wooden',
+    label: 'Wooden Coasters',
+    tools: [
+      'coaster_type_wooden_classic',
+      'coaster_type_wooden_twister',
+    ],
+  },
+  {
+    key: 'coasters_steel',
+    label: 'Steel Coasters',
+    tools: [
+      'coaster_type_steel_sit_down',
+      'coaster_type_steel_standup',
+      'coaster_type_steel_inverted',
+      'coaster_type_steel_floorless',
+      'coaster_type_steel_wing',
+      'coaster_type_steel_flying',
+      'coaster_type_steel_4d',
+      'coaster_type_steel_spinning',
+      'coaster_type_launch_coaster',
+      'coaster_type_hyper_coaster',
+      'coaster_type_giga_coaster',
+    ],
+  },
+  {
+    key: 'coasters_water',
+    label: 'Water Coasters',
+    tools: [
+      'coaster_type_water_coaster',
+    ],
+  },
+  {
+    key: 'coasters_specialty',
+    label: 'Specialty Coasters',
+    tools: [
+      'coaster_type_mine_train',
+      'coaster_type_bobsled',
+      'coaster_type_suspended',
+    ],
+  },
+  {
+    key: 'coasters_track',
+    label: 'Coaster Track',
     tools: [
       'coaster_build',
       'coaster_track',
@@ -494,9 +536,55 @@ interface SidebarProps {
   onExit?: () => void;
 }
 
+// Map coaster type tools to their CoasterType values
+const COASTER_TYPE_TOOL_MAP: Record<string, string> = {
+  'coaster_type_wooden_classic': 'wooden_classic',
+  'coaster_type_wooden_twister': 'wooden_twister',
+  'coaster_type_steel_sit_down': 'steel_sit_down',
+  'coaster_type_steel_standup': 'steel_standup',
+  'coaster_type_steel_inverted': 'steel_inverted',
+  'coaster_type_steel_floorless': 'steel_floorless',
+  'coaster_type_steel_wing': 'steel_wing',
+  'coaster_type_steel_flying': 'steel_flying',
+  'coaster_type_steel_4d': 'steel_4d',
+  'coaster_type_steel_spinning': 'steel_spinning',
+  'coaster_type_launch_coaster': 'launch_coaster',
+  'coaster_type_hyper_coaster': 'hyper_coaster',
+  'coaster_type_giga_coaster': 'giga_coaster',
+  'coaster_type_water_coaster': 'water_coaster',
+  'coaster_type_mine_train': 'mine_train',
+  'coaster_type_bobsled': 'bobsled',
+  'coaster_type_suspended': 'suspended',
+};
+
+// Primary colors for each coaster type (for UI display)
+const COASTER_TYPE_PRIMARY_COLORS: Record<string, string> = {
+  // Wooden coasters
+  wooden_classic: '#8B4513',
+  wooden_twister: '#A0522D',
+  // Steel coasters
+  steel_sit_down: '#dc2626',
+  steel_standup: '#7c3aed',
+  steel_inverted: '#2563eb',
+  steel_floorless: '#059669',
+  steel_wing: '#ea580c',
+  steel_flying: '#0891b2',
+  steel_4d: '#be123c',
+  steel_spinning: '#65a30d',
+  launch_coaster: '#e11d48',
+  hyper_coaster: '#0d9488',
+  giga_coaster: '#4f46e5',
+  // Water coaster
+  water_coaster: '#0ea5e9',
+  // Specialty coasters
+  mine_train: '#92400e',
+  bobsled: '#1d4ed8',
+  suspended: '#b45309',
+};
+
 export function Sidebar({ onExit }: SidebarProps) {
-  const { state, setTool, saveGame } = useCoaster();
-  const { selectedTool, finances, weather } = state;
+  const { state, setTool, saveGame, startCoasterBuild, cancelCoasterBuild } = useCoaster();
+  const { selectedTool, finances, weather, buildingCoasterType } = state;
   const [showExitDialog, setShowExitDialog] = useState(false);
   
   const handleSaveAndExit = useCallback(() => {
@@ -511,8 +599,17 @@ export function Sidebar({ onExit }: SidebarProps) {
   }, [onExit]);
   
   const handleSelectTool = useCallback((tool: Tool) => {
-    setTool(tool);
-  }, [setTool]);
+    // Check if this is a coaster type selection tool
+    const coasterType = COASTER_TYPE_TOOL_MAP[tool];
+    if (coasterType) {
+      // Start building a coaster of this type
+      startCoasterBuild(coasterType);
+      // Switch to coaster build mode
+      setTool('coaster_build');
+    } else {
+      setTool(tool);
+    }
+  }, [setTool, startCoasterBuild]);
   
   return (
     <div className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col h-screen fixed left-0 top-0 z-40">
@@ -552,6 +649,69 @@ export function Sidebar({ onExit }: SidebarProps) {
       <div className="px-2 py-2 border-b border-sidebar-border">
         <WeatherDisplay weather={weather} />
       </div>
+      
+      {/* Active Coaster Type with Track Tools */}
+      {buildingCoasterType && (
+        <div className="px-2 py-2 border-b border-sidebar-border bg-primary/10">
+          {/* Coaster type header */}
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md mb-2">
+            <div 
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: COASTER_TYPE_PRIMARY_COLORS[buildingCoasterType] ?? '#dc2626' }}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-primary truncate">
+                {COASTER_TYPE_STATS[buildingCoasterType]?.name ?? 'Custom Coaster'}
+              </div>
+              <div className="text-[10px] text-muted-foreground capitalize">
+                {getCoasterCategory(buildingCoasterType)} coaster
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                cancelCoasterBuild();
+                setTool('select');
+              }}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+              title="Cancel coaster build"
+            >
+              ✕
+            </Button>
+          </div>
+          
+          {/* Track tools - shown inline when building a coaster */}
+          <div className="flex flex-col gap-0.5">
+            {(['coaster_build', 'coaster_track', 'coaster_turn_left', 'coaster_turn_right', 'coaster_slope_up', 'coaster_slope_down', 'coaster_loop', 'coaster_station'] as Tool[]).map(tool => {
+              const info = TOOL_INFO[tool];
+              if (!info) return null;
+              const isSelected = selectedTool === tool;
+              const canAfford = finances.cash >= info.cost;
+              
+              return (
+                <Button
+                  key={tool}
+                  onClick={() => setTool(tool)}
+                  disabled={!canAfford && info.cost > 0}
+                  variant={isSelected ? 'default' : 'ghost'}
+                  className={`w-full justify-start gap-2 px-3 py-1.5 h-auto text-xs ${
+                    isSelected ? 'bg-primary text-primary-foreground' : ''
+                  }`}
+                  title={info.description}
+                >
+                  <span className="flex-1 text-left">{info.name}</span>
+                  {info.cost > 0 && (
+                    <span className={`text-[10px] ${isSelected ? 'opacity-80' : 'opacity-50'}`}>
+                      ${info.cost}
+                    </span>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       
       {/* Tool Categories */}
       <ScrollArea className="flex-1 py-2">
