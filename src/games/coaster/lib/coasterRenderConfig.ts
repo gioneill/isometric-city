@@ -397,7 +397,7 @@ const RIDES_LARGE_SHEET: SpriteSheet = {
     { name: 'ride_chairlift', row: 4, col: 4, offsetY: 70, scale: 0.55 }, // 2x2
     // Row 5: Shows (3x3 large structures) - need offsetY ~100 for 3x3
     { name: 'show_4d', row: 5, col: 0, offsetY: 100, scale: 0.65 },
-    { name: 'show_stunt', row: 5, col: 1, offsetY: 150, scale: 0.68 }, // 4x3
+    { name: 'show_stunt', row: 5, col: 1, offsetY: 150, scale: 0.58 }, // 3x3
     { name: 'show_dolphin', row: 5, col: 2, offsetY: 190, scale: 0.68 }, // 4x4
     { name: 'show_amphitheater', row: 5, col: 3, offsetY: 220, scale: 0.7 }, // 4x4
     { name: 'show_parade_float', row: 5, col: 4, offsetY: 70, scale: 0.55 }, // 2x2

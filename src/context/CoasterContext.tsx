@@ -11,7 +11,7 @@ import {
   TOOL_INFO,
 } from '@/games/coaster/types';
 import { ParkFinances, ParkStats, ParkSettings, Guest, Staff, DEFAULT_PRICES, WeatherState, WeatherType, WEATHER_EFFECTS, WEATHER_TRANSITIONS, getSeasonalWeatherBias, GuestThought } from '@/games/coaster/types/economy';
-import { Coaster, CoasterTrain, CoasterCar, TrackDirection, TrackHeight, TrackPiece, TrackPieceType, CoasterType, COASTER_TYPE_STATS, getStrutStyleForCoasterType } from '@/games/coaster/types/tracks';
+import { Coaster, CoasterTrain, CoasterCar, TrackDirection, TrackHeight, TrackPiece, TrackPieceType, CoasterType, COASTER_TYPE_STATS, getStrutStyleForCoasterType, getCoasterCategory, areCoasterTypesCompatible } from '@/games/coaster/types/tracks';
 import { Building, BuildingType } from '@/games/coaster/types/buildings';
 import { spawnGuests, updateGuest } from '@/components/coaster/guests';
 import {
@@ -440,6 +440,7 @@ function createInitialGameState(parkName: string = 'My Theme Park', gridSize: nu
     buildingCoasterPath: [],
     buildingCoasterHeight: 0,
     buildingCoasterLastDirection: null,
+    buildingCoasterType: null,
     
     gameVersion: 1,
   };
@@ -513,6 +514,7 @@ function normalizeLoadedState(state: GameState): GameState {
     buildingCoasterPath: state.buildingCoasterPath ?? [],
     buildingCoasterHeight: state.buildingCoasterHeight ?? 0,
     buildingCoasterLastDirection: state.buildingCoasterLastDirection ?? null,
+    buildingCoasterType: state.buildingCoasterType ?? null,
   };
 }
 
@@ -915,11 +917,16 @@ function ensureAllTracksHaveCoasters(
           // Find the best station tile (one with adjacent queue or station building)
           const stationTile = findStationTile(newGrid, componentTiles, gridSize) || componentTiles[0];
           
+          // Try to inherit the coaster type from the original coaster (if this is a split)
+          const originalCoaster = existingCoasterId ? newCoasters.find(c => c.id === existingCoasterId) : null;
+          const inheritedType: CoasterType = originalCoaster?.type ?? 'steel_sit_down';
+          
           // Create a new coaster for this component
           const newCoaster = createDefaultCoaster(
             newCoasterId,
             stationTile,
-            componentPieces.length
+            componentPieces.length,
+            inheritedType
           );
           newCoaster.track = componentPieces;
           newCoaster.trackTiles = componentTiles;
@@ -1096,17 +1103,53 @@ function createTrainsForCoaster(trackLength: number, coasterType: string = 'stee
   return trains;
 }
 
-function createDefaultCoaster(id: string, startTile: { x: number; y: number }, trackLength: number = 0): Coaster {
+/** Unique colors for each coaster type - gives each coaster its own distinct look */
+const COASTER_TYPE_COLORS: Record<CoasterType, { primary: string; secondary: string; supports: string }> = {
+  // Wooden coasters - natural wood tones
+  wooden_classic: { primary: '#8B4513', secondary: '#D2691E', supports: '#5C3317' },    // Classic brown wood
+  wooden_twister: { primary: '#A0522D', secondary: '#CD853F', supports: '#654321' },    // Sienna/tan wood
+  
+  // Steel coasters - vibrant modern colors
+  steel_sit_down: { primary: '#dc2626', secondary: '#fbbf24', supports: '#374151' },    // Classic red/yellow
+  steel_standup: { primary: '#7c3aed', secondary: '#c084fc', supports: '#4c1d95' },     // Purple/violet
+  steel_inverted: { primary: '#2563eb', secondary: '#60a5fa', supports: '#1e3a8a' },    // Blue scheme
+  steel_floorless: { primary: '#059669', secondary: '#34d399', supports: '#064e3b' },   // Emerald green
+  steel_wing: { primary: '#ea580c', secondary: '#fb923c', supports: '#7c2d12' },        // Orange/flame
+  steel_flying: { primary: '#0891b2', secondary: '#22d3ee', supports: '#164e63' },      // Cyan/sky
+  steel_4d: { primary: '#be123c', secondary: '#fb7185', supports: '#881337' },          // Rose/magenta
+  steel_spinning: { primary: '#65a30d', secondary: '#a3e635', supports: '#365314' },    // Lime green
+  launch_coaster: { primary: '#e11d48', secondary: '#fda4af', supports: '#9f1239' },    // Hot pink/red
+  hyper_coaster: { primary: '#0d9488', secondary: '#5eead4', supports: '#134e4a' },     // Teal
+  giga_coaster: { primary: '#4f46e5', secondary: '#a5b4fc', supports: '#312e81' },      // Indigo
+  
+  // Water coaster - aquatic blues
+  water_coaster: { primary: '#0ea5e9', secondary: '#38bdf8', supports: '#0c4a6e' },     // Sky blue
+  
+  // Specialty coasters - themed colors
+  mine_train: { primary: '#92400e', secondary: '#fcd34d', supports: '#451a03' },        // Rust/gold (mining theme)
+  bobsled: { primary: '#1d4ed8', secondary: '#93c5fd', supports: '#1e3a8a' },           // Ice blue
+  suspended: { primary: '#b45309', secondary: '#fcd34d', supports: '#78350f' },         // Amber/bronze
+};
+
+function createDefaultCoaster(
+  id: string, 
+  startTile: { x: number; y: number }, 
+  trackLength: number = 0,
+  coasterType: CoasterType = 'steel_sit_down'
+): Coaster {
+  const colors = COASTER_TYPE_COLORS[coasterType] ?? COASTER_TYPE_COLORS.steel_sit_down;
+  const typeStats = COASTER_TYPE_STATS[coasterType];
+  
   return {
     id,
-    name: 'Custom Coaster',
-    type: 'steel_sit_down',
-    color: { primary: '#dc2626', secondary: '#f59e0b', supports: '#374151' },
+    name: typeStats?.name ?? 'Custom Coaster',
+    type: coasterType,
+    color: colors,
     track: [],
     trackTiles: [],
     stationTileX: startTile.x,
     stationTileY: startTile.y,
-    trains: createTrainsForCoaster(trackLength, 'steel_sit_down'),
+    trains: createTrainsForCoaster(trackLength, coasterType),
     operating: true,
     broken: false,
     excitement: 0,
@@ -2095,9 +2138,9 @@ export function CoasterProvider({
                 ? 'turn_right_flat'
                 : 'turn_left_flat';
             const previousTile = newGrid[lastTile.y][lastTile.x];
-            // Get coaster type for strut style (use existing coaster's type if available)
+            // Get coaster type for strut style - prefer buildingCoasterType, fall back to existing coaster
             const existingCoasterForStrut = prev.coasters.find(c => c.id === prev.buildingCoasterId);
-            const coasterTypeForStrut: CoasterType = existingCoasterForStrut?.type ?? 'steel_sit_down';
+            const coasterTypeForStrut: CoasterType = prev.buildingCoasterType ?? existingCoasterForStrut?.type ?? 'steel_sit_down';
             previousTile.trackPiece = {
               type: turnType,
               direction: prev.buildingCoasterLastDirection,
@@ -2142,11 +2185,22 @@ export function CoasterProvider({
             coasterId = generateUUID();
             startedNewCoaster = true;
           }
+          
+          // Check if we're trying to extend an existing coaster with an incompatible type
+          // If the buildingCoasterType is set and differs from the existing coaster's category, start new
+          if (!startedNewCoaster && prev.buildingCoasterType) {
+            const existingCoaster = prev.coasters.find(c => c.id === coasterId);
+            if (existingCoaster && !areCoasterTypesCompatible(prev.buildingCoasterType, existingCoaster.type)) {
+              // Incompatible coaster types - start a new coaster
+              coasterId = generateUUID();
+              startedNewCoaster = true;
+            }
+          }
         }
         
-        // Get coaster type for strut style (use existing coaster's type if available)
+        // Get coaster type for strut style - prefer buildingCoasterType, fall back to existing coaster
         const existingCoasterForStyle = prev.coasters.find(c => c.id === coasterId);
-        const coasterTypeForStyle: CoasterType = existingCoasterForStyle?.type ?? 'steel_sit_down';
+        const coasterTypeForStyle: CoasterType = prev.buildingCoasterType ?? existingCoasterForStyle?.type ?? 'steel_sit_down';
         const trackPiece: TrackPiece = {
           type: pieceType,
           direction: startDirection,
@@ -2191,7 +2245,7 @@ export function CoasterProvider({
         
         const coasterIndex = prev.coasters.findIndex(coaster => coaster.id === coasterId);
         const existingCoaster = coasterIndex >= 0 ? prev.coasters[coasterIndex] : null;
-        const coasterBase = existingCoaster ?? createDefaultCoaster(coasterId, stationTile, trackPieces.length);
+        const coasterBase = existingCoaster ?? createDefaultCoaster(coasterId, stationTile, trackPieces.length, prev.buildingCoasterType ?? 'steel_sit_down');
         
         // Find station index for train positioning
         const stationIdx = trackTiles.findIndex(t => t.x === stationTile.x && t.y === stationTile.y);
@@ -2747,6 +2801,7 @@ export function CoasterProvider({
       buildingCoasterPath: [],
       buildingCoasterHeight: 0,
       buildingCoasterLastDirection: null,
+      buildingCoasterType: coasterType as CoasterType,
     }));
   }, []);
   
@@ -2761,6 +2816,7 @@ export function CoasterProvider({
       buildingCoasterPath: [],
       buildingCoasterHeight: 0,
       buildingCoasterLastDirection: null,
+      buildingCoasterType: null,
     }));
   }, []);
   
@@ -2771,6 +2827,7 @@ export function CoasterProvider({
       buildingCoasterPath: [],
       buildingCoasterHeight: 0,
       buildingCoasterLastDirection: null,
+      buildingCoasterType: null,
     }));
   }, []);
   
@@ -2818,11 +2875,22 @@ export function CoasterProvider({
           coasterId = generateUUID();
           startedNewCoaster = true;
         }
+        
+        // Check if we're trying to extend an existing coaster with an incompatible type
+        // If the buildingCoasterType is set and differs from the existing coaster's category, start new
+        if (!startedNewCoaster && prev.buildingCoasterType) {
+          const existingCoaster = prev.coasters.find(c => c.id === coasterId);
+          if (existingCoaster && !areCoasterTypesCompatible(prev.buildingCoasterType, existingCoaster.type)) {
+            // Incompatible coaster types - start a new coaster
+            coasterId = generateUUID();
+            startedNewCoaster = true;
+          }
+        }
       }
       
-      // Get coaster type for strut style
+      // Get coaster type for strut style - prefer buildingCoasterType, fall back to existing coaster
       const existingCoasterForLine = prev.coasters.find(c => c.id === coasterId);
-      const coasterTypeForLine: CoasterType = existingCoasterForLine?.type ?? 'steel_sit_down';
+      const coasterTypeForLine: CoasterType = prev.buildingCoasterType ?? existingCoasterForLine?.type ?? 'steel_sit_down';
       const strutStyleForLine = getStrutStyleForCoasterType(coasterTypeForLine);
       let currentHeight = startedNewCoaster ? 0 : prev.buildingCoasterHeight;
       let lastDirection: TrackDirection | null = startedNewCoaster ? null : prev.buildingCoasterLastDirection;
@@ -3001,7 +3069,7 @@ export function CoasterProvider({
       
       const coasterIndex = prev.coasters.findIndex(c => c.id === coasterId);
       const existingCoaster = coasterIndex >= 0 ? prev.coasters[coasterIndex] : null;
-      const coasterBase = existingCoaster ?? createDefaultCoaster(coasterId, stationTile, trackPieces.length);
+      const coasterBase = existingCoaster ?? createDefaultCoaster(coasterId, stationTile, trackPieces.length, prev.buildingCoasterType ?? 'steel_sit_down');
       
       // Find station index for train positioning
       const stationIdx = trackTiles.findIndex(t => t.x === stationTile.x && t.y === stationTile.y);

@@ -1502,29 +1502,32 @@ function drawTrackSegment(
   trackPiece: Tile['trackPiece'],
   x: number,
   y: number,
-  tick: number
+  tick: number,
+  trackColor?: string
 ) {
   if (!trackPiece) return;
   
   const { type, direction, startHeight, endHeight, chainLift, strutStyle } = trackPiece;
   // Default to metal if strutStyle not defined (for backwards compatibility with old saves)
   const effectiveStrutStyle = strutStyle ?? 'metal';
+  // Use provided track color or default
+  const effectiveTrackColor = trackColor;
   
   if (type === 'straight_flat' || type === 'lift_hill_start' || type === 'lift_hill_middle' || type === 'lift_hill_end') {
-    drawStraightTrack(ctx, x, y, direction, startHeight, undefined, effectiveStrutStyle);
+    drawStraightTrack(ctx, x, y, direction, startHeight, effectiveTrackColor, effectiveStrutStyle);
   } else if (type === 'turn_left_flat' || type === 'turn_right_flat') {
-    drawCurvedTrack(ctx, x, y, direction, type === 'turn_right_flat', startHeight, undefined, effectiveStrutStyle);
+    drawCurvedTrack(ctx, x, y, direction, type === 'turn_right_flat', startHeight, effectiveTrackColor, effectiveStrutStyle);
   } else if (type === 'slope_up_small' || type === 'slope_down_small') {
-    drawSlopeTrack(ctx, x, y, direction, startHeight, endHeight, undefined, effectiveStrutStyle);
+    drawSlopeTrack(ctx, x, y, direction, startHeight, endHeight, effectiveTrackColor, effectiveStrutStyle);
   } else if (type === 'loop_vertical') {
     // Draw loop - the function handles edge connections internally
     const loopHeight = Math.max(3, endHeight + 3);
     // Offset Y for track elevation
     const elevatedY = y - startHeight * HEIGHT_UNIT;
-    drawLoopTrack(ctx, x, elevatedY, direction, loopHeight, undefined, effectiveStrutStyle);
+    drawLoopTrack(ctx, x, elevatedY, direction, loopHeight, effectiveTrackColor, effectiveStrutStyle);
   } else {
     // Default fallback to straight for unimplemented pieces
-    drawStraightTrack(ctx, x, y, direction, startHeight, undefined, effectiveStrutStyle);
+    drawStraightTrack(ctx, x, y, direction, startHeight, effectiveTrackColor, effectiveStrutStyle);
   }
   
   // Only draw chain lift on slope_up pieces (never on slope_down)
@@ -1989,7 +1992,16 @@ export function CoasterGrid({
   onViewportChange,
 }: CoasterGridProps) {
   const { state, latestStateRef, placeAtTile, bulldozeTile, placeTrackLine } = useCoaster();
-  const { grid, gridSize, selectedTool, tick } = state;
+  const { grid, gridSize, selectedTool, tick, coasters } = state;
+  
+  // Create a lookup map from coaster ID to colors for track rendering
+  const coasterColorMap = useMemo(() => {
+    const map = new Map<string, { primary: string; secondary: string; supports: string }>();
+    for (const coaster of coasters) {
+      map.set(coaster.id, coaster.color);
+    }
+    return map;
+  }, [coasters]);
   
   // Check if current tool supports drag-to-draw
   const isTrackDragTool = useMemo(() => TRACK_DRAG_TOOLS.includes(selectedTool), [selectedTool]);
@@ -2373,7 +2385,9 @@ const tile = grid[y][x];
         
         // Draw coaster track if present
         if (tile.trackPiece) {
-          drawTrackSegment(ctx, tile.trackPiece, screenX, screenY, tick);
+          // Look up the coaster's colors for this track
+          const trackColors = tile.coasterTrackId ? coasterColorMap.get(tile.coasterTrackId) : undefined;
+          drawTrackSegment(ctx, tile.trackPiece, screenX, screenY, tick, trackColors?.primary);
         }
         
         // Draw building sprite if present (skip footprint tiles - they're part of multi-tile buildings)

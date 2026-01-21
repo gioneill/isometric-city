@@ -120,6 +120,12 @@ export interface TrackPiece {
 // COASTER TYPE DEFINITIONS
 // =============================================================================
 
+/** 
+ * Coaster categories - coasters in the same category share compatible track styles.
+ * You cannot mix track pieces from different categories.
+ */
+export type CoasterCategory = 'wooden' | 'steel' | 'water' | 'specialty';
+
 export type CoasterType =
   | 'wooden_classic'
   | 'wooden_twister'
@@ -138,6 +144,52 @@ export type CoasterType =
   | 'launch_coaster'
   | 'hyper_coaster'
   | 'giga_coaster';
+
+/**
+ * Maps each coaster type to its category.
+ * Coasters in the same category use compatible track styles.
+ */
+export const COASTER_TYPE_CATEGORY: Record<CoasterType, CoasterCategory> = {
+  // Wooden coasters - traditional wooden track structure
+  wooden_classic: 'wooden',
+  wooden_twister: 'wooden',
+  
+  // Steel coasters - modern tubular steel track
+  steel_standup: 'steel',
+  steel_sit_down: 'steel',
+  steel_inverted: 'steel',
+  steel_floorless: 'steel',
+  steel_wing: 'steel',
+  steel_flying: 'steel',
+  steel_4d: 'steel',
+  steel_spinning: 'steel',
+  launch_coaster: 'steel',
+  hyper_coaster: 'steel',
+  giga_coaster: 'steel',
+  
+  // Water coasters - can have water splashdown sections
+  water_coaster: 'water',
+  
+  // Specialty coasters - unique track styles
+  mine_train: 'specialty',
+  bobsled: 'specialty',
+  suspended: 'specialty',
+};
+
+/**
+ * Get the category for a coaster type.
+ */
+export function getCoasterCategory(coasterType: CoasterType): CoasterCategory {
+  return COASTER_TYPE_CATEGORY[coasterType];
+}
+
+/**
+ * Check if two coaster types are compatible (same category).
+ * This determines if track pieces can be connected.
+ */
+export function areCoasterTypesCompatible(type1: CoasterType, type2: CoasterType): boolean {
+  return COASTER_TYPE_CATEGORY[type1] === COASTER_TYPE_CATEGORY[type2];
+}
 
 export interface CoasterTypeStats {
   name: string;

@@ -3,7 +3,7 @@
  */
 
 import { Building, BuildingType } from './buildings';
-import { Coaster, TrackPiece, TrackDirection } from './tracks';
+import { Coaster, TrackPiece, TrackDirection, CoasterType, CoasterCategory } from './tracks';
 import { Guest, ParkFinances, ParkStats, ParkSettings, Staff, WeatherState } from './economy';
 
 // =============================================================================
@@ -21,7 +21,7 @@ export type Tool =
   | 'zone_water'
   | 'zone_land'
   
-  // Coaster building
+  // Coaster building - track pieces
   | 'coaster_build'
   | 'coaster_track'
   | 'coaster_turn_left'
@@ -30,6 +30,31 @@ export type Tool =
   | 'coaster_slope_down'
   | 'coaster_loop'
   | 'coaster_station'
+  
+  // Coaster type selection - Wooden
+  | 'coaster_type_wooden_classic'
+  | 'coaster_type_wooden_twister'
+  
+  // Coaster type selection - Steel
+  | 'coaster_type_steel_sit_down'
+  | 'coaster_type_steel_standup'
+  | 'coaster_type_steel_inverted'
+  | 'coaster_type_steel_floorless'
+  | 'coaster_type_steel_wing'
+  | 'coaster_type_steel_flying'
+  | 'coaster_type_steel_4d'
+  | 'coaster_type_steel_spinning'
+  | 'coaster_type_launch_coaster'
+  | 'coaster_type_hyper_coaster'
+  | 'coaster_type_giga_coaster'
+  
+  // Coaster type selection - Water
+  | 'coaster_type_water_coaster'
+  
+  // Coaster type selection - Specialty
+  | 'coaster_type_mine_train'
+  | 'coaster_type_bobsled'
+  | 'coaster_type_suspended'
   
   // Trees & Vegetation
   | 'tree_oak' | 'tree_maple' | 'tree_birch' | 'tree_elm' | 'tree_willow'
@@ -152,6 +177,31 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   coaster_slope_down: { name: 'Track: Slope Down', cost: 30, description: 'Place a descending track segment', category: 'coasters' },
   coaster_loop: { name: 'Track: Loop', cost: 150, description: 'Place a vertical loop element', category: 'coasters' },
   coaster_station: { name: 'Coaster Station', cost: 500, description: 'Place coaster station', category: 'coasters', size: { width: 2, height: 1 } },
+  
+  // Wooden Coasters
+  coaster_type_wooden_classic: { name: 'Classic Wooden', cost: 50, description: 'Traditional wooden coaster with airtime hills', category: 'coasters' },
+  coaster_type_wooden_twister: { name: 'Wooden Twister', cost: 60, description: 'Wooden coaster with aggressive turns', category: 'coasters' },
+  
+  // Steel Coasters
+  coaster_type_steel_sit_down: { name: 'Steel Sit-Down', cost: 80, description: 'Classic steel coaster with inversions', category: 'coasters' },
+  coaster_type_steel_standup: { name: 'Stand-Up Coaster', cost: 90, description: 'Riders stand during the ride', category: 'coasters' },
+  coaster_type_steel_inverted: { name: 'Inverted Coaster', cost: 100, description: 'Suspended beneath the track with inversions', category: 'coasters' },
+  coaster_type_steel_floorless: { name: 'Floorless Coaster', cost: 110, description: 'Steel coaster with no floor beneath riders', category: 'coasters' },
+  coaster_type_steel_wing: { name: 'Wing Coaster', cost: 130, description: 'Seats extend out beside the track', category: 'coasters' },
+  coaster_type_steel_flying: { name: 'Flying Coaster', cost: 140, description: 'Riders are suspended face-down', category: 'coasters' },
+  coaster_type_steel_4d: { name: '4D Coaster', cost: 200, description: 'Seats rotate independently during ride', category: 'coasters' },
+  coaster_type_steel_spinning: { name: 'Spinning Coaster', cost: 70, description: 'Cars spin freely during the ride', category: 'coasters' },
+  coaster_type_launch_coaster: { name: 'Launch Coaster', cost: 150, description: 'Launched from station at high speed', category: 'coasters' },
+  coaster_type_hyper_coaster: { name: 'Hyper Coaster', cost: 120, description: 'Tall, fast coaster focused on airtime', category: 'coasters' },
+  coaster_type_giga_coaster: { name: 'Giga Coaster', cost: 180, description: 'Massive coaster exceeding 300 feet', category: 'coasters' },
+  
+  // Water Coasters
+  coaster_type_water_coaster: { name: 'Water Coaster', cost: 100, description: 'Coaster with water splashdown sections', category: 'coasters' },
+  
+  // Specialty Coasters
+  coaster_type_mine_train: { name: 'Mine Train', cost: 55, description: 'Family coaster themed as mine carts', category: 'coasters' },
+  coaster_type_bobsled: { name: 'Bobsled Coaster', cost: 60, description: 'Coaster running in a half-pipe track', category: 'coasters' },
+  coaster_type_suspended: { name: 'Suspended Swinging', cost: 85, description: 'Cars swing freely below the track', category: 'coasters' },
   
   // Trees (sample - will be expanded)
   tree_oak: { name: 'Oak Tree', cost: 30, description: 'Deciduous shade tree', category: 'trees' },
@@ -378,7 +428,7 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   ride_chairlift: { name: 'Chairlift', cost: 8000, description: 'Sky lift tower', category: 'rides_large', size: { width: 2, height: 2 } },
   // Rides Large - Shows
   show_4d: { name: '4D Show', cost: 12000, description: '4D theater building', category: 'rides_large', size: { width: 3, height: 3 } },
-  show_stunt: { name: 'Stunt Show', cost: 15000, description: 'Stunt show arena', category: 'rides_large', size: { width: 4, height: 3 } },
+  show_stunt: { name: 'Stunt Show', cost: 15000, description: 'Stunt show arena', category: 'rides_large', size: { width: 3, height: 3 } },
   show_dolphin: { name: 'Dolphin Show', cost: 20000, description: 'Marine show stadium', category: 'rides_large', size: { width: 4, height: 4 } },
   show_amphitheater: { name: 'Amphitheater', cost: 18000, description: 'Outdoor theater', category: 'rides_large', size: { width: 4, height: 4 } },
   show_parade_float: { name: 'Parade Float', cost: 8000, description: 'Parade display', category: 'rides_large', size: { width: 2, height: 2 } },
@@ -463,6 +513,7 @@ export interface GameState {
   buildingCoasterPath: { x: number; y: number }[];
   buildingCoasterHeight: number;
   buildingCoasterLastDirection: TrackDirection | null;
+  buildingCoasterType: CoasterType | null; // The type of coaster currently being built
   
   // Version for save compatibility
   gameVersion: number;
