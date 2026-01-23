@@ -3,7 +3,7 @@
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useCoaster } from '@/context/CoasterContext';
 import { Tile, Tool, TOOL_INFO } from '@/games/coaster/types';
-import { getCoasterCategory, CoasterCategory } from '@/games/coaster/types/tracks';
+import { getCoasterCategory, CoasterCategory, CoasterType } from '@/games/coaster/types/tracks';
 import { getSpriteInfo, getSpriteRect, COASTER_SPRITE_PACK } from '@/games/coaster/lib/coasterRenderConfig';
 
 // Helper to get building size for a tool (defaults to 1x1)
@@ -1895,37 +1895,65 @@ function drawBoardingGuests(
   }
 }
 
-function drawCoasterCar(
-  ctx: CanvasRenderingContext2D, 
-  x: number, 
-  y: number, 
-  direction: string,
-  pitch: number = 0, // Pitch angle in radians (positive = nose down, negative = nose up)
-  carIndex: number = 0,
-  isLoading: boolean = false,
-  guestCount: number = 4, // Number of guests in this car
-  tick: number = 0
+// Helper to darken a hex color
+function darkenColor(hex: string, factor: number = 0.2): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.floor(r * (1 - factor))}, ${Math.floor(g * (1 - factor))}, ${Math.floor(b * (1 - factor))})`;
+}
+
+// Draw riders in a car (shared helper)
+function drawRiders(
+  ctx: CanvasRenderingContext2D,
+  riderPositions: { rx: number; ry: number }[],
+  guestCount: number,
+  carIndex: number,
+  isLoading: boolean,
+  tick: number,
+  yOffset: number = 0
 ) {
-  const yawAngle = DIRECTION_ANGLES[direction] ?? 0;
+  const ridersToShow = Math.min(guestCount, riderPositions.length);
+  if (ridersToShow <= 0) return;
   
-  // Car dimensions - scaled down by 30%
-  const carLength = 10;
-  const carWidth = 2.8;
-  
-  // For isometric view, pitch affects both the visual scale and y-offset
-  // When pitched up (negative pitch), the car should appear to tilt with its nose up
-  // We simulate this by adjusting the y position and applying a scale factor
-  const pitchScale = Math.cos(pitch); // Car appears shorter when tilted
-  const pitchYOffset = Math.sin(pitch) * carLength * 0.3; // Vertical offset from pitch
-  
-  ctx.save();
-  ctx.translate(x, y + pitchYOffset);
-  ctx.rotate(yawAngle);
-  
-  // Apply pitch scaling - compress vertically when pitched
-  if (Math.abs(pitch) > 0.01) {
-    ctx.scale(1, Math.max(0.3, pitchScale));
+  for (let i = 0; i < ridersToShow; i++) {
+    const pos = riderPositions[i];
+    const colorSeed = (carIndex * 7 + i * 13) % 100;
+    const skinColor = RIDER_COLORS.skin[colorSeed % RIDER_COLORS.skin.length];
+    const shirtColor = RIDER_COLORS.shirt[(colorSeed + 3) % RIDER_COLORS.shirt.length];
+    const loadingBob = isLoading ? Math.sin(tick * 0.15 + i * 1.5) * 0.8 : 0;
+    
+    // Rider head
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.arc(pos.rx, pos.ry - 2 + loadingBob + yOffset, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Rider body
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(pos.rx - 0.8, pos.ry - 0.8 + loadingBob + yOffset, 1.6, 1.2);
   }
+  
+  // Raised hands animation when not loading
+  if (!isLoading && ridersToShow >= 2) {
+    const armWave = Math.sin(tick * 0.2) * 0.5;
+    ctx.strokeStyle = RIDER_COLORS.skin[(carIndex * 7) % RIDER_COLORS.skin.length];
+    ctx.lineWidth = 0.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(riderPositions[0].rx - 0.5, riderPositions[0].ry - 2.5 + yOffset);
+    ctx.lineTo(riderPositions[0].rx - 1.5, riderPositions[0].ry - 3.5 + armWave + yOffset);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(riderPositions[0].rx + 0.5, riderPositions[0].ry - 2.5 + yOffset);
+    ctx.lineTo(riderPositions[0].rx + 1.5, riderPositions[0].ry - 3.5 - armWave + yOffset);
+    ctx.stroke();
+  }
+}
+
+// Draw a standard steel coaster car
+function drawSteelCar(ctx: CanvasRenderingContext2D, carLength: number, carWidth: number, primaryColor: string, isLoading: boolean, guestCount: number, carIndex: number, tick: number) {
+  const darkerColor = darkenColor(primaryColor, 0.3);
   
   // Shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -1933,8 +1961,8 @@ function drawCoasterCar(
   ctx.ellipse(0, 4, carLength * 0.45, carWidth * 0.6, 0, 0, Math.PI * 2);
   ctx.fill();
   
-  // Main body (red, slightly darker when loading)
-  ctx.fillStyle = isLoading ? '#b91c1c' : '#dc2626';
+  // Main body
+  ctx.fillStyle = isLoading ? darkerColor : primaryColor;
   ctx.beginPath();
   ctx.moveTo(-carLength * 0.45, -carWidth);
   ctx.lineTo(carLength * 0.35, -carWidth);
@@ -1946,10 +1974,10 @@ function drawCoasterCar(
   ctx.fill();
   
   // Darker back section
-  ctx.fillStyle = '#991b1b';
+  ctx.fillStyle = darkerColor;
   ctx.fillRect(-carLength * 0.45, -carWidth * 0.8, carLength * 0.25, carWidth * 1.6);
   
-  // Yellow stripe/highlight
+  // Stripe highlight
   ctx.fillStyle = '#f59e0b';
   ctx.fillRect(-carLength * 0.15, -carWidth * 0.9, carLength * 0.4, carWidth * 0.3);
   ctx.fillRect(-carLength * 0.15, carWidth * 0.6, carLength * 0.4, carWidth * 0.3);
@@ -1960,55 +1988,364 @@ function drawCoasterCar(
   ctx.arc(carLength * 0.3, 0, carWidth * 0.4, 0, Math.PI * 2);
   ctx.fill();
   
-  // Draw riders (guests) in the car
-  const ridersToShow = Math.min(guestCount, 4);
-  if (ridersToShow > 0) {
-    // Riders are positioned in 2 rows of 2
-    const riderPositions = [
-      { rx: -carLength * 0.15, ry: -carWidth * 0.4 },
-      { rx: -carLength * 0.15, ry: carWidth * 0.4 },
-      { rx: carLength * 0.1, ry: -carWidth * 0.4 },
-      { rx: carLength * 0.1, ry: carWidth * 0.4 },
-    ];
-    
-    for (let i = 0; i < ridersToShow; i++) {
+  // Riders
+  const riderPositions = [
+    { rx: -carLength * 0.15, ry: -carWidth * 0.4 },
+    { rx: -carLength * 0.15, ry: carWidth * 0.4 },
+    { rx: carLength * 0.1, ry: -carWidth * 0.4 },
+    { rx: carLength * 0.1, ry: carWidth * 0.4 },
+  ];
+  drawRiders(ctx, riderPositions, guestCount, carIndex, isLoading, tick);
+}
+
+// Draw a wooden coaster car (classic boxy train)
+function drawWoodenCar(ctx: CanvasRenderingContext2D, carLength: number, carWidth: number, primaryColor: string, isLoading: boolean, guestCount: number, carIndex: number, tick: number) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, 4, carLength * 0.5, carWidth * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Wooden body - boxy shape
+  ctx.fillStyle = isLoading ? '#6b4423' : '#8B5A2B';
+  ctx.fillRect(-carLength * 0.45, -carWidth, carLength * 0.9, carWidth * 2);
+  
+  // Wood grain lines
+  ctx.strokeStyle = '#5c4033';
+  ctx.lineWidth = 0.5;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-carLength * 0.4, carWidth * 0.3 * i);
+    ctx.lineTo(carLength * 0.4, carWidth * 0.3 * i);
+    ctx.stroke();
+  }
+  
+  // Gold/brass trim
+  ctx.fillStyle = '#d4a017';
+  ctx.fillRect(-carLength * 0.48, -carWidth, carLength * 0.06, carWidth * 2);
+  ctx.fillRect(carLength * 0.42, -carWidth, carLength * 0.06, carWidth * 2);
+  
+  // Top rail
+  ctx.fillStyle = '#654321';
+  ctx.fillRect(-carLength * 0.45, -carWidth - 0.8, carLength * 0.9, 1.2);
+  
+  // Riders
+  const riderPositions = [
+    { rx: -carLength * 0.2, ry: -carWidth * 0.5 },
+    { rx: -carLength * 0.2, ry: carWidth * 0.5 },
+    { rx: carLength * 0.15, ry: -carWidth * 0.5 },
+    { rx: carLength * 0.15, ry: carWidth * 0.5 },
+  ];
+  drawRiders(ctx, riderPositions, guestCount, carIndex, isLoading, tick);
+}
+
+// Draw a water coaster log
+function drawLogCar(ctx: CanvasRenderingContext2D, carLength: number, carWidth: number, isLoading: boolean, guestCount: number, carIndex: number, tick: number) {
+  // Water splash effect when moving
+  if (!isLoading) {
+    ctx.fillStyle = 'rgba(135, 206, 235, 0.4)';
+    const splashOffset = Math.sin(tick * 0.3) * 2;
+    ctx.beginPath();
+    ctx.ellipse(carLength * 0.5, 2, 4 + splashOffset, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Shadow in water
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(0, 5, carLength * 0.5, carWidth * 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Log body - elongated oval/cylinder shape
+  ctx.fillStyle = isLoading ? '#5c4033' : '#6b4423';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, carLength * 0.5, carWidth * 1.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Bark texture rings
+  ctx.strokeStyle = '#4a3728';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.ellipse(-carLength * 0.3, 0, carWidth * 0.6, carWidth * 0.8, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(carLength * 0.2, 0, carWidth * 0.5, carWidth * 0.7, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Hollow interior
+  ctx.fillStyle = '#3d2817';
+  ctx.beginPath();
+  ctx.ellipse(0, -0.5, carLength * 0.35, carWidth * 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Riders sit inside the log
+  const riderPositions = [
+    { rx: -carLength * 0.2, ry: 0 },
+    { rx: carLength * 0.1, ry: 0 },
+  ];
+  drawRiders(ctx, riderPositions, Math.min(guestCount, 2), carIndex, isLoading, tick, -1);
+}
+
+// Draw a mine train cart
+function drawMineCar(ctx: CanvasRenderingContext2D, carLength: number, carWidth: number, primaryColor: string, isLoading: boolean, guestCount: number, carIndex: number, tick: number) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, 4, carLength * 0.45, carWidth * 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Cart body - trapezoidal bucket shape
+  ctx.fillStyle = isLoading ? '#5c5c5c' : '#707070';
+  ctx.beginPath();
+  ctx.moveTo(-carLength * 0.35, -carWidth * 0.8);
+  ctx.lineTo(carLength * 0.35, -carWidth * 0.8);
+  ctx.lineTo(carLength * 0.45, carWidth);
+  ctx.lineTo(-carLength * 0.45, carWidth);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Rust streaks
+  ctx.fillStyle = '#8b4513';
+  ctx.fillRect(-carLength * 0.2, -carWidth * 0.5, carLength * 0.08, carWidth * 1.2);
+  ctx.fillRect(carLength * 0.1, -carWidth * 0.3, carLength * 0.06, carWidth);
+  
+  // Metal rim
+  ctx.strokeStyle = '#4a4a4a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-carLength * 0.35, -carWidth * 0.8);
+  ctx.lineTo(carLength * 0.35, -carWidth * 0.8);
+  ctx.stroke();
+  
+  // Wheels
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(-carLength * 0.3, carWidth * 0.9, 2, 0, Math.PI * 2);
+  ctx.arc(carLength * 0.3, carWidth * 0.9, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Riders
+  const riderPositions = [
+    { rx: -carLength * 0.15, ry: -carWidth * 0.3 },
+    { rx: -carLength * 0.15, ry: carWidth * 0.3 },
+    { rx: carLength * 0.15, ry: -carWidth * 0.3 },
+    { rx: carLength * 0.15, ry: carWidth * 0.3 },
+  ];
+  drawRiders(ctx, riderPositions, guestCount, carIndex, isLoading, tick);
+}
+
+// Draw an inverted coaster car (hanging beneath track)
+function drawInvertedCar(ctx: CanvasRenderingContext2D, carLength: number, carWidth: number, primaryColor: string, isLoading: boolean, guestCount: number, carIndex: number, tick: number) {
+  const darkerColor = darkenColor(primaryColor, 0.3);
+  
+  // Hanging struts going UP to the track
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-carLength * 0.2, -carWidth - 4);
+  ctx.lineTo(-carLength * 0.2, -carWidth - 8);
+  ctx.moveTo(carLength * 0.2, -carWidth - 4);
+  ctx.lineTo(carLength * 0.2, -carWidth - 8);
+  ctx.stroke();
+  
+  // Shadow below car
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(0, 6, carLength * 0.4, carWidth * 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Main car body - sleek, aerodynamic
+  ctx.fillStyle = isLoading ? darkerColor : primaryColor;
+  ctx.beginPath();
+  ctx.moveTo(-carLength * 0.4, -carWidth);
+  ctx.quadraticCurveTo(carLength * 0.5, -carWidth * 1.2, carLength * 0.4, 0);
+  ctx.quadraticCurveTo(carLength * 0.5, carWidth * 1.2, -carLength * 0.4, carWidth);
+  ctx.lineTo(-carLength * 0.4, -carWidth);
+  ctx.fill();
+  
+  // Canopy/windshield
+  ctx.fillStyle = 'rgba(100, 100, 100, 0.7)';
+  ctx.beginPath();
+  ctx.ellipse(carLength * 0.1, 0, carLength * 0.2, carWidth * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Riders with dangling legs
+  const riderPositions = [
+    { rx: -carLength * 0.1, ry: -carWidth * 0.4 },
+    { rx: -carLength * 0.1, ry: carWidth * 0.4 },
+  ];
+  drawRiders(ctx, riderPositions, Math.min(guestCount, 2), carIndex, isLoading, tick);
+  
+  // Draw dangling legs
+  if (guestCount > 0) {
+    const legSwing = Math.sin(tick * 0.15) * 0.5;
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < Math.min(guestCount, 2); i++) {
       const pos = riderPositions[i];
-      // Seeded colors based on car index and rider position
-      const colorSeed = (carIndex * 7 + i * 13) % 100;
-      const skinColor = RIDER_COLORS.skin[colorSeed % RIDER_COLORS.skin.length];
-      const shirtColor = RIDER_COLORS.shirt[(colorSeed + 3) % RIDER_COLORS.shirt.length];
-      
-      // Loading animation - riders bob up and down when loading
-      const loadingBob = isLoading ? Math.sin(tick * 0.15 + i * 1.5) * 0.8 : 0;
-      
-      // Rider head (circle)
-      ctx.fillStyle = skinColor;
       ctx.beginPath();
-      ctx.arc(pos.rx, pos.ry - 2 + loadingBob, 1.2, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Rider body (small rectangle)
-      ctx.fillStyle = shirtColor;
-      ctx.fillRect(pos.rx - 0.8, pos.ry - 0.8 + loadingBob, 1.6, 1.2);
-    }
-    
-    // Draw raised hands when not loading (riders having fun!)
-    if (!isLoading && ridersToShow >= 2) {
-      const armWave = Math.sin(tick * 0.2) * 0.5;
-      ctx.strokeStyle = RIDER_COLORS.skin[(carIndex * 7) % RIDER_COLORS.skin.length];
-      ctx.lineWidth = 0.5;
-      ctx.lineCap = 'round';
-      
-      // First rider's raised arms
-      ctx.beginPath();
-      ctx.moveTo(riderPositions[0].rx - 0.5, riderPositions[0].ry - 2.5);
-      ctx.lineTo(riderPositions[0].rx - 1.5, riderPositions[0].ry - 3.5 + armWave);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(riderPositions[0].rx + 0.5, riderPositions[0].ry - 2.5);
-      ctx.lineTo(riderPositions[0].rx + 1.5, riderPositions[0].ry - 3.5 - armWave);
+      ctx.moveTo(pos.rx, pos.ry + 1);
+      ctx.lineTo(pos.rx + legSwing, pos.ry + 4);
       ctx.stroke();
     }
+  }
+}
+
+// Draw a bobsled car
+function drawBobsledCar(ctx: CanvasRenderingContext2D, carLength: number, carWidth: number, primaryColor: string, isLoading: boolean, guestCount: number, carIndex: number, tick: number) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, 4, carLength * 0.5, carWidth * 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Sleek bobsled body
+  ctx.fillStyle = isLoading ? darkenColor(primaryColor, 0.3) : primaryColor;
+  ctx.beginPath();
+  ctx.moveTo(-carLength * 0.5, 0);
+  ctx.quadraticCurveTo(-carLength * 0.4, -carWidth * 1.2, 0, -carWidth);
+  ctx.quadraticCurveTo(carLength * 0.4, -carWidth * 0.8, carLength * 0.5, 0);
+  ctx.quadraticCurveTo(carLength * 0.4, carWidth * 0.8, 0, carWidth);
+  ctx.quadraticCurveTo(-carLength * 0.4, carWidth * 1.2, -carLength * 0.5, 0);
+  ctx.fill();
+  
+  // Racing stripe
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-carLength * 0.3, -1, carLength * 0.6, 2);
+  
+  // Front nose
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.ellipse(carLength * 0.45, 0, carLength * 0.08, carWidth * 0.3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Riders in single file
+  const riderPositions = [
+    { rx: -carLength * 0.25, ry: 0 },
+    { rx: 0, ry: 0 },
+    { rx: carLength * 0.2, ry: 0 },
+  ];
+  drawRiders(ctx, riderPositions, Math.min(guestCount, 3), carIndex, isLoading, tick);
+}
+
+// Draw a flying coaster car (prone position)
+function drawFlyingCar(ctx: CanvasRenderingContext2D, carLength: number, carWidth: number, primaryColor: string, isLoading: boolean, guestCount: number, carIndex: number, tick: number) {
+  const darkerColor = darkenColor(primaryColor, 0.3);
+  
+  // Hanging mechanism
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -carWidth - 6);
+  ctx.lineTo(0, -carWidth - 10);
+  ctx.stroke();
+  
+  // Wing-like body
+  ctx.fillStyle = isLoading ? darkerColor : primaryColor;
+  ctx.beginPath();
+  ctx.moveTo(-carLength * 0.5, 0);
+  ctx.quadraticCurveTo(-carLength * 0.3, -carWidth * 1.5, carLength * 0.2, -carWidth);
+  ctx.lineTo(carLength * 0.5, 0);
+  ctx.lineTo(carLength * 0.2, carWidth);
+  ctx.quadraticCurveTo(-carLength * 0.3, carWidth * 1.5, -carLength * 0.5, 0);
+  ctx.fill();
+  
+  // Prone riders (flat, looking down)
+  ctx.fillStyle = RIDER_COLORS.shirt[(carIndex * 7) % RIDER_COLORS.shirt.length];
+  ctx.fillRect(-carLength * 0.2, -carWidth * 0.3, carLength * 0.3, carWidth * 0.6);
+  
+  // Rider heads
+  ctx.fillStyle = RIDER_COLORS.skin[(carIndex * 7) % RIDER_COLORS.skin.length];
+  ctx.beginPath();
+  ctx.arc(carLength * 0.2, 0, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Draw a wing coaster car (seats on either side)
+function drawWingCar(ctx: CanvasRenderingContext2D, carLength: number, carWidth: number, primaryColor: string, isLoading: boolean, guestCount: number, carIndex: number, tick: number) {
+  const darkerColor = darkenColor(primaryColor, 0.3);
+  
+  // Center spine
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-carLength * 0.35, -1.5, carLength * 0.7, 3);
+  
+  // Left wing seat
+  ctx.fillStyle = isLoading ? darkerColor : primaryColor;
+  ctx.beginPath();
+  ctx.ellipse(-carLength * 0.1, -carWidth * 1.5, carLength * 0.25, carWidth * 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Right wing seat
+  ctx.beginPath();
+  ctx.ellipse(-carLength * 0.1, carWidth * 1.5, carLength * 0.25, carWidth * 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Riders on wings
+  const riderPositions = [
+    { rx: -carLength * 0.1, ry: -carWidth * 1.5 },
+    { rx: -carLength * 0.1, ry: carWidth * 1.5 },
+  ];
+  drawRiders(ctx, riderPositions, Math.min(guestCount, 2), carIndex, isLoading, tick);
+}
+
+function drawCoasterCar(
+  ctx: CanvasRenderingContext2D, 
+  x: number, 
+  y: number, 
+  direction: string,
+  pitch: number = 0,
+  carIndex: number = 0,
+  isLoading: boolean = false,
+  guestCount: number = 4,
+  tick: number = 0,
+  coasterType: CoasterType = 'steel_sit_down',
+  primaryColor: string = '#dc2626'
+) {
+  const yawAngle = DIRECTION_ANGLES[direction] ?? 0;
+  
+  // Car dimensions
+  const carLength = 10;
+  const carWidth = 2.8;
+  
+  const pitchScale = Math.cos(pitch);
+  const pitchYOffset = Math.sin(pitch) * carLength * 0.3;
+  
+  ctx.save();
+  ctx.translate(x, y + pitchYOffset);
+  ctx.rotate(yawAngle);
+  
+  if (Math.abs(pitch) > 0.01) {
+    ctx.scale(1, Math.max(0.3, pitchScale));
+  }
+  
+  // Dispatch to appropriate drawing function based on coaster type
+  switch (coasterType) {
+    case 'wooden_classic':
+    case 'wooden_twister':
+      drawWoodenCar(ctx, carLength, carWidth, primaryColor, isLoading, guestCount, carIndex, tick);
+      break;
+    case 'water_coaster':
+      drawLogCar(ctx, carLength, carWidth, isLoading, guestCount, carIndex, tick);
+      break;
+    case 'mine_train':
+      drawMineCar(ctx, carLength, carWidth, primaryColor, isLoading, guestCount, carIndex, tick);
+      break;
+    case 'steel_inverted':
+      drawInvertedCar(ctx, carLength, carWidth, primaryColor, isLoading, guestCount, carIndex, tick);
+      break;
+    case 'bobsled':
+      drawBobsledCar(ctx, carLength, carWidth, primaryColor, isLoading, guestCount, carIndex, tick);
+      break;
+    case 'steel_flying':
+      drawFlyingCar(ctx, carLength, carWidth, primaryColor, isLoading, guestCount, carIndex, tick);
+      break;
+    case 'steel_wing':
+      drawWingCar(ctx, carLength, carWidth, primaryColor, isLoading, guestCount, carIndex, tick);
+      break;
+    default:
+      // All other steel coasters use standard car with their primary color
+      drawSteelCar(ctx, carLength, carWidth, primaryColor, isLoading, guestCount, carIndex, tick);
+      break;
   }
   
   // Loading indicator - small blinking light when loading
@@ -2329,6 +2666,8 @@ export function CoasterGrid({
       carIndex: number;
       isLoading: boolean;
       guestCount: number;
+      coasterType: CoasterType;
+      primaryColor: string;
     }
     const carsByTile = new Map<string, CarRenderData[]>();
     
@@ -2429,6 +2768,8 @@ export function CoasterGrid({
             carIndex: carIdx,
             isLoading,
             guestCount: coasterHasQueue ? baseGuestCount : 0, // No guests without queue
+            coasterType: coaster.type,
+            primaryColor: coaster.color.primary,
           };
           if (existing) {
             existing.push(carData);
@@ -2602,7 +2943,7 @@ const tile = grid[y][x];
         const cars = carsByTile.get(`${x},${y}`);
         if (cars) {
           cars.forEach(car => {
-            drawCoasterCar(ctx, car.x, car.y, car.direction, car.pitch, car.carIndex, car.isLoading, car.guestCount, tick);
+            drawCoasterCar(ctx, car.x, car.y, car.direction, car.pitch, car.carIndex, car.isLoading, car.guestCount, tick, car.coasterType, car.primaryColor);
           });
         }
         
