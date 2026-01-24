@@ -68,30 +68,32 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 // Sprite Gallery component for coaster assets
-function CoasterSpriteGallery({ count = 16, cols: defaultCols = 4, cellSize: defaultCellSize = 120 }: { count?: number; cols?: number; cellSize?: number }) {
-  // Responsive columns and cell size based on screen width
-  const [responsiveConfig, setResponsiveConfig] = useState({ cols: defaultCols, cellSize: defaultCellSize });
+function CoasterSpriteGallery({ count: defaultCount = 16, cols: defaultCols = 4, cellSize: defaultCellSize = 120 }: { count?: number; cols?: number; cellSize?: number }) {
+  // Responsive columns, cell size, and count based on screen width
+  const [responsiveConfig, setResponsiveConfig] = useState({ cols: defaultCols, cellSize: defaultCellSize, count: defaultCount });
   
   useEffect(() => {
     const updateConfig = () => {
       const width = window.innerWidth;
       if (width < 400) {
-        setResponsiveConfig({ cols: 3, cellSize: 90 });
+        // 3 columns - use 15 items (5 rows of 3) to avoid orphans
+        setResponsiveConfig({ cols: 3, cellSize: 90, count: 15 });
       } else if (width < 640) {
-        setResponsiveConfig({ cols: 3, cellSize: 100 });
+        // 3 columns - use 15 items (5 rows of 3) to avoid orphans
+        setResponsiveConfig({ cols: 3, cellSize: 100, count: 15 });
       } else if (width < 768) {
-        setResponsiveConfig({ cols: 4, cellSize: 100 });
+        setResponsiveConfig({ cols: 4, cellSize: 100, count: defaultCount });
       } else {
-        setResponsiveConfig({ cols: defaultCols, cellSize: defaultCellSize });
+        setResponsiveConfig({ cols: defaultCols, cellSize: defaultCellSize, count: defaultCount });
       }
     };
     
     updateConfig();
     window.addEventListener('resize', updateConfig);
     return () => window.removeEventListener('resize', updateConfig);
-  }, [defaultCols, defaultCellSize]);
+  }, [defaultCols, defaultCellSize, defaultCount]);
   
-  const { cols, cellSize } = responsiveConfig;
+  const { cols, cellSize, count } = responsiveConfig;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loadedSheets, setLoadedSheets] = useState<Map<string, HTMLCanvasElement>>(new Map());
   
