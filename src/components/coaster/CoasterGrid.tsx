@@ -1760,86 +1760,61 @@ const DIRECTION_ANGLES: Record<string, number> = {
   west: Math.atan2(TILE_HEIGHT / 2, -TILE_WIDTH / 2),
 };
 
-function directionFromDelta(dx: number, dy: number): string | null {
-  if (dx === 1 && dy === 0) return 'south';
-  if (dx === -1 && dy === 0) return 'north';
-  if (dx === 0 && dy === 1) return 'west';
-  if (dx === 0 && dy === -1) return 'east';
-  return null;
-}
-
 /**
- * Get the actual travel direction for a car at parameter t along a track piece.
- * For curves, calculates the tangent direction of the bezier curve.
- * For straights, uses the tile delta direction.
+ * Get the travel direction for a car at parameter t along a track piece.
+ * Uses the geometry of the track to derive a stable forward direction.
  */
 function getCarTravelDirection(
   trackPiece: NonNullable<Tile['trackPiece']>,
   trackTiles: { x: number; y: number }[],
   trackIndex: number,
-  t: number
+  t: number,
+  grid: Tile[][]
 ): string {
-  const trackLen = trackTiles.length;
-  const { type, direction } = trackPiece;
-  
-  // For curves, calculate travel direction based on curve geometry
-  if (type === 'turn_left_flat' || type === 'turn_right_flat') {
-    const turnRight = type === 'turn_right_flat';
-    
-    // The track's direction field indicates which edge the curve STARTS from
-    // But the car should face the direction it's TRAVELING (opposite of where it came from)
-    const opposite: Record<string, string> = {
-      north: 'south', south: 'north', east: 'west', west: 'east'
-    };
-    
-    // Travel direction when entering the curve (opposite of entry edge)
-    const travelEntryDir = opposite[direction];
-    
-    // Exit direction depends on turn type
-    // For right turn: north entry → east exit, east entry → south exit, etc.
-    // For left turn: north entry → west exit, west entry → south exit, etc.
-    let travelExitDir: string;
-    if (turnRight) {
-      const rightTurn: Record<string, string> = {
-        north: 'east', east: 'south', south: 'west', west: 'north'
-      };
-      travelExitDir = rightTurn[direction];
-    } else {
-      const leftTurn: Record<string, string> = {
-        north: 'west', west: 'south', south: 'east', east: 'north'
-      };
-      travelExitDir = leftTurn[direction];
-    }
-    
-    // Interpolate between entry and exit travel directions based on position on curve
-    if (t < 0.35) {
-      return travelEntryDir;
-    } else if (t > 0.65) {
-      return travelExitDir;
-    } else {
-      return t < 0.5 ? travelEntryDir : travelExitDir;
+  if (trackTiles.length === 0) return trackPiece.direction;
+
+  const currentTile = trackTiles[trackIndex];
+  if (!currentTile) return trackPiece.direction;
+
+  const { screenX, screenY } = gridToScreen(currentTile.x, currentTile.y, 0, 0);
+  const centerX = screenX + TILE_WIDTH / 2;
+  const centerY = screenY + TILE_HEIGHT / 2;
+  const currentPoint = getTrackPoint(trackPiece, centerX, centerY, t);
+
+  const epsilon = 0.02;
+  let nextT = t + epsilon;
+  let nextIndex = trackIndex;
+  if (nextT > 1) {
+    nextT -= 1;
+    nextIndex = (trackIndex + 1) % trackTiles.length;
+  }
+
+  const nextTile = trackTiles[nextIndex];
+  const nextGridTile = grid[nextTile.y]?.[nextTile.x];
+  if (!nextGridTile?.trackPiece) return trackPiece.direction;
+
+  const { screenX: nextScreenX, screenY: nextScreenY } = gridToScreen(nextTile.x, nextTile.y, 0, 0);
+  const nextCenterX = nextScreenX + TILE_WIDTH / 2;
+  const nextCenterY = nextScreenY + TILE_HEIGHT / 2;
+  const nextPoint = getTrackPoint(nextGridTile.trackPiece, nextCenterX, nextCenterY, nextT);
+
+  const dx = nextPoint.x - currentPoint.x;
+  const dy = nextPoint.y - currentPoint.y;
+  if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return trackPiece.direction;
+
+  const angle = Math.atan2(dy, dx);
+  let bestDir: string = trackPiece.direction;
+  let bestDiff = Number.POSITIVE_INFINITY;
+
+  for (const [dir, dirAngle] of Object.entries(DIRECTION_ANGLES)) {
+    const diff = Math.abs(Math.atan2(Math.sin(angle - dirAngle), Math.cos(angle - dirAngle)));
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestDir = dir;
     }
   }
-  
-  // For non-curves, use tile deltas
-  if (trackLen < 2) return trackPiece.direction;
 
-  const prevTile = trackTiles[(trackIndex - 1 + trackLen) % trackLen];
-  const currTile = trackTiles[trackIndex];
-  const nextTile = trackTiles[(trackIndex + 1) % trackLen];
-
-  const entryDir = directionFromDelta(currTile.x - prevTile.x, currTile.y - prevTile.y);
-  const exitDir = directionFromDelta(nextTile.x - currTile.x, nextTile.y - currTile.y);
-
-  if (!entryDir || !exitDir) return trackPiece.direction;
-
-  // Straight segments: use consistent direction
-  if (entryDir === exitDir) return entryDir;
-
-  // For slopes or other track types, interpolate between entry and exit
-  if (t < 0.3) return entryDir;
-  if (t > 0.7) return exitDir;
-  return t < 0.5 ? entryDir : exitDir;
+  return bestDir;
 }
 
 // Guest colors for rendering riders in coaster cars
@@ -2806,7 +2781,13 @@ export function CoasterGrid({
           const pos = getTrackPoint(actualTrackPiece, centerX, centerY, t);
           
           // Calculate actual travel direction based on track piece type and position
-          const travelDirection = getCarTravelDirection(actualTrackPiece, coaster.trackTiles, trackIndex, t);
+          const travelDirection = getCarTravelDirection(
+            actualTrackPiece,
+            coaster.trackTiles,
+            trackIndex,
+            t,
+            grid
+          );
 
           const key = `${trackTile.x},${trackTile.y}`;
           const existing = carsByTile.get(key);
