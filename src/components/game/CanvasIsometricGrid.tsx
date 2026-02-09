@@ -2676,6 +2676,26 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     };
   }, [zoom, offset.x, offset.y, gridSize, grid, findBuildingOrigin]);
 
+  const handleTapAtScreen = useCallback((screenX: number, screenY: number) => {
+    const hit = hitTestAtScreen(screenX, screenY);
+    if (!hit.inBounds) {
+      return null;
+    }
+
+    if (selectedTool === 'select') {
+      const origin = findBuildingOrigin(hit.gridX, hit.gridY);
+      if (origin) {
+        setSelectedTile({ x: origin.originX, y: origin.originY });
+      } else {
+        setSelectedTile({ x: hit.gridX, y: hit.gridY });
+      }
+    } else {
+      placeAtTile(hit.gridX, hit.gridY);
+    }
+
+    return hit;
+  }, [hitTestAtScreen, selectedTool, findBuildingOrigin, setSelectedTile, placeAtTile]);
+
   const applyNativeCamera = useCallback((rawCamera: unknown) => {
     const update = buildCameraUpdate(
       rawCamera && typeof rawCamera === 'object' ? (rawCamera as Record<string, unknown>) : null
@@ -2718,6 +2738,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
 
   const hitTestFromNativeRef = useRef(hitTestAtScreen);
   const applyNativeCameraRef = useRef(applyNativeCamera);
+  const tapFromNativeRef = useRef(handleTapAtScreen);
 
   useEffect(() => {
     hitTestFromNativeRef.current = hitTestAtScreen;
@@ -2726,6 +2747,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   useEffect(() => {
     applyNativeCameraRef.current = applyNativeCamera;
   }, [applyNativeCamera]);
+
+  useEffect(() => {
+    tapFromNativeRef.current = handleTapAtScreen;
+  }, [handleTapAtScreen]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -2740,6 +2765,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       },
       getCamera: () => nativeCameraSnapshotRef.current,
       hitTest: (screenX, screenY) => hitTestFromNativeRef.current(screenX, screenY),
+      tap: (screenX, screenY) => tapFromNativeRef.current(screenX, screenY),
     };
 
     return () => {
@@ -2747,6 +2773,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       delete window.__native.setCamera;
       delete window.__native.getCamera;
       delete window.__native.hitTest;
+      delete window.__native.tap;
     };
   }, []);
 

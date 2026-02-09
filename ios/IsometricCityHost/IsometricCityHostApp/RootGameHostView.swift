@@ -19,6 +19,9 @@ struct RootGameHostView: View {
             .id(reloadID)
             .ignoresSafeArea()
 
+            NativeGestureLayer(model: model, webViewStore: webViewStore)
+                .ignoresSafeArea()
+
             NativeHUDView(model: model, webViewStore: webViewStore, showSettings: $showSettings)
                 .ignoresSafeArea(edges: .all)
 
@@ -57,7 +60,7 @@ struct RootGameHostView: View {
         GameLoadConfiguration(
             devServerURL: devURL,
             useDevServer: useDevServer,
-            gestureMode: "web"
+            gestureMode: "native"
         )
     }
 

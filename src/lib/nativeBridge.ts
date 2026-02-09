@@ -47,6 +47,7 @@ export interface NativeCanvasApi {
   setCamera: (camera: NativeCameraUpdate) => void;
   getCamera: () => NativeCameraSnapshot;
   hitTest: (screenX: number, screenY: number) => NativeHitTestResult;
+  tap: (screenX: number, screenY: number) => NativeHitTestResult | null;
 }
 
 const BRIDGE_EVENT = 'isocity-native-bridge-dispatch';

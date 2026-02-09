@@ -32,10 +32,10 @@ struct HostSettingsView: View {
                 }
 
                 Section("A/B Variant") {
-                    Text("This branch uses web-owned gestures (Option B).")
+                    Text("This branch uses native-owned gestures (Option A).")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Text("URL query includes host=ios&gesture=web so the web app keeps pan/pinch/tap behavior.")
+                    Text("URL query includes host=ios&gesture=native so SwiftUI controls pan/pinch and taps.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

@@ -1,15 +1,18 @@
-# IsometricCityHost (ios-web-gestures)
+# IsometricCityHost (ios-native-gestures)
 
 Native iOS shell for IsoCity using:
 
-- `WKWebView` for game rendering/input
+- `WKWebView` for rendering
+- transparent SwiftUI gesture layer (pan + pinch + tap)
 - SwiftUI native HUD overlays (glass-style materials)
 - JS <-> Swift bridge (`bridge.dispatch` / `window.webkit.messageHandlers.bridge.postMessage`)
 
-This branch is **Option B** (web-owned gestures):
+This branch is **Option A** (native-owned gestures):
 
-- One-finger pan / pinch zoom / tap are handled by the web app.
-- SwiftUI is responsible for native HUD, controls, sheets, and light haptics.
+- SwiftUI owns pan/pinch/tap gestures.
+- Gesture layer sends camera updates to JS (`window.__native.setCamera`).
+- Taps route through JS hit-test/tap helpers (`window.__native.tap`).
+- SwiftUI still handles native HUD, controls, sheets, and light haptics.
 
 ## Quick start
 
@@ -36,7 +39,7 @@ This branch is **Option B** (web-owned gestures):
    - set dev URL to your machine LAN IP (for physical device), e.g. `http://192.168.1.20:3000`
    - keep "Use Dev Server" enabled
 
-The host app appends `?host=ios&gesture=web` automatically.
+The host app appends `?host=ios&gesture=native` automatically.
 
 ## Bridge contract
 
@@ -54,6 +57,8 @@ Implemented commands:
 - `speed.set`
 - `panel.set`
 - `overlay.set`
+- `window.__native.setCamera({ offsetX, offsetY, zoom })`
+- `window.__native.tap(screenX, screenY)`
 
 ### JS -> Swift
 
