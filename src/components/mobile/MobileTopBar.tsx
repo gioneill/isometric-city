@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { MobileHudDensity } from '@/lib/mobileUiSettings';
 
 // Translatable UI labels
 const UI_LABELS = {
@@ -112,12 +113,14 @@ export function MobileTopBar({
   onCloseTile,
   onShare,
   onExit,
+  hudDensity = 'compact',
 }: { 
   selectedTile: Tile | null;
   services: { police: number[][]; fire: number[][]; health: number[][]; education: number[][]; power: boolean[][]; water: boolean[][] };
   onCloseTile: () => void;
   onShare?: () => void;
   onExit?: () => void;
+  hudDensity?: MobileHudDensity;
 }) {
   const { state, setSpeed, setTaxRate, visualHour, saveCity } = useGame();
   const { stats, year, month, speed, taxRate, cityName } = state;
@@ -256,54 +259,73 @@ export function MobileTopBar({
 
         </div>
 
-        {/* Demand indicators row */}
-        <div className="flex items-center justify-between px-3 py-1 border-t border-sidebar-border/50 bg-secondary/30">
-          <div className="flex items-center gap-3">
-            <DemandBar label="R" demand={stats.demand.residential} color="text-green-500" />
-            <DemandBar label="C" demand={stats.demand.commercial} color="text-blue-500" />
-            <DemandBar label="I" demand={stats.demand.industrial} color="text-amber-500" />
-          </div>
+        {hudDensity !== 'minimal' && (
+          <>
+            {/* Demand indicators row */}
+            <div className="flex items-center justify-between px-3 py-1 border-t border-sidebar-border/50 bg-secondary/30">
+              <div className="flex items-center gap-3">
+                <DemandBar label="R" demand={stats.demand.residential} color="text-green-500" />
+                <DemandBar label="C" demand={stats.demand.commercial} color="text-blue-500" />
+                <DemandBar label="I" demand={stats.demand.industrial} color="text-amber-500" />
+              </div>
 
-          <button
-            className="flex items-center gap-1 active:opacity-70"
-            onClick={() => {
-              const newShowTaxSlider = !showTaxSlider;
-              setShowTaxSlider(newShowTaxSlider);
-              if (newShowTaxSlider && selectedTile) {
-                onCloseTile();
-              }
-            }}
-          >
-            <span className="text-[9px] text-muted-foreground">{m(UI_LABELS.tax)}</span>
-            <span className="text-[10px] font-mono text-foreground">{taxRate}%</span>
-          </button>
+              <button
+                className="flex items-center gap-1 active:opacity-70"
+                onClick={() => {
+                  const newShowTaxSlider = !showTaxSlider;
+                  setShowTaxSlider(newShowTaxSlider);
+                  if (newShowTaxSlider && selectedTile) {
+                    onCloseTile();
+                  }
+                }}
+              >
+                <span className="text-[9px] text-muted-foreground">{m(UI_LABELS.tax)}</span>
+                <span className="text-[10px] font-mono text-foreground">{taxRate}%</span>
+              </button>
 
-          <div className="flex items-center gap-1">
-            <span className={`text-[10px] font-mono ${stats.income - stats.expenses >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {stats.income - stats.expenses >= 0 ? '+' : ''}${(stats.income - stats.expenses).toLocaleString()}/mo
-            </span>
-          </div>
-        </div>
+              <div className="flex items-center gap-1">
+                <span className={`text-[10px] font-mono ${stats.income - stats.expenses >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {stats.income - stats.expenses >= 0 ? '+' : ''}${(stats.income - stats.expenses).toLocaleString()}/mo
+                </span>
+              </div>
+            </div>
 
-        {/* Tax Slider Row */}
-        {showTaxSlider && !selectedTile && (
-          <div className="border-t border-sidebar-border/50 bg-secondary/30 px-3 py-0.5 flex items-center gap-2 text-[10px]">
-            <span className="text-muted-foreground whitespace-nowrap">{m(UI_LABELS.taxRate)}</span>
-            <Slider
-              value={[taxRate]}
-              onValueChange={(value) => setTaxRate(value[0])}
-              min={0}
-              max={100}
-              step={1}
-              className="flex-1"
-            />
-            <span className="font-mono text-foreground w-8 text-right shrink-0">{taxRate}%</span>
-            <button 
-              onClick={() => setShowTaxSlider(false)} 
-              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-            >
-              <CloseIcon size={12} />
-            </button>
+            {/* Tax Slider Row */}
+            {showTaxSlider && !selectedTile && (
+              <div className="border-t border-sidebar-border/50 bg-secondary/30 px-3 py-0.5 flex items-center gap-2 text-[10px]">
+                <span className="text-muted-foreground whitespace-nowrap">{m(UI_LABELS.taxRate)}</span>
+                <Slider
+                  value={[taxRate]}
+                  onValueChange={(value) => setTaxRate(value[0])}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="flex-1"
+                />
+                <span className="font-mono text-foreground w-8 text-right shrink-0">{taxRate}%</span>
+                <button
+                  onClick={() => setShowTaxSlider(false)}
+                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                >
+                  <CloseIcon size={12} />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {hudDensity === 'full' && (
+          <div className="border-t border-sidebar-border/50 bg-secondary/20 px-3 py-1.5">
+            <div className="grid grid-cols-3 gap-2 text-[10px]">
+              <div className="text-muted-foreground">HAP <span className="text-foreground font-mono">{Math.round(stats.happiness)}%</span></div>
+              <div className="text-muted-foreground">HLT <span className="text-foreground font-mono">{Math.round(stats.health)}%</span></div>
+              <div className="text-muted-foreground">EDU <span className="text-foreground font-mono">{Math.round(stats.education)}%</span></div>
+              <div className="text-muted-foreground">SFT <span className="text-foreground font-mono">{Math.round(stats.safety)}%</span></div>
+              <div className="text-muted-foreground">ENV <span className="text-foreground font-mono">{Math.round(stats.environment)}%</span></div>
+              <div className={`font-mono ${stats.income - stats.expenses >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {stats.income - stats.expenses >= 0 ? '+' : ''}${(stats.income - stats.expenses).toLocaleString()}
+              </div>
+            </div>
           </div>
         )}
 
