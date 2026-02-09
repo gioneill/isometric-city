@@ -595,20 +595,6 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     isPanningRef.current = isPanning;
   }, [isPanning]);
 
-  useEffect(() => {
-    if (!nativeOwnsGestures) {
-      return;
-    }
-    setIsDragging(false);
-    setIsPanning(false);
-    setHoveredTile(null);
-    setHoveredIncident(null);
-    touchStartRef.current = null;
-    initialPinchDistanceRef.current = null;
-    lastTouchCenterRef.current = null;
-    panCandidateRef.current = null;
-  }, [nativeOwnsGestures]);
-  
   // Sync zoom state to ref for animation loop access
   useEffect(() => {
     zoomRef.current = zoom;

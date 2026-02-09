@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export type BridgePayload = Record<string, unknown> | null;
 
@@ -70,12 +70,7 @@ export function readNativeHostConfig(): NativeHostConfig {
 }
 
 export function useNativeHostConfig(): NativeHostConfig {
-  const [config, setConfig] = useState<NativeHostConfig>({ host: 'web', gestureMode: 'web' });
-
-  useEffect(() => {
-    setConfig(readNativeHostConfig());
-  }, []);
-
+  const [config] = useState<NativeHostConfig>(() => readNativeHostConfig());
   return config;
 }
 
