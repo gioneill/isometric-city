@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useGame } from '@/context/GameContext';
-import { Tool } from '@/types/game';
+import { TOOL_INFO, Tool } from '@/types/game';
 import { useMobile } from '@/hooks/useMobile';
 import { MobileToolbar } from '@/components/mobile/MobileToolbar';
 import { MobileTopBar } from '@/components/mobile/MobileTopBar';
@@ -35,9 +35,21 @@ import {
 import { MiniMap } from '@/components/game/MiniMap';
 import { TopBar, StatsPanel } from '@/components/game/TopBar';
 import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
+import { useMobileUiSettings } from '@/lib/mobileUiSettings';
+import { ensureNativeBridge, onNativeBridgeMessage, postToNative, useNativeHostConfig } from '@/lib/nativeBridge';
 
 // Cargo type names for notifications
 const CARGO_TYPE_NAMES = [msg('containers'), msg('bulk materials'), msg('oil')];
+
+const OVERLAY_MODES: OverlayMode[] = ['none', 'power', 'water', 'fire', 'police', 'health', 'education', 'subway'];
+
+function isOverlayMode(value: unknown): value is OverlayMode {
+  return typeof value === 'string' && OVERLAY_MODES.includes(value as OverlayMode);
+}
+
+function isTool(value: unknown): value is Tool {
+  return typeof value === 'string' && value in TOOL_INFO;
+}
 
 export default function Game({ onExit }: { onExit?: () => void }) {
   const gt = useGT();
@@ -49,7 +61,10 @@ export default function Game({ onExit }: { onExit?: () => void }) {
   const [viewport, setViewport] = useState<{ offset: { x: number; y: number }; zoom: number; canvasSize: { width: number; height: number } } | null>(null);
   const isInitialMount = useRef(true);
   const { isMobileDevice, isSmallScreen } = useMobile();
+  const nativeHostConfig = useNativeHostConfig();
+  const isNativeIOSHost = nativeHostConfig.host === 'ios';
   const isMobile = isMobileDevice || isSmallScreen;
+  const { settings: mobileUiSettings } = useMobileUiSettings();
   const [showShareModal, setShowShareModal] = useState(false);
   const multiplayer = useMultiplayerOptional();
   
@@ -152,6 +167,141 @@ export default function Game({ onExit }: { onExit?: () => void }) {
       setOverlayMode(getOverlayForTool(state.selectedTool));
     }, 0);
   }, [state.selectedTool]);
+
+  // Install JS<->Swift bridge and send a ready signal for native hosts.
+  useEffect(() => {
+    ensureNativeBridge();
+    postToNative({
+      type: 'host.ready',
+      payload: {
+        app: 'isocity',
+        version: 1,
+      },
+    });
+  }, []);
+
+  // Emit compact state snapshots so native HUD can render parity UI.
+  useEffect(() => {
+    postToNative({
+      type: 'host.state',
+      payload: {
+        cityName: state.cityName,
+        year: state.year,
+        month: state.month,
+        speed: state.speed,
+        selectedTool: state.selectedTool,
+        activePanel: state.activePanel,
+        stats: {
+          population: state.stats.population,
+          money: state.stats.money,
+          income: state.stats.income,
+          expenses: state.stats.expenses,
+          happiness: state.stats.happiness,
+          health: state.stats.health,
+          education: state.stats.education,
+          safety: state.stats.safety,
+          environment: state.stats.environment,
+          demand: state.stats.demand,
+        },
+        selectedTile,
+        overlayMode,
+        mobileUi: mobileUiSettings,
+        host: nativeHostConfig,
+      },
+    });
+  }, [
+    state.cityName,
+    state.year,
+    state.month,
+    state.speed,
+    state.selectedTool,
+    state.activePanel,
+    state.stats.population,
+    state.stats.money,
+    state.stats.income,
+    state.stats.expenses,
+    state.stats.happiness,
+    state.stats.health,
+    state.stats.education,
+    state.stats.safety,
+    state.stats.environment,
+    state.stats.demand,
+    selectedTile,
+    overlayMode,
+    mobileUiSettings,
+    nativeHostConfig,
+  ]);
+
+  useEffect(() => {
+    postToNative({
+      type: 'event.toolChanged',
+      payload: { tool: state.selectedTool },
+    });
+  }, [state.selectedTool]);
+
+  useEffect(() => {
+    postToNative({
+      type: 'event.selectionChanged',
+      payload: selectedTile ? { x: selectedTile.x, y: selectedTile.y } : null,
+    });
+  }, [selectedTile]);
+
+  // Consume native commands so SwiftUI controls can manipulate the game.
+  useEffect(() => {
+    return onNativeBridgeMessage((message) => {
+      const payload = (message.payload && typeof message.payload === 'object')
+        ? (message.payload as Record<string, unknown>)
+        : null;
+
+      switch (message.type) {
+        case 'tool.set': {
+          const tool = payload?.tool;
+          if (isTool(tool)) {
+            setTool(tool);
+          }
+          break;
+        }
+        case 'speed.set': {
+          const speed = payload?.speed;
+          if (speed === 0 || speed === 1 || speed === 2 || speed === 3) {
+            setSpeed(speed);
+          }
+          break;
+        }
+        case 'panel.set': {
+          const panel = payload?.panel;
+          if (panel === 'none' || panel === 'budget' || panel === 'statistics' || panel === 'advisors' || panel === 'settings') {
+            setActivePanel(panel);
+          }
+          break;
+        }
+        case 'overlay.set': {
+          const mode = payload?.mode;
+          if (isOverlayMode(mode)) {
+            setOverlayMode(mode);
+          }
+          break;
+        }
+        case 'selection.set': {
+          const x = payload?.x;
+          const y = payload?.y;
+          if (typeof x === 'number' && typeof y === 'number') {
+            const gridX = Math.round(x);
+            const gridY = Math.round(y);
+            if (gridX >= 0 && gridY >= 0 && gridX < state.gridSize && gridY < state.gridSize) {
+              setSelectedTile({ x: gridX, y: gridY });
+            }
+          }
+          break;
+        }
+        case 'selection.clear':
+          setSelectedTile(null);
+          break;
+        default:
+          break;
+      }
+    });
+  }, [setTool, setSpeed, setActivePanel, setOverlayMode, state.gridSize]);
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -220,6 +370,9 @@ export default function Game({ onExit }: { onExit?: () => void }) {
   
   // Track barge deliveries to show occasional notifications
   const bargeDeliveryCountRef = useRef(0);
+  const showWebMobileChrome = !isNativeIOSHost;
+  const mobileTopInset = showWebMobileChrome ? (mobileUiSettings.hudDensity === 'minimal' ? 58 : mobileUiSettings.hudDensity === 'full' ? 112 : 72) : 0;
+  const mobileBottomInset = showWebMobileChrome ? (mobileUiSettings.toolLayout === 'quick' ? 84 : 74) : 0;
   
   // Handle barge cargo delivery - adds money to the city treasury
   const handleBargeDelivery = useCallback((cargoValue: number, cargoType: number) => {
@@ -243,13 +396,16 @@ export default function Game({ onExit }: { onExit?: () => void }) {
       <TooltipProvider>
         <div className="w-full h-full overflow-hidden bg-background flex flex-col">
           {/* Mobile Top Bar */}
-          <MobileTopBar 
-            selectedTile={selectedTile && state.selectedTool === 'select' ? state.grid[selectedTile.y][selectedTile.x] : null}
-            services={state.services}
-            onCloseTile={() => setSelectedTile(null)}
-            onShare={() => setShowShareModal(true)}
-            onExit={onExit}
-          />
+          {showWebMobileChrome && (
+            <MobileTopBar 
+              selectedTile={selectedTile && state.selectedTool === 'select' ? state.grid[selectedTile.y][selectedTile.x] : null}
+              services={state.services}
+              onCloseTile={() => setSelectedTile(null)}
+              onShare={() => setShowShareModal(true)}
+              onExit={onExit}
+              hudDensity={mobileUiSettings.hudDensity}
+            />
+          )}
           
           {/* Share Modal for mobile co-op */}
           {multiplayer && (
@@ -260,14 +416,25 @@ export default function Game({ onExit }: { onExit?: () => void }) {
           )}
           
           {/* Main canvas area - fills remaining space, with padding for top/bottom bars */}
-          <div className="flex-1 relative overflow-hidden" style={{ paddingTop: '72px', paddingBottom: '76px' }}>
+          <div className="flex-1 relative overflow-hidden" style={{ paddingTop: `${mobileTopInset}px`, paddingBottom: `${mobileBottomInset}px` }}>
             <CanvasIsometricGrid 
               overlayMode={overlayMode} 
               selectedTile={selectedTile} 
               setSelectedTile={setSelectedTile}
               isMobile={true}
+              navigationTarget={navigationTarget}
+              onNavigationComplete={() => setNavigationTarget(null)}
+              onViewportChange={setViewport}
               onBargeDelivery={handleBargeDelivery}
             />
+
+            {showWebMobileChrome && mobileUiSettings.showMinimap && (
+              <MiniMap
+                compact
+                onNavigate={(x, y) => setNavigationTarget({ x, y })}
+                viewport={viewport}
+              />
+            )}
             
             {/* Multiplayer Players Indicator - Mobile */}
             {isMultiplayer && (
@@ -307,27 +474,32 @@ export default function Game({ onExit }: { onExit?: () => void }) {
           </div>
           
           {/* Mobile Bottom Toolbar */}
-          <MobileToolbar 
-            onOpenPanel={(panel) => setActivePanel(panel)}
-            overlayMode={overlayMode}
-            setOverlayMode={setOverlayMode}
-          />
+          {showWebMobileChrome && (
+            <MobileToolbar 
+              onOpenPanel={(panel) => setActivePanel(panel)}
+              overlayMode={overlayMode}
+              setOverlayMode={setOverlayMode}
+              toolLayout={mobileUiSettings.toolLayout}
+            />
+          )}
           
           {/* Panels - render as fullscreen modals on mobile */}
-          {state.activePanel === 'budget' && <BudgetPanel />}
-          {state.activePanel === 'statistics' && <StatisticsPanel />}
-          {state.activePanel === 'advisors' && <AdvisorsPanel />}
-          {state.activePanel === 'settings' && <SettingsPanel />}
+          {showWebMobileChrome && state.activePanel === 'budget' && <BudgetPanel />}
+          {showWebMobileChrome && state.activePanel === 'statistics' && <StatisticsPanel />}
+          {showWebMobileChrome && state.activePanel === 'advisors' && <AdvisorsPanel />}
+          {showWebMobileChrome && state.activePanel === 'settings' && <SettingsPanel />}
           
           <VinnieDialog open={showVinnieDialog} onOpenChange={setShowVinnieDialog} />
           
           {/* Tip Toast for helping new players */}
-          <TipToast
-            message={currentTip || ''}
-            isVisible={isTipVisible}
-            onContinue={onTipContinue}
-            onSkipAll={onTipSkipAll}
-          />
+          {showWebMobileChrome && (
+            <TipToast
+              message={currentTip || ''}
+              isVisible={isTipVisible}
+              onContinue={onTipContinue}
+              onSkipAll={onTipSkipAll}
+            />
+          )}
         </div>
       </TooltipProvider>
     );
