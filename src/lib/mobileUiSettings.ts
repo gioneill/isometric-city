@@ -96,10 +96,9 @@ export function subscribeMobileUiSettings(listener: (settings: MobileUiSettings)
 }
 
 export function useMobileUiSettings() {
-  const [settings, setSettings] = useState<MobileUiSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<MobileUiSettings>(() => readMobileUiSettings());
 
   useEffect(() => {
-    setSettings(readMobileUiSettings());
     return subscribeMobileUiSettings(setSettings);
   }, []);
 
