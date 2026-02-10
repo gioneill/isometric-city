@@ -286,6 +286,8 @@ function loadGameState(): GameState | null {
         if (!parsed.id) {
           parsed.id = generateUUID();
         }
+        // Always reset tool on load — reloading shouldn't restore a placement tool
+        parsed.selectedTool = 'select';
         return parsed as GameState;
       } else {
         localStorage.removeItem(STORAGE_KEY);

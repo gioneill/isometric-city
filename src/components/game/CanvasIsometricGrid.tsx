@@ -289,6 +289,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   });
   const [roadDrawDirection, setRoadDrawDirection] = useState<'h' | 'v' | null>(null);
   const placedRoadTilesRef = useRef<Set<string>>(new Set());
+  // Synchronous ref for native drag state — React batches setState so native
+  // dragStart→dragMove fires before isDragging state updates
+  const nativeDragRef = useRef({
+    isDragging: false,
+    startTile: null as { x: number; y: number } | null,
+    endTile: null as { x: number; y: number } | null,
+    roadDirection: null as 'h' | 'v' | null,
+  });
   // Track progressive image loading - start true to render immediately with placeholders
   const [imagesLoaded, setImagesLoaded] = useState(true);
   // Counter to trigger re-renders when new images become available
@@ -2675,6 +2683,152 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       originY: origin?.originY,
     };
   }, [zoom, offset.x, offset.y, gridSize, grid, findBuildingOrigin]);
+
+  const handleTapAtScreen = useCallback((screenX: number, screenY: number) => {
+    const hit = hitTestAtScreen(screenX, screenY);
+    if (!hit.inBounds) {
+      return null;
+    }
+
+    if (selectedTool === 'select') {
+      const origin = findBuildingOrigin(hit.gridX, hit.gridY);
+      if (origin) {
+        setSelectedTile({ x: origin.originX, y: origin.originY });
+      } else {
+        setSelectedTile({ x: hit.gridX, y: hit.gridY });
+      }
+    } else {
+      placeAtTile(hit.gridX, hit.gridY);
+    }
+
+    return hit;
+  }, [hitTestAtScreen, selectedTool, findBuildingOrigin, setSelectedTile, placeAtTile]);
+
+  const handleDragStartAtScreen = useCallback((screenX: number, screenY: number) => {
+    const hit = hitTestAtScreen(screenX, screenY);
+    if (!hit.inBounds) return;
+    const { gridX, gridY } = hit;
+
+    if (showsDragGrid) {
+      nativeDragRef.current = { isDragging: true, startTile: { x: gridX, y: gridY }, endTile: { x: gridX, y: gridY }, roadDirection: null };
+      setDragStartTile({ x: gridX, y: gridY });
+      setDragEndTile({ x: gridX, y: gridY });
+      setIsDragging(true);
+    } else if (supportsDragPlace) {
+      nativeDragRef.current = { isDragging: true, startTile: { x: gridX, y: gridY }, endTile: { x: gridX, y: gridY }, roadDirection: null };
+      setDragStartTile({ x: gridX, y: gridY });
+      setDragEndTile({ x: gridX, y: gridY });
+      setIsDragging(true);
+      setRoadDrawDirection(null);
+      placedRoadTilesRef.current.clear();
+      placeAtTile(gridX, gridY);
+      if (selectedTool === 'road' || selectedTool === 'rail' || selectedTool === 'subway') {
+        placedRoadTilesRef.current.add(`${gridX},${gridY}`);
+      }
+    }
+  }, [hitTestAtScreen, showsDragGrid, supportsDragPlace, selectedTool, placeAtTile]);
+
+  const handleDragMoveAtScreen = useCallback((screenX: number, screenY: number) => {
+    const hit = hitTestAtScreen(screenX, screenY);
+    if (!hit.inBounds) return;
+    const { gridX, gridY } = hit;
+
+    const drag = nativeDragRef.current;
+    if (!drag.isDragging || !drag.startTile) return;
+
+    if (showsDragGrid) {
+      setDragEndTile({ x: gridX, y: gridY });
+    } else if (selectedTool === 'road' || selectedTool === 'rail' || selectedTool === 'subway') {
+      const dx = Math.abs(gridX - drag.startTile.x);
+      const dy = Math.abs(gridY - drag.startTile.y);
+
+      let direction = drag.roadDirection;
+      if (!direction && (dx > 0 || dy > 0)) {
+        direction = dx >= dy ? 'h' : 'v';
+        nativeDragRef.current.roadDirection = direction;
+        setRoadDrawDirection(direction);
+      }
+
+      let targetX = gridX;
+      let targetY = gridY;
+      if (direction === 'h') {
+        targetY = drag.startTile.y;
+      } else if (direction === 'v') {
+        targetX = drag.startTile.x;
+      }
+
+      nativeDragRef.current.endTile = { x: targetX, y: targetY };
+      setDragEndTile({ x: targetX, y: targetY });
+
+      const minX = Math.min(drag.startTile.x, targetX);
+      const maxX = Math.max(drag.startTile.x, targetX);
+      const minY = Math.min(drag.startTile.y, targetY);
+      const maxY = Math.max(drag.startTile.y, targetY);
+
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          const key = `${x},${y}`;
+          if (!placedRoadTilesRef.current.has(key)) {
+            const tile = grid[y]?.[x];
+            if (tile && tile.building.type === 'water') {
+              placedRoadTilesRef.current.add(key);
+              continue;
+            }
+            placeAtTile(x, y);
+            placedRoadTilesRef.current.add(key);
+          }
+        }
+      }
+    } else if (supportsDragPlace) {
+      placeAtTile(gridX, gridY);
+    }
+  }, [hitTestAtScreen, showsDragGrid, selectedTool, supportsDragPlace, placeAtTile, grid]);
+
+  const handleDragEndAtScreen = useCallback((_screenX: number, _screenY: number) => {
+    const drag = nativeDragRef.current;
+
+    if (drag.isDragging && drag.startTile && drag.endTile && showsDragGrid) {
+      const minX = Math.min(drag.startTile.x, drag.endTile.x);
+      const maxX = Math.max(drag.startTile.x, drag.endTile.x);
+      const minY = Math.min(drag.startTile.y, drag.endTile.y);
+      const maxY = Math.max(drag.startTile.y, drag.endTile.y);
+
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          placeAtTile(x, y);
+        }
+      }
+    }
+
+    if (drag.isDragging && (selectedTool === 'road' || selectedTool === 'rail') && drag.startTile && drag.endTile) {
+      const minX = Math.min(drag.startTile.x, drag.endTile.x);
+      const maxX = Math.max(drag.startTile.x, drag.endTile.x);
+      const minY = Math.min(drag.startTile.y, drag.endTile.y);
+      const maxY = Math.max(drag.startTile.y, drag.endTile.y);
+
+      const pathTiles: { x: number; y: number }[] = [];
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          pathTiles.push({ x, y });
+        }
+      }
+
+      finishTrackDrag(pathTiles, selectedTool as 'road' | 'rail');
+
+      setTimeout(() => {
+        checkAndDiscoverCities((discoveredCity) => {
+          setCityConnectionDialog({ direction: discoveredCity.direction });
+        });
+      }, 50);
+    }
+
+    nativeDragRef.current = { isDragging: false, startTile: null, endTile: null, roadDirection: null };
+    setIsDragging(false);
+    setDragStartTile(null);
+    setDragEndTile(null);
+    setRoadDrawDirection(null);
+    placedRoadTilesRef.current.clear();
+  }, [showsDragGrid, placeAtTile, selectedTool, finishTrackDrag, checkAndDiscoverCities]);
 
   const applyNativeCamera = useCallback((rawCamera: unknown) => {
     const update = buildCameraUpdate(
