@@ -12,6 +12,10 @@
 /.next/
 /out/
 
+# iOS bundled web export (generated)
+/ios/iso-city-ios/iso-city-ios/web/
+/ios/iso-city-ios/iso-city-ios/web.bundle/
+
 # production
 /build
 
