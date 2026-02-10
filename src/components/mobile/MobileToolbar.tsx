@@ -462,7 +462,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-full text-xs"
+                  className="h-10 w-full text-xs truncate"
                   onClick={() => { onOpenPanel('budget'); setShowMenu(false); }}
                 >
                   {m(UI_LABELS.budget)}
@@ -470,7 +470,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-full text-xs"
+                  className="h-10 w-full text-xs truncate"
                   onClick={() => { onOpenPanel('statistics'); setShowMenu(false); }}
                 >
                   {m(UI_LABELS.statistics)}
@@ -478,7 +478,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-full text-xs"
+                  className="h-10 w-full text-xs truncate"
                   onClick={() => { onOpenPanel('advisors'); setShowMenu(false); }}
                 >
                   {m(UI_LABELS.advisors)}
@@ -486,7 +486,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-full text-xs"
+                  className="h-10 w-full text-xs truncate"
                   onClick={() => { onOpenPanel('settings'); setShowMenu(false); }}
                 >
                   {m(UI_LABELS.settings)}
@@ -504,7 +504,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   <Button
                     variant={overlayMode === 'none' ? 'default' : 'ghost'}
                     size="sm"
-                    className="h-10 w-full text-xs"
+                    className="h-10 w-full text-xs truncate"
                     onClick={() => setOverlayMode('none')}
                   >
                     {m(UI_LABELS.none)}
@@ -512,7 +512,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   <Button
                     variant={overlayMode === 'power' ? 'default' : 'ghost'}
                     size="sm"
-                    className={`h-10 w-full text-xs ${overlayMode === 'power' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                    className={`h-10 w-full text-xs truncate ${overlayMode === 'power' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
                     onClick={() => setOverlayMode('power')}
                   >
                     {m(UI_LABELS.power)}
@@ -520,7 +520,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   <Button
                     variant={overlayMode === 'water' ? 'default' : 'ghost'}
                     size="sm"
-                    className={`h-10 w-full text-xs ${overlayMode === 'water' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+                    className={`h-10 w-full text-xs truncate ${overlayMode === 'water' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
                     onClick={() => setOverlayMode('water')}
                   >
                     {m(UI_LABELS.water)}
@@ -528,7 +528,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   <Button
                     variant={overlayMode === 'fire' ? 'default' : 'ghost'}
                     size="sm"
-                    className={`h-10 w-full text-xs ${overlayMode === 'fire' ? 'bg-red-500 hover:bg-red-600' : ''}`}
+                    className={`h-10 w-full text-xs truncate ${overlayMode === 'fire' ? 'bg-red-500 hover:bg-red-600' : ''}`}
                     onClick={() => setOverlayMode('fire')}
                   >
                     {m(UI_LABELS.fire)}
@@ -536,7 +536,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   <Button
                     variant={overlayMode === 'police' ? 'default' : 'ghost'}
                     size="sm"
-                    className={`h-10 w-full text-xs ${overlayMode === 'police' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                    className={`h-10 w-full text-xs truncate ${overlayMode === 'police' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
                     onClick={() => setOverlayMode('police')}
                   >
                     {m(UI_LABELS.police)}
@@ -544,7 +544,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   <Button
                     variant={overlayMode === 'health' ? 'default' : 'ghost'}
                     size="sm"
-                    className={`h-10 w-full text-xs ${overlayMode === 'health' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                    className={`h-10 w-full text-xs truncate ${overlayMode === 'health' ? 'bg-green-500 hover:bg-green-600' : ''}`}
                     onClick={() => setOverlayMode('health')}
                   >
                     {m(UI_LABELS.health)}
@@ -552,7 +552,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   <Button
                     variant={overlayMode === 'education' ? 'default' : 'ghost'}
                     size="sm"
-                    className={`h-10 w-full text-xs ${overlayMode === 'education' ? 'bg-purple-500 hover:bg-purple-600' : ''}`}
+                    className={`h-10 w-full text-xs truncate ${overlayMode === 'education' ? 'bg-purple-500 hover:bg-purple-600' : ''}`}
                     onClick={() => setOverlayMode('education')}
                   >
                     {m(UI_LABELS.education)}
@@ -560,7 +560,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   <Button
                     variant={overlayMode === 'subway' ? 'default' : 'ghost'}
                     size="sm"
-                    className={`h-10 w-full text-xs ${overlayMode === 'subway' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}`}
+                    className={`h-10 w-full text-xs truncate ${overlayMode === 'subway' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}`}
                     onClick={() => setOverlayMode('subway')}
                   >
                     {m(UI_LABELS.subway)}
@@ -579,10 +579,10 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                       <div className="mb-1">
                         <Button
                           variant={expandCityExpanded ? 'secondary' : 'ghost'}
-                          className="w-full justify-start gap-3 h-12"
+                          className="w-full justify-start gap-3 h-12 min-w-0"
                           onClick={() => setExpandCityExpanded(!expandCityExpanded)}
                         >
-                          <span className="flex-1 text-left font-medium">{m((CATEGORY_LABELS['EXPAND_CITY']) as Parameters<typeof m>[0])}</span>
+                          <span className="flex-1 min-w-0 text-left font-medium truncate">{m((CATEGORY_LABELS['EXPAND_CITY']) as Parameters<typeof m>[0])}</span>
                           <svg
                             className={`w-4 h-4 transition-transform ${expandCityExpanded ? 'rotate-180' : ''}`}
                             viewBox="0 0 24 24"
@@ -599,17 +599,17 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                           <div className="pl-4 py-1 space-y-0.5">
                             <Button
                               variant="ghost"
-                              className="w-full justify-start gap-3 h-11"
+                              className="w-full justify-start gap-3 h-11 min-w-0"
                               onClick={() => { expandCity(); setShowMenu(false); }}
                             >
-                              <span className="flex-1 text-left">{m(TOOL_INFO['expand_city'].name)}</span>
+                              <span className="flex-1 min-w-0 text-left truncate">{m(TOOL_INFO['expand_city'].name)}</span>
                             </Button>
                             <Button
                               variant="ghost"
-                              className="w-full justify-start gap-3 h-11"
+                              className="w-full justify-start gap-3 h-11 min-w-0"
                               onClick={() => { shrinkCity(); setShowMenu(false); }}
                             >
-                              <span className="flex-1 text-left">{m(TOOL_INFO['shrink_city'].name)}</span>
+                              <span className="flex-1 min-w-0 text-left truncate">{m(TOOL_INFO['shrink_city'].name)}</span>
                             </Button>
                           </div>
                         )}
@@ -618,10 +618,10 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
 
                     <Button
                       variant={expandedCategory === category ? 'secondary' : 'ghost'}
-                      className="w-full justify-start gap-3 h-12"
+                      className="w-full justify-start gap-3 h-12 min-w-0"
                       onClick={() => handleCategoryClick(category)}
                     >
-                      <span className="flex-1 text-left font-medium">{m((CATEGORY_LABELS[category] || category) as Parameters<typeof m>[0])}</span>
+                      <span className="flex-1 min-w-0 text-left font-medium truncate">{m((CATEGORY_LABELS[category] || category) as Parameters<typeof m>[0])}</span>
                       <svg
                         className={`w-4 h-4 transition-transform ${expandedCategory === category ? 'rotate-180' : ''}`}
                         viewBox="0 0 24 24"
@@ -645,13 +645,13 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                             <Button
                               key={tool}
                               variant={selectedTool === tool ? 'default' : 'ghost'}
-                              className="w-full justify-start gap-3 h-11"
+                              className="w-full justify-start gap-3 h-11 min-w-0"
                               disabled={!canAfford && info.cost > 0}
                               onClick={() => handleToolSelect(tool, true)}
                             >
-                              <span className="flex-1 text-left">{m(info.name)}</span>
+                              <span className="flex-1 min-w-0 text-left truncate">{m(info.name)}</span>
                               {info.cost > 0 && (
-                                <span className={`text-xs font-mono ${canAfford ? 'text-green-400' : 'text-red-400'}`}>
+                                <span className={`text-xs font-mono shrink-0 whitespace-nowrap ${canAfford ? 'text-green-400' : 'text-red-400'}`}>
                                   ${info.cost}
                                 </span>
                               )}

@@ -335,3 +335,96 @@ private struct OverlayPickerSheet: View {
     }
 }
 
+#Preview("HUD - Compact") {
+    let model = GameHostModel()
+    model.isReady = true
+    model.cityName = "Aurora Bay"
+    model.year = 2042
+    model.month = 9
+    model.population = 184_500
+    model.money = 2_450_000
+    model.income = 325_000
+    model.expenses = 214_000
+    model.speed = 2
+    model.selectedTool = "road"
+    model.overlayMode = "power"
+    model.selectedTile = GameHostModel.TileSelection(x: 12, y: 8)
+
+    let store = WebViewStore()
+    UserDefaults.standard.set("category", forKey: "isocity.host.toolbarMode")
+    UserDefaults.standard.set("compact", forKey: "isocity.host.hudDensity")
+
+    return NativeHUDView(model: model, webViewStore: store)
+        .frame(width: 390, height: 844)
+        .background(Color(.systemBackground))
+}
+
+#Preview("HUD - Full / Quick") {
+    let model = GameHostModel()
+    model.isReady = true
+    model.cityName = "Glassport"
+    model.year = 2081
+    model.month = 3
+    model.population = 2_420_000
+    model.money = 18_750_000
+    model.income = 1_420_000
+    model.expenses = 1_610_000
+    model.speed = 3
+    model.selectedTool = "zone_residential"
+    model.overlayMode = "water"
+
+    let store = WebViewStore()
+    UserDefaults.standard.set("quick", forKey: "isocity.host.toolbarMode")
+    UserDefaults.standard.set("full", forKey: "isocity.host.hudDensity")
+
+    return NativeHUDView(model: model, webViewStore: store)
+        .frame(width: 390, height: 844)
+        .background(Color(.systemBackground))
+}
+
+#Preview("HUD - Compact") {
+    let model = GameHostModel()
+    model.isReady = true
+    model.cityName = "Aurora Bay"
+    model.year = 2042
+    model.month = 9
+    model.population = 184_500
+    model.money = 2_450_000
+    model.income = 325_000
+    model.expenses = 214_000
+    model.speed = 2
+    model.selectedTool = "road"
+    model.overlayMode = "power"
+    model.selectedTile = GameHostModel.TileSelection(x: 12, y: 8)
+
+    let store = WebViewStore()
+    UserDefaults.standard.set("category", forKey: "isocity.host.toolbarMode")
+    UserDefaults.standard.set("compact", forKey: "isocity.host.hudDensity")
+
+    return NativeHUDView(model: model, webViewStore: store)
+        .frame(width: 390, height: 844)
+        .background(Color(.systemBackground))
+}
+
+#Preview("HUD - Full / Quick") {
+    let model = GameHostModel()
+    model.isReady = true
+    model.cityName = "Glassport"
+    model.year = 2081
+    model.month = 3
+    model.population = 2_420_000
+    model.money = 18_750_000
+    model.income = 1_420_000
+    model.expenses = 1_610_000
+    model.speed = 3
+    model.selectedTool = "zone_residential"
+    model.overlayMode = "water"
+
+    let store = WebViewStore()
+    UserDefaults.standard.set("quick", forKey: "isocity.host.toolbarMode")
+    UserDefaults.standard.set("full", forKey: "isocity.host.hudDensity")
+
+    return NativeHUDView(model: model, webViewStore: store)
+        .frame(width: 390, height: 844)
+        .background(Color(.systemBackground))
+}

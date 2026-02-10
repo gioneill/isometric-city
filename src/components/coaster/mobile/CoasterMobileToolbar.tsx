@@ -476,7 +476,7 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-full text-xs"
+                  className="h-10 w-full text-xs truncate"
                   onClick={() => { onOpenPanel('finances'); setShowMenu(false); }}
                 >
                   Finances
@@ -484,7 +484,7 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-full text-xs"
+                  className="h-10 w-full text-xs truncate"
                   onClick={() => { onOpenPanel('settings'); setShowMenu(false); }}
                 >
                   Settings
@@ -499,10 +499,10 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
                   <div key={category.key}>
                     <Button
                       variant={expandedCategory === category.key ? 'secondary' : 'ghost'}
-                      className="w-full justify-start gap-3 h-12"
+                      className="w-full justify-start gap-3 h-12 min-w-0"
                       onClick={() => handleCategoryClick(category.key)}
                     >
-                      <span className="flex-1 text-left font-medium">{category.label}</span>
+                      <span className="flex-1 min-w-0 text-left font-medium truncate">{category.label}</span>
                       <svg
                         className={`w-4 h-4 transition-transform ${expandedCategory === category.key ? 'rotate-180' : ''}`}
                         viewBox="0 0 24 24"
@@ -526,13 +526,13 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
                             <Button
                               key={tool}
                               variant={selectedTool === tool ? 'default' : 'ghost'}
-                              className="w-full justify-start gap-3 h-11"
+                              className="w-full justify-start gap-3 h-11 min-w-0"
                               disabled={!canAfford && info.cost > 0}
                               onClick={() => handleToolSelect(tool, true)}
                             >
-                              <span className="flex-1 text-left">{info.name}</span>
+                              <span className="flex-1 min-w-0 text-left truncate">{info.name}</span>
                               {info.cost > 0 && (
-                                <span className={`text-xs font-mono ${canAfford ? 'text-green-400' : 'text-red-400'}`}>
+                                <span className={`text-xs font-mono shrink-0 whitespace-nowrap ${canAfford ? 'text-green-400' : 'text-red-400'}`}>
                                   ${info.cost}
                                 </span>
                               )}

@@ -1,0 +1,6 @@
+:HL["/_next/static/media/13971731025ec697-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/_next/static/media/eaead17c7dbfcd5d-s.p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+:HL["/_next/static/css/78e41f4f86438f85.css","style"]
+:HL["/assets/sprites_red_water_new.webp","image",{"type":"image/webp"}]
+:HL["/assets/water.webp","image",{"type":"image/webp"}]
+0:{"buildId":"GM46zf0VDsRZRl5E7ocD4","tree":{"name":"","paramType":null,"paramKey":"","hasRuntimePrefetch":false,"slots":{"children":{"name":"_not-found","paramType":null,"paramKey":"_not-found","hasRuntimePrefetch":false,"slots":{"children":{"name":"__PAGE__","paramType":null,"paramKey":"__PAGE__","hasRuntimePrefetch":false,"slots":null,"isRootLayout":false}},"isRootLayout":false}},"isRootLayout":true},"staleTime":300}
