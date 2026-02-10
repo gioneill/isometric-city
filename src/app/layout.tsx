@@ -1,9 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Playfair_Display, DM_Sans } from 'next/font/google';
-import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
-import { getLocale } from "gt-next/server";
-import { GTProvider } from "gt-next";
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
@@ -65,8 +62,13 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: {children: React.ReactNode;}) {
+  const isIosBundle = process.env.ISOCITY_IOS_BUNDLE === '1';
+  const lang = isIosBundle ? 'en' : (await (await import('gt-next/server')).getLocale());
+  const Analytics = isIosBundle ? null : (await import('@vercel/analytics/next')).Analytics;
+  const GTProvider = (await import('gt-next')).GTProvider;
+
   return (
-  <html className={`dark ${playfair.variable} ${dmSans.variable}`} lang={await getLocale()}>
+  <html className={`dark ${playfair.variable} ${dmSans.variable}`} lang={lang}>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/assets/buildings/residential.png" />
@@ -84,7 +86,12 @@ export default async function RootLayout({ children }: {children: React.ReactNod
         type="image/webp" />
 
       </head>
-      <body className="bg-background text-foreground antialiased font-sans overflow-hidden"><GTProvider>{children}<Analytics /></GTProvider></body>
+      <body className="bg-background text-foreground antialiased font-sans overflow-hidden">
+        <GTProvider locale={isIosBundle ? 'en' : undefined} region={isIosBundle ? 'US' : undefined}>
+          {children}
+          {Analytics ? <Analytics /> : null}
+        </GTProvider>
+      </body>
     </html>
   );
 }
