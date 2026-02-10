@@ -8,6 +8,7 @@ import Game from '@/components/Game';
 import { CoopModal } from '@/components/multiplayer/CoopModal';
 import { useMobile } from '@/hooks/useMobile';
 import { getSpritePack, getSpriteCoords, DEFAULT_SPRITE_PACK_ID } from '@/lib/renderConfig';
+import { useNativeHostConfig } from '@/lib/nativeBridge';
 import { SavedCityMeta, GameState } from '@/types/game';
 import { decompressFromUTF16, compressToUTF16 } from 'lz-string';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
@@ -317,6 +318,8 @@ function SavedCityCard({ city, onLoad, onDelete }: { city: SavedCityMeta; onLoad
 const SAVED_CITY_PREFIX = 'isocity-city-';
 
 export default function HomePage() {
+  const nativeHost = useNativeHostConfig();
+  const multiplayerEnabled = nativeHost.host !== 'ios';
   const [showGame, setShowGame] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [savedCities, setSavedCities] = useState<SavedCityMeta[]>([]);
@@ -458,21 +461,21 @@ export default function HomePage() {
       </main>
     );
 
-    // Always wrap in MultiplayerContextProvider so players can invite others from within the game
+    if (!multiplayerEnabled) {
+      return <GameProvider startFresh={startFreshGame}>{gameContent}</GameProvider>;
+    }
+
     return (
       <MultiplayerContextProvider>
-        <GameProvider startFresh={startFreshGame}>
-          {gameContent}
-        </GameProvider>
+        <GameProvider startFresh={startFreshGame}>{gameContent}</GameProvider>
       </MultiplayerContextProvider>
     );
   }
 
   // Mobile landing page
   if (isMobile) {
-    return (
-      <MultiplayerContextProvider>
-        <main className="h-[100dvh] max-h-[100dvh] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto">
+    const content = (
+      <main className="h-[100dvh] max-h-[100dvh] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto">
           {/* Spacer to push content down slightly from top */}
           <div className="flex-shrink-0 h-4 sm:h-8" />
           
@@ -489,19 +492,24 @@ export default function HomePage() {
           {/* Buttons - more compact */}
           <div className="flex flex-col gap-2 sm:gap-3 w-full max-w-xs flex-shrink-0">
             <Button 
-              onClick={() => setShowGame(true)}
+              onClick={() => {
+                console.info('[iso] landing new-game click (mobile)');
+                setShowGame(true);
+              }}
               className="w-full py-4 sm:py-6 text-lg sm:text-xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
             >
               {hasSaved ? <T>Continue</T> : <T>New Game</T>}
             </Button>
 
-            <Button
-              onClick={() => setShowCoopModal(true)}
-              variant="outline"
-              className="w-full py-4 sm:py-6 text-lg sm:text-xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
-            >
-              <T>Co-op</T>
-            </Button>
+            {multiplayerEnabled ? (
+              <Button
+                onClick={() => setShowCoopModal(true)}
+                variant="outline"
+                className="w-full py-4 sm:py-6 text-lg sm:text-xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
+              >
+                <T>Co-op</T>
+              </Button>
+            ) : null}
 
             <Button
               onClick={async () => {
@@ -574,21 +582,23 @@ export default function HomePage() {
           <div className="flex-shrink-0 h-2" />
           
           {/* Co-op Modal */}
-          <CoopModal
-            open={showCoopModal}
-            onOpenChange={setShowCoopModal}
-            onStartGame={handleCoopStart}
-            pendingRoomCode={pendingRoomCode}
-          />
+          {multiplayerEnabled ? (
+            <CoopModal
+              open={showCoopModal}
+              onOpenChange={setShowCoopModal}
+              onStartGame={handleCoopStart}
+              pendingRoomCode={pendingRoomCode}
+            />
+          ) : null}
         </main>
-      </MultiplayerContextProvider>
     );
+
+    return multiplayerEnabled ? <MultiplayerContextProvider>{content}</MultiplayerContextProvider> : content;
   }
 
   // Desktop landing page
-  return (
-    <MultiplayerContextProvider>
-      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8">
+  const desktopContent = (
+    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8">
         <div className="max-w-7xl w-full grid lg:grid-cols-2 gap-16 items-center">
           
           {/* Left - Title and Start Button */}
@@ -598,18 +608,23 @@ export default function HomePage() {
             </h1>
             <div className="flex flex-col gap-3">
               <Button 
-                onClick={() => setShowGame(true)}
+                onClick={() => {
+                  console.info('[iso] landing new-game click (desktop)');
+                  setShowGame(true);
+                }}
                 className="w-64 py-8 text-2xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
               >
                 {hasSaved ? <T>Continue</T> : <T>New Game</T>}
               </Button>
-              <Button
-                onClick={() => setShowCoopModal(true)}
-                variant="outline"
-                className="w-64 py-8 text-2xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
-              >
-                <T>Co-op</T>
-              </Button>
+              {multiplayerEnabled ? (
+                <Button
+                  onClick={() => setShowCoopModal(true)}
+                  variant="outline"
+                  className="w-64 py-8 text-2xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
+                >
+                  <T>Co-op</T>
+                </Button>
+              ) : null}
               <Button
                 onClick={async () => {
                   // Clear any room code from URL to prevent multiplayer conflicts
@@ -685,13 +700,16 @@ export default function HomePage() {
         </div>
         
         {/* Co-op Modal */}
-        <CoopModal
-          open={showCoopModal}
-          onOpenChange={setShowCoopModal}
-          onStartGame={handleCoopStart}
-          pendingRoomCode={pendingRoomCode}
-        />
+        {multiplayerEnabled ? (
+          <CoopModal
+            open={showCoopModal}
+            onOpenChange={setShowCoopModal}
+            onStartGame={handleCoopStart}
+            pendingRoomCode={pendingRoomCode}
+          />
+        ) : null}
       </main>
-    </MultiplayerContextProvider>
   );
+
+  return multiplayerEnabled ? <MultiplayerContextProvider>{desktopContent}</MultiplayerContextProvider> : desktopContent;
 }
