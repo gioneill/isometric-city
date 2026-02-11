@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useGame } from '@/context/GameContext';
-import { TOOL_INFO, Tool } from '@/types/game';
+import { Budget, GameState, Tool, TOOL_INFO } from '@/types/game';
 import { useMobile } from '@/hooks/useMobile';
 import { MobileToolbar } from '@/components/mobile/MobileToolbar';
 import { MobileTopBar } from '@/components/mobile/MobileTopBar';
@@ -43,6 +43,104 @@ const CARGO_TYPE_NAMES = [msg('containers'), msg('bulk materials'), msg('oil')];
 
 const OVERLAY_MODES: OverlayMode[] = ['none', 'power', 'water', 'fire', 'police', 'health', 'education', 'subway'];
 
+type PanelType = 'budget' | 'statistics' | 'advisors';
+
+const BUDGET_KEYS: readonly (keyof Budget)[] = [
+  'police',
+  'fire',
+  'health',
+  'education',
+  'transportation',
+  'parks',
+  'power',
+  'water',
+];
+
+const BUDGET_KEY_SET = new Set<string>(BUDGET_KEYS as readonly string[]);
+
+function isBudgetKey(value: unknown): value is keyof Budget {
+  return typeof value === 'string' && BUDGET_KEY_SET.has(value);
+}
+
+function buildBudgetPanelData(state: GameState) {
+  const categories = BUDGET_KEYS.map((key) => {
+    const entry = state.budget[key];
+    return {
+      key,
+      name: entry.name,
+      funding: entry.funding,
+      cost: entry.cost,
+    };
+  });
+
+  return {
+    stats: {
+      population: state.stats.population,
+      jobs: state.stats.jobs,
+      money: state.stats.money,
+      income: state.stats.income,
+      expenses: state.stats.expenses,
+    },
+    categories,
+  };
+}
+
+function buildStatisticsPanelData(state: GameState) {
+  return {
+    stats: {
+      population: state.stats.population,
+      jobs: state.stats.jobs,
+      money: state.stats.money,
+      income: state.stats.income,
+      expenses: state.stats.expenses,
+      happiness: state.stats.happiness,
+    },
+    history: state.history,
+  };
+}
+
+function buildAdvisorsPanelData(state: GameState) {
+  return {
+    stats: {
+      happiness: state.stats.happiness,
+      health: state.stats.health,
+      education: state.stats.education,
+      safety: state.stats.safety,
+      environment: state.stats.environment,
+    },
+    advisorMessages: state.advisorMessages,
+  };
+}
+
+function buildPanelData(panel: PanelType, state: GameState) {
+  switch (panel) {
+    case 'budget':
+      return buildBudgetPanelData(state);
+    case 'statistics':
+      return buildStatisticsPanelData(state);
+    case 'advisors':
+      return buildAdvisorsPanelData(state);
+    default:
+      return null;
+  }
+}
+
+function sendPanelData(panel: PanelType, ref: React.RefObject<GameState>) {
+  const nextState = ref.current;
+  if (!nextState) {
+    return;
+  }
+  const data = buildPanelData(panel, nextState);
+  if (!data) {
+    return;
+  }
+
+  postToNative({
+    type: 'panel.data',
+    payload: { panel, data },
+  });
+}
+
 function isOverlayMode(value: unknown): value is OverlayMode {
   return typeof value === 'string' && OVERLAY_MODES.includes(value as OverlayMode);
 }
@@ -54,7 +152,7 @@ function isTool(value: unknown): value is Tool {
 export default function Game({ onExit }: { onExit?: () => void }) {
   const gt = useGT();
   const m = useMessages();
-  const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
+  const { state, latestStateRef, setTool, setActivePanel, addMoney, addNotification, setSpeed, setBudgetFunding } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<{ x: number; y: number } | null>(null);
@@ -221,6 +319,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
           education: state.stats.education,
           safety: state.stats.safety,
           environment: state.stats.environment,
+          jobs: state.stats.jobs,
           demand: state.stats.demand,
         },
         selectedTile,
@@ -245,6 +344,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
     state.stats.education,
     state.stats.safety,
     state.stats.environment,
+    state.stats.jobs,
     state.stats.demand,
     selectedTile,
     overlayMode,
@@ -295,6 +395,22 @@ export default function Game({ onExit }: { onExit?: () => void }) {
           }
           break;
         }
+        case 'panel.data.request': {
+          const panel = payload?.panel;
+          if (panel === 'budget' || panel === 'statistics' || panel === 'advisors') {
+            sendPanelData(panel, latestStateRef);
+          }
+          break;
+        }
+        case 'budget.setFunding': {
+          const key = payload?.key;
+          const funding = payload?.funding;
+          if (isBudgetKey(key) && typeof funding === 'number') {
+            setBudgetFunding(key, funding);
+            sendPanelData('budget', latestStateRef);
+          }
+          break;
+        }
         case 'overlay.set': {
           const mode = payload?.mode;
           if (isOverlayMode(mode)) {
@@ -321,7 +437,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
           break;
       }
     });
-  }, [setTool, setSpeed, setActivePanel, setOverlayMode, state.gridSize]);
+  }, [latestStateRef, setBudgetFunding, setTool, setSpeed, setActivePanel, setOverlayMode, state.gridSize]);
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

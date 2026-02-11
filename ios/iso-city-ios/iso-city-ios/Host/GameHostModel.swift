@@ -31,12 +31,162 @@ final class GameHostModel {
     var money = 0
     var income = 0
     var expenses = 0
+    var jobs = 0
     var speed = 1
     var selectedTool = "select"
     var activePanel = "none"
     var overlayMode = "none"
     var selectedTile: TileSelection?
     var camera = CameraState()
+
+    struct BudgetPanelData {
+        struct Stats {
+            var population: Int
+            var jobs: Int
+            var money: Int
+            var income: Int
+            var expenses: Int
+        }
+
+        struct Category: Identifiable, Equatable {
+            var id: String { key }
+            var key: String
+            var name: String
+            var funding: Int
+            var cost: Int
+        }
+
+        var stats: Stats
+        var categories: [Category]
+
+        init?(from map: [String: Any]) {
+            guard let statsMap = map["stats"] as? [String: Any] else {
+                return nil
+            }
+            guard let population = statsMap["population"] as? Int,
+                  let jobs = statsMap["jobs"] as? Int,
+                  let money = statsMap["money"] as? Int,
+                  let income = statsMap["income"] as? Int,
+                  let expenses = statsMap["expenses"] as? Int else {
+                return nil
+            }
+
+            self.stats = Stats(population: population, jobs: jobs, money: money, income: income, expenses: expenses)
+
+            let rawCategories = map["categories"] as? [[String: Any]] ?? []
+            self.categories = rawCategories.compactMap { raw in
+                guard let key = raw["key"] as? String,
+                      let name = raw["name"] as? String,
+                      let funding = raw["funding"] as? Int,
+                      let cost = raw["cost"] as? Int else {
+                    return nil
+                }
+                return Category(key: key, name: name, funding: funding, cost: cost)
+            }
+        }
+    }
+
+    struct StatisticsPanelData {
+        struct Stats {
+            var population: Int
+            var jobs: Int
+            var money: Int
+            var income: Int
+            var expenses: Int
+            var happiness: Int
+        }
+
+        struct HistoryPoint: Identifiable, Equatable {
+            var id: String { "\(year)-\(month)" }
+            var year: Int
+            var month: Int
+            var population: Int
+            var money: Int
+            var happiness: Int
+        }
+
+        var stats: Stats
+        var history: [HistoryPoint]
+
+        init?(from map: [String: Any]) {
+            guard let statsMap = map["stats"] as? [String: Any] else {
+                return nil
+            }
+            guard let population = statsMap["population"] as? Int,
+                  let jobs = statsMap["jobs"] as? Int,
+                  let money = statsMap["money"] as? Int,
+                  let income = statsMap["income"] as? Int,
+                  let expenses = statsMap["expenses"] as? Int,
+                  let happiness = statsMap["happiness"] as? Int else {
+                return nil
+            }
+
+            self.stats = Stats(population: population, jobs: jobs, money: money, income: income, expenses: expenses, happiness: happiness)
+
+            let rawHistory = map["history"] as? [[String: Any]] ?? []
+            self.history = rawHistory.compactMap { raw in
+                guard let year = raw["year"] as? Int,
+                      let month = raw["month"] as? Int,
+                      let population = raw["population"] as? Int,
+                      let money = raw["money"] as? Int,
+                      let happiness = raw["happiness"] as? Int else {
+                    return nil
+                }
+                return HistoryPoint(year: year, month: month, population: population, money: money, happiness: happiness)
+            }
+        }
+    }
+
+    struct AdvisorsPanelData {
+        struct Stats {
+            var happiness: Int
+            var health: Int
+            var education: Int
+            var safety: Int
+            var environment: Int
+        }
+
+        struct Message: Identifiable, Equatable {
+            var id: String { name + priority }
+            var name: String
+            var icon: String
+            var messages: [String]
+            var priority: String
+        }
+
+        var stats: Stats
+        var advisorMessages: [Message]
+
+        init?(from map: [String: Any]) {
+            guard let statsMap = map["stats"] as? [String: Any] else {
+                return nil
+            }
+            guard let happiness = statsMap["happiness"] as? Int,
+                  let health = statsMap["health"] as? Int,
+                  let education = statsMap["education"] as? Int,
+                  let safety = statsMap["safety"] as? Int,
+                  let environment = statsMap["environment"] as? Int else {
+                return nil
+            }
+
+            self.stats = Stats(happiness: happiness, health: health, education: education, safety: safety, environment: environment)
+
+            let rawMessages = map["advisorMessages"] as? [[String: Any]] ?? []
+            self.advisorMessages = rawMessages.compactMap { raw in
+                guard let name = raw["name"] as? String,
+                      let icon = raw["icon"] as? String,
+                      let priority = raw["priority"] as? String,
+                      let messages = raw["messages"] as? [String] else {
+                    return nil
+                }
+                return Message(name: name, icon: icon, messages: messages, priority: priority)
+            }
+        }
+    }
+
+    var budgetPanelData: BudgetPanelData?
+    var statisticsPanelData: StatisticsPanelData?
+    var advisorsPanelData: AdvisorsPanelData?
 
     private let selectionFeedback = UIImpactFeedbackGenerator(style: .light)
     private let toolFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -60,6 +210,8 @@ final class GameHostModel {
                     self.appendDebugLine("bridge host.state")
                 }
                 self.applyHostState(payload)
+            case "panel.data":
+                self.applyPanelData(payload)
             case "camera.changed":
                 self.applyCamera(payload)
             case "event.selectionChanged":
@@ -139,6 +291,7 @@ final class GameHostModel {
             money = intValue(stats["money"], fallback: money)
             income = intValue(stats["income"], fallback: income)
             expenses = intValue(stats["expenses"], fallback: expenses)
+            jobs = intValue(stats["jobs"], fallback: jobs)
         }
 
         if let tile = map["selectedTile"] as? [String: Any] {
@@ -172,6 +325,25 @@ final class GameHostModel {
     private func applyTool(_ payload: Any?) {
         guard let map = payload as? [String: Any] else { return }
         selectedTool = stringValue(map["tool"], fallback: selectedTool)
+    }
+
+    private func applyPanelData(_ payload: Any?) {
+        guard let map = payload as? [String: Any],
+              let panel = map["panel"] as? String,
+              let data = map["data"] as? [String: Any] else {
+            return
+        }
+
+        switch panel {
+        case "budget":
+            budgetPanelData = BudgetPanelData(from: data)
+        case "statistics":
+            statisticsPanelData = StatisticsPanelData(from: data)
+        case "advisors":
+            advisorsPanelData = AdvisorsPanelData(from: data)
+        default:
+            break
+        }
     }
 
     private func applyConsoleDebug(_ payload: Any?) {

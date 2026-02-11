@@ -840,20 +840,36 @@ export function GameProvider({ children, startFresh = false }: { children: React
   }, [state.speed]);
 
   const setTool = useCallback((tool: Tool) => {
-    setState((prev) => ({ ...prev, selectedTool: tool, activePanel: 'none' }));
+    setState((prev) => {
+      const next = { ...prev, selectedTool: tool, activePanel: 'none' };
+      latestStateRef.current = next;
+      return next;
+    });
   }, []);
 
   const setSpeed = useCallback((speed: 0 | 1 | 2 | 3) => {
-    setState((prev) => ({ ...prev, speed }));
+    setState((prev) => {
+      const next = { ...prev, speed };
+      latestStateRef.current = next;
+      return next;
+    });
   }, []);
 
   const setTaxRate = useCallback((rate: number) => {
-    setState((prev) => ({ ...prev, taxRate: clamp(rate, 0, 100) }));
+    setState((prev) => {
+      const next = { ...prev, taxRate: clamp(rate, 0, 100) };
+      latestStateRef.current = next;
+      return next;
+    });
   }, []);
 
   const setActivePanel = useCallback(
     (panel: GameState['activePanel']) => {
-      setState((prev) => ({ ...prev, activePanel: panel }));
+      setState((prev) => {
+        const next = { ...prev, activePanel: panel };
+        latestStateRef.current = next;
+        return next;
+      });
     },
     [],
   );
@@ -861,13 +877,15 @@ export function GameProvider({ children, startFresh = false }: { children: React
   const setBudgetFunding = useCallback(
     (key: keyof Budget, funding: number) => {
       const clamped = clamp(funding, 0, 100);
-      setState((prev) => ({
-        ...prev,
-        budget: {
+      setState((prev) => {
+        const nextBudget = {
           ...prev.budget,
           [key]: { ...prev.budget[key], funding: clamped },
-        },
-      }));
+        };
+        const next = { ...prev, budget: nextBudget };
+        latestStateRef.current = next;
+        return next;
+      });
     },
     [],
   );

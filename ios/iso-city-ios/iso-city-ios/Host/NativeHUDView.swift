@@ -7,7 +7,7 @@ private struct ToolCategory: Identifiable {
 }
 
 private let allToolCategories: [ToolCategory] = [
-    ToolCategory(id: "tools", title: "Tools", tools: ["select", "bulldoze", "road", "rail", "subway"]),
+    ToolCategory(id: "tools", title: "Tools", tools: ["bulldoze", "road", "rail", "subway"]),
     ToolCategory(id: "zones", title: "Zones", tools: ["zone_residential", "zone_commercial", "zone_industrial", "zone_dezone", "zone_water", "zone_land"]),
     ToolCategory(id: "utilities", title: "Utilities", tools: ["power_plant", "water_tower", "subway_station", "rail_station"]),
     ToolCategory(id: "services", title: "Services", tools: ["police_station", "fire_station", "hospital", "school", "university"]),
@@ -15,12 +15,21 @@ private let allToolCategories: [ToolCategory] = [
     ToolCategory(id: "special", title: "Special", tools: ["stadium", "museum", "airport", "space_program", "city_hall", "amusement_park"]),
 ]
 
+private enum PanelSheet: String, Identifiable {
+    case budget
+    case statistics
+    case advisors
+
+    var id: String { rawValue }
+}
+
 struct NativeHUDView: View {
     @Bindable var model: GameHostModel
     @Bindable var webViewStore: WebViewStore
 
     @State private var showToolSheet = false
     @State private var showOverlaySheet = false
+    @State private var activePanelSheet: PanelSheet?
 
     @AppStorage("isocity.host.toolbarMode") private var toolbarMode: String = "category"
     @AppStorage("isocity.host.hudDensity") private var hudDensity: String = "compact"
@@ -51,6 +60,16 @@ struct NativeHUDView: View {
                 }
             )
             .presentationDetents([.medium])
+        }
+        .sheet(item: $activePanelSheet) { sheet in
+            switch sheet {
+            case .budget:
+                BudgetSheetView(data: model.budgetPanelData, onFundingChange: handleBudgetFunding)
+            case .statistics:
+                StatisticsSheetView(data: model.statisticsPanelData)
+            case .advisors:
+                AdvisorsSheetView(data: model.advisorsPanelData)
+            }
         }
     }
 
@@ -89,9 +108,18 @@ struct NativeHUDView: View {
 
             if hudDensity == "full" {
                 HStack(spacing: 8) {
-                    panelButton(title: "Budget", panel: "budget")
-                    panelButton(title: "Stats", panel: "statistics")
-                    panelButton(title: "Advisors", panel: "advisors")
+                    Button("Budget") {
+                        requestPanelData(for: .budget)
+                    }
+                    .buttonStyle(CategoryButtonStyle())
+                    Button("Stats") {
+                        requestPanelData(for: .statistics)
+                    }
+                    .buttonStyle(CategoryButtonStyle())
+                    Button("Advisors") {
+                        requestPanelData(for: .advisors)
+                    }
+                    .buttonStyle(CategoryButtonStyle())
                     panelButton(title: "Settings", panel: "settings")
                 }
             }
@@ -104,7 +132,6 @@ struct NativeHUDView: View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
                 if toolbarMode == "quick" {
-                    quickToolButton("select", title: "Select")
                     quickToolButton("bulldoze", title: "Bulldoze")
                     quickToolButton("road", title: "Road")
                     quickToolButton("rail", title: "Rail")
@@ -112,7 +139,6 @@ struct NativeHUDView: View {
                     quickToolButton("zone_commercial", title: "C")
                     quickToolButton("zone_industrial", title: "I")
                 } else {
-                    quickToolButton("select", title: "Select")
                     quickToolButton("bulldoze", title: "Bulldoze")
                     Button("Tools") { showToolSheet = true }
                         .buttonStyle(CategoryButtonStyle())
@@ -138,13 +164,13 @@ struct NativeHUDView: View {
                 }
                 .buttonStyle(CategoryButtonStyle())
 
-                Button("Budget") { panelButtonTap("budget") }
+                Button("Budget") { requestPanelData(for: .budget) }
                     .buttonStyle(CategoryButtonStyle())
 
-                Button("Stats") { panelButtonTap("statistics") }
+                Button("Stats") { requestPanelData(for: .statistics) }
                     .buttonStyle(CategoryButtonStyle())
 
-                Button("Advisors") { panelButtonTap("advisors") }
+                Button("Advisors") { requestPanelData(for: .advisors) }
                     .buttonStyle(CategoryButtonStyle())
 
                 if let selectedTile = model.selectedTile {
@@ -161,7 +187,7 @@ struct NativeHUDView: View {
 
     private func quickToolButton(_ tool: String, title: String) -> some View {
         Button(title) {
-            setTool(tool)
+            toggleTool(tool)
         }
         .buttonStyle(QuickToolButtonStyle(isSelected: model.selectedTool == tool))
     }
@@ -186,6 +212,23 @@ struct NativeHUDView: View {
 
     private func setTool(_ tool: String) {
         webViewStore.dispatch(type: "tool.set", payload: ["tool": tool])
+    }
+
+    private func toggleTool(_ tool: String) {
+        if model.selectedTool == tool {
+            setTool("select")
+        } else {
+            setTool(tool)
+        }
+    }
+
+    private func requestPanelData(for sheet: PanelSheet) {
+        activePanelSheet = sheet
+        webViewStore.dispatch(type: "panel.data.request", payload: ["panel": sheet.rawValue])
+    }
+
+    private func handleBudgetFunding(key: String, funding: Int) {
+        webViewStore.dispatch(type: "budget.setFunding", payload: ["key": key, "funding": funding])
     }
 
     private var monthYearString: String {
@@ -277,6 +320,22 @@ private struct NativeToolSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("Mode") {
+                    Button {
+                        onPickTool("select")
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text("Pan / Inspect")
+                                .font(.body)
+                            Spacer()
+                            if selectedTool == "select" {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                    }
+                }
                 ForEach(allToolCategories) { category in
                     Section(category.title) {
                         ForEach(category.tools, id: \.self) { tool in
