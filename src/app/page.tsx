@@ -320,6 +320,7 @@ const SAVED_CITY_PREFIX = 'isocity-city-';
 export default function HomePage() {
   const nativeHost = useNativeHostConfig();
   const multiplayerEnabled = nativeHost.host !== 'ios';
+  const uiTesting = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('uiTesting') === '1';
   const [showGame, setShowGame] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [savedCities, setSavedCities] = useState<SavedCityMeta[]>([]);
@@ -356,6 +357,12 @@ export default function HomePage() {
   // Check for saved game and room code in URL after mount
   useEffect(() => {
     const checkSavedGame = () => {
+      if (uiTesting) {
+        setStartFreshGame(true);
+        setShowGame(true);
+        setIsChecking(false);
+        return;
+      }
       setIsChecking(false);
       setSavedCities(loadSavedCities());
       setHasSaved(hasSavedGame());
@@ -373,7 +380,7 @@ export default function HomePage() {
     };
     // Use requestAnimationFrame to avoid synchronous setState in effect
     requestAnimationFrame(checkSavedGame);
-  }, []);
+  }, [uiTesting]);
 
   // Handle exit from game - refresh saved cities list
   const handleExitGame = () => {
@@ -470,7 +477,7 @@ export default function HomePage() {
 
   if (isChecking) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center relative">
         <div className="text-white/60"><T>Loading...</T></div>
       </main>
     );
@@ -497,7 +504,7 @@ export default function HomePage() {
   // Mobile landing page
   if (isMobile) {
     const content = (
-      <main className="h-[100dvh] max-h-[100dvh] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto">
+      <main className="h-[100dvh] max-h-[100dvh] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto relative">
           {/* Spacer to push content down slightly from top */}
           <div className="flex-shrink-0 h-4 sm:h-8" />
           
@@ -620,7 +627,7 @@ export default function HomePage() {
 
   // Desktop landing page
   const desktopContent = (
-    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8">
+    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8 relative">
         <div className="max-w-7xl w-full grid lg:grid-cols-2 gap-16 items-center">
           
           {/* Left - Title and Start Button */}

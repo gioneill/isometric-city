@@ -9,33 +9,116 @@ import XCTest
 
 final class iso_city_iosUITests: XCTestCase {
 
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
-        continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    @MainActor
+    func testLaunchStartsInImplicitSelect() throws {
+        let app = launchApp()
+        waitForHUD(app)
+        assertSelectedTool(app, equals: "select")
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testPinToolShowsInHUDAndPersistsAcrossRelaunch() throws {
+        var app = launchApp()
+        waitForHUD(app)
+
+        openToolSheet(app)
+        tapPin(app, tool: "road")
+        closeToolSheet(app)
+
+        XCTAssertTrue(app.buttons["hud.pinned.road"].waitForExistence(timeout: 5))
+
+        app.terminate()
+        app = launchApp()
+        waitForHUD(app)
+        XCTAssertTrue(app.buttons["hud.pinned.road"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testPinnedToolTogglesBackToSelect() throws {
         let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting"]
         app.launch()
+        waitForHUD(app)
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        ensurePinned(app, tool: "road")
+        let roadButton = app.buttons["hud.pinned.road"]
+        XCTAssertTrue(roadButton.waitForExistence(timeout: 5))
+
+        roadButton.tap()
+        assertSelectedTool(app, equals: "road")
+
+        roadButton.tap()
+        assertSelectedTool(app, equals: "select")
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
-        measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+    func testPinnedToolsLimitAtFour() throws {
+        let app = launchApp()
+        waitForHUD(app)
+
+        openToolSheet(app)
+        tapPin(app, tool: "road")
+        tapPin(app, tool: "rail")
+        tapPin(app, tool: "bulldoze")
+        tapPin(app, tool: "zone_residential")
+
+        let fifthPin = app.buttons["toolSheet.pin.zone_commercial"]
+        XCTAssertTrue(fifthPin.waitForExistence(timeout: 5))
+        XCTAssertFalse(fifthPin.isEnabled)
+        closeToolSheet(app)
+
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'hud.pinned.'")).count, 4)
+    }
+
+    @MainActor
+    private func launchApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting"]
+        app.launch()
+        return app
+    }
+
+    @MainActor
+    private func waitForHUD(_ app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["hud.more"].waitForExistence(timeout: 25))
+    }
+
+    @MainActor
+    private func openToolSheet(_ app: XCUIApplication) {
+        app.buttons["hud.more"].tap()
+        XCTAssertTrue(app.otherElements["toolSheet"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    private func closeToolSheet(_ app: XCUIApplication) {
+        let done = app.buttons["toolSheet.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        done.tap()
+    }
+
+    @MainActor
+    private func tapPin(_ app: XCUIApplication, tool: String) {
+        let pinButton = app.buttons["toolSheet.pin.\(tool)"]
+        XCTAssertTrue(pinButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(pinButton.isEnabled)
+        pinButton.tap()
+    }
+
+    @MainActor
+    private func ensurePinned(_ app: XCUIApplication, tool: String) {
+        if app.buttons["hud.pinned.\(tool)"].exists {
+            return
         }
+        openToolSheet(app)
+        tapPin(app, tool: tool)
+        closeToolSheet(app)
+        XCTAssertTrue(app.buttons["hud.pinned.\(tool)"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    private func assertSelectedTool(_ app: XCUIApplication, equals value: String) {
+        let selectedToolProbe = app.otherElements["hud.selectedTool"]
+        XCTAssertTrue(selectedToolProbe.waitForExistence(timeout: 5))
+        XCTAssertEqual(selectedToolProbe.label, value)
     }
 }

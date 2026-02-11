@@ -6,6 +6,12 @@ struct RootGameHostView: View {
     @StateObject private var server: LocalWebServer
     @State private var reloadID = UUID()
     @State private var showDebugConsole = false
+    @State private var showPerformanceSettings = false
+    @State private var fluidPanZoomEnabled = true
+    @State private var debugButtonPosition: CGPoint?
+    @State private var debugButtonDragStartPosition: CGPoint?
+    @State private var debugButtonSize: CGSize = .zero
+    private let uiTestingEnabled = ProcessInfo.processInfo.arguments.contains("-uiTesting")
 
     init() {
         _server = StateObject(wrappedValue: LocalWebServer(rootURL: Self.bundledWebRootURL()))
@@ -31,6 +37,7 @@ struct RootGameHostView: View {
 
             overlayView
 
+            performanceSettingsButton
             debugToggle
             if showDebugConsole {
                 debugConsole
@@ -39,6 +46,10 @@ struct RootGameHostView: View {
         .background(Color.black)
         .onAppear {
             server.startIfNeeded()
+            syncPerfModeFromWebView()
+        }
+        .sheet(isPresented: $showPerformanceSettings) {
+            performanceSettingsSheet
         }
     }
 
@@ -52,7 +63,7 @@ struct RootGameHostView: View {
         }
 
         let url = server.baseURL.appendingPathComponent("index.html")
-        return GameLoadConfiguration(gameURL: url, gestureMode: "web")
+        return GameLoadConfiguration(gameURL: url, gestureMode: "web", uiTesting: uiTestingEnabled)
     }
 
     private var webBundlePresent: Bool {
@@ -159,19 +170,155 @@ struct RootGameHostView: View {
     }
 
     private var debugToggle: some View {
+        GeometryReader { proxy in
+            Button(debugButtonTitle) {
+                showDebugConsole.toggle()
+            }
+            .font(.caption.weight(.semibold))
+            .monospacedDigit()
+            .buttonStyle(.borderedProminent)
+            .background {
+                GeometryReader { buttonProxy in
+                    Color.clear
+                        .onAppear {
+                            debugButtonSize = buttonProxy.size
+                        }
+                        .onChange(of: buttonProxy.size) { _, newSize in
+                            debugButtonSize = newSize
+                        }
+                }
+            }
+            .position(resolvedDebugButtonPosition(in: proxy.size))
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        let start = debugButtonDragStartPosition ?? resolvedDebugButtonPosition(in: proxy.size)
+                        if debugButtonDragStartPosition == nil {
+                            debugButtonDragStartPosition = start
+                        }
+                        let newPosition = CGPoint(
+                            x: start.x + value.translation.width,
+                            y: start.y + value.translation.height
+                        )
+                        debugButtonPosition = clampedDebugButtonPosition(newPosition, in: proxy.size)
+                    }
+                    .onEnded { _ in
+                        debugButtonDragStartPosition = nil
+                    }
+            )
+        }
+        .ignoresSafeArea()
+    }
+
+    private var debugButtonTitle: String {
+        guard let fps = model.perfFPS else { return "--" }
+        return "\(fps)"
+    }
+
+    private func resolvedDebugButtonPosition(in containerSize: CGSize) -> CGPoint {
+        if let debugButtonPosition {
+            return clampedDebugButtonPosition(debugButtonPosition, in: containerSize)
+        }
+        let defaultX = containerSize.width - (debugButtonSize.width / 2) - 12
+        let defaultY = containerSize.height - (debugButtonSize.height / 2) - 12
+        return clampedDebugButtonPosition(CGPoint(x: defaultX, y: defaultY), in: containerSize)
+    }
+
+    private func clampedDebugButtonPosition(_ position: CGPoint, in containerSize: CGSize) -> CGPoint {
+        let halfWidth = max(debugButtonSize.width / 2, 1)
+        let halfHeight = max(debugButtonSize.height / 2, 1)
+        let minX = halfWidth
+        let maxX = max(halfWidth, containerSize.width - halfWidth)
+        let minY = halfHeight
+        let maxY = max(halfHeight, containerSize.height - halfHeight)
+        return CGPoint(
+            x: min(max(position.x, minX), maxX),
+            y: min(max(position.y, minY), maxY)
+        )
+    }
+
+    private var performanceSettingsButton: some View {
         VStack {
             HStack {
-                Spacer()
-                Button(showDebugConsole ? "Hide Debug" : "Show Debug") {
-                    showDebugConsole.toggle()
+                if !model.isInGame {
+                    Button {
+                        performanceSettingsButtonTapped()
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.top, 12)
                 }
-                .font(.caption.weight(.semibold))
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 12)
-                .padding(.trailing, 12)
+                Spacer()
             }
             Spacer()
         }
+    }
+
+    private var performanceSettingsSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Performance") {
+                    Toggle("Fluid pan/zoom", isOn: $fluidPanZoomEnabled)
+                        .onChange(of: fluidPanZoomEnabled) { _, newValue in
+                            fluidPanZoomToggled(newValue)
+                        }
+                }
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        showPerformanceSettings = false
+                    }
+                }
+            }
+            .onAppear {
+                syncPerfModeFromWebView()
+            }
+        }
+    }
+
+    private func performanceSettingsButtonTapped() {
+        showPerformanceSettings = true
+    }
+
+    private func fluidPanZoomToggled(_ enabled: Bool) {
+        setPerfModeInWebView(enabled: enabled)
+    }
+
+    private func syncPerfModeFromWebView() {
+        let script = """
+        (() => {
+          try {
+            const raw = localStorage.getItem("isocity-perf-mode");
+            if (raw === null) return true;
+            return raw === "true";
+          } catch (_) {
+            return true;
+          }
+        })();
+        """
+
+        webViewStore.evaluate(script) { value in
+            let enabled = (value as? Bool) ?? true
+            DispatchQueue.main.async {
+                self.fluidPanZoomEnabled = enabled
+            }
+        }
+    }
+
+    private func setPerfModeInWebView(enabled: Bool) {
+        let value = enabled ? "true" : "false"
+        let script = """
+        (() => {
+          try { localStorage.setItem("isocity-perf-mode", "\(value)"); } catch (_) {}
+          try { window.dispatchEvent(new CustomEvent("isocity-perf-mode-change", { detail: \(value) })); } catch (_) {}
+        })();
+        """
+        webViewStore.evaluate(script)
     }
 
     private var debugConsole: some View {

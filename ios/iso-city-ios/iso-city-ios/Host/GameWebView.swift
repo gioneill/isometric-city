@@ -5,6 +5,7 @@ import WebKit
 struct GameLoadConfiguration: Equatable {
     var gameURL: URL
     var gestureMode: String = "web"
+    var uiTesting: Bool = false
 
     func resolvedURL() -> URL {
         guard var components = URLComponents(url: gameURL, resolvingAgainstBaseURL: false) else {
@@ -12,9 +13,12 @@ struct GameLoadConfiguration: Equatable {
         }
 
         var queryItems = components.queryItems ?? []
-        queryItems.removeAll { $0.name == "host" || $0.name == "gesture" }
+        queryItems.removeAll { $0.name == "host" || $0.name == "gesture" || $0.name == "uiTesting" }
         queryItems.append(URLQueryItem(name: "host", value: "ios"))
         queryItems.append(URLQueryItem(name: "gesture", value: gestureMode))
+        if uiTesting {
+            queryItems.append(URLQueryItem(name: "uiTesting", value: "1"))
+        }
         components.queryItems = queryItems
         return components.url ?? gameURL
     }
@@ -41,7 +45,7 @@ struct GameWebView: UIViewRepresentable {
         webConfiguration.userContentController = contentController
         webConfiguration.defaultWebpagePreferences = preferences
         webConfiguration.allowsInlineMediaPlayback = true
-        webConfiguration.websiteDataStore = .default()
+        webConfiguration.websiteDataStore = configuration.uiTesting ? .nonPersistent() : .default()
 
         let webView = WKWebView(frame: .zero, configuration: webConfiguration)
         if #available(iOS 16.4, *) {

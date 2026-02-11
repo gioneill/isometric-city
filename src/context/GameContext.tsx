@@ -1224,6 +1224,8 @@ export function GameProvider({ children, startFresh = false }: { children: React
         // Increment gameVersion to clear vehicles/entities when loading a new state
         setState((prev) => ({
           ...(parsed as GameState),
+          selectedTool: 'select',
+          activePanel: 'none',
           gameVersion: (prev.gameVersion ?? 0) + 1,
         }));
         return true;
@@ -1481,7 +1483,11 @@ export function GameProvider({ children, startFresh = false }: { children: React
     const savedState = loadSavedCityState();
     if (savedState) {
       skipNextSaveRef.current = true;
-      setState(savedState);
+      setState({
+        ...savedState,
+        selectedTool: 'select',
+        activePanel: 'none',
+      });
       clearSavedCityStorage();
       return true;
     }
@@ -1602,6 +1608,8 @@ export function GameProvider({ children, startFresh = false }: { children: React
     skipNextSaveRef.current = true;
     setState((prev) => ({
       ...cityState,
+      selectedTool: 'select',
+      activePanel: 'none',
       gameVersion: (prev.gameVersion ?? 0) + 1,
     }));
     
