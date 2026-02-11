@@ -8,7 +8,7 @@ import Game from '@/components/Game';
 import { CoopModal } from '@/components/multiplayer/CoopModal';
 import { useMobile } from '@/hooks/useMobile';
 import { getSpritePack, getSpriteCoords, DEFAULT_SPRITE_PACK_ID } from '@/lib/renderConfig';
-import { useNativeHostConfig } from '@/lib/nativeBridge';
+import { ensureNativeBridge, postToNative, useNativeHostConfig } from '@/lib/nativeBridge';
 import { SavedCityMeta, GameState } from '@/types/game';
 import { decompressFromUTF16, compressToUTF16 } from 'lz-string';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
@@ -330,6 +330,28 @@ export default function HomePage() {
   const [pendingRoomCode, setPendingRoomCode] = useState<string | null>(null);
   const { isMobileDevice, isSmallScreen } = useMobile();
   const isMobile = isMobileDevice || isSmallScreen;
+
+  // Tell native hosts whether the user is currently in-game so they can hide/show the HUD.
+  useEffect(() => {
+    ensureNativeBridge();
+
+    postToNative({
+      type: 'host.ready',
+      payload: {
+        app: 'isocity',
+        version: 1,
+      },
+    });
+
+    postToNative({
+      type: 'host.scene',
+      payload: {
+        screen: showGame ? 'game' : 'menu',
+        inGame: showGame,
+        hudVisible: showGame,
+      },
+    });
+  }, [showGame]);
 
   // Check for saved game and room code in URL after mount
   useEffect(() => {

@@ -178,6 +178,26 @@ export default function Game({ onExit }: { onExit?: () => void }) {
         version: 1,
       },
     });
+
+    postToNative({
+      type: 'host.scene',
+      payload: {
+        screen: 'game',
+        inGame: true,
+        hudVisible: true,
+      },
+    });
+
+    return () => {
+      postToNative({
+        type: 'host.scene',
+        payload: {
+          screen: 'menu',
+          inGame: false,
+          hudVisible: false,
+        },
+      });
+    };
   }, []);
 
   // Emit compact state snapshots so native HUD can render parity UI.

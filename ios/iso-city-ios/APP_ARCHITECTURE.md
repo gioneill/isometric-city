@@ -40,7 +40,8 @@
 3. `LocalWebServer` starts on `127.0.0.1:54873`.
 4. `WKWebView` loads `/index.html?host=ios&gesture=<mode>`.
 5. Web app emits `host.ready` through the bridge.
-6. Native overlay hides waiting state and HUD stays active.
+6. Web app emits `host.scene` (`inGame: false`) while on the landing/co-op screens.
+7. Web app emits `host.scene` (`inGame: true`) and `host.state` after the user enters a game.
 
 ## Error Handling
 - Server startup failure is surfaced in native UI with retry.

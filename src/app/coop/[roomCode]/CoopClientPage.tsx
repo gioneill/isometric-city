@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { GameProvider } from '@/context/GameContext';
 import { MultiplayerContextProvider } from '@/context/MultiplayerContext';
 import Game from '@/components/Game';
@@ -8,6 +8,7 @@ import { CoopModal } from '@/components/multiplayer/CoopModal';
 import { GameState } from '@/types/game';
 import { compressToUTF16 } from 'lz-string';
 import { useRouter } from 'next/navigation';
+import { ensureNativeBridge, postToNative } from '@/lib/nativeBridge';
 
 const STORAGE_KEY = 'isocity-game-state';
 const SAVED_CITIES_INDEX_KEY = 'isocity-saved-cities-index';
@@ -108,6 +109,28 @@ export default function CoopClientPage({ roomCode }: { roomCode: string }) {
     setShowCoopModal(open);
   };
 
+  // Tell native hosts whether the user is currently in-game so they can hide/show the HUD.
+  useEffect(() => {
+    ensureNativeBridge();
+
+    postToNative({
+      type: 'host.ready',
+      payload: {
+        app: 'isocity',
+        version: 1,
+      },
+    });
+
+    postToNative({
+      type: 'host.scene',
+      payload: {
+        screen: showGame ? 'game' : 'menu',
+        inGame: showGame,
+        hudVisible: showGame,
+      },
+    });
+  }, [showGame]);
+
   return (
     <MultiplayerContextProvider>
       {showGame ? (
@@ -129,4 +152,3 @@ export default function CoopClientPage({ roomCode }: { roomCode: string }) {
     </MultiplayerContextProvider>
   );
 }
-

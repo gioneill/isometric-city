@@ -18,6 +18,7 @@ final class GameHostModel {
     }
 
     var isReady = false
+    var isInGame = false
     var lastUpdate = Date()
     var loadErrorMessage: String?
     var hasReceivedHostState = false
@@ -49,8 +50,11 @@ final class GameHostModel {
                 self.isReady = true
                 self.loadErrorMessage = nil
                 self.appendDebugLine("bridge host.ready")
+            case "host.scene":
+                self.applyHostScene(payload)
             case "host.state":
                 self.hasReceivedHostState = true
+                self.isInGame = true
                 if !self.didLogFirstHostState {
                     self.didLogFirstHostState = true
                     self.appendDebugLine("bridge host.state")
@@ -76,6 +80,7 @@ final class GameHostModel {
     func handleLoadError(_ error: Error, failingURL: URL?) {
         DispatchQueue.main.async {
             self.isReady = false
+            self.isInGame = false
             self.hasReceivedHostState = false
             if let failingURL {
                 self.loadErrorMessage = "\(error.localizedDescription) (\(failingURL.absoluteString))"
@@ -84,6 +89,22 @@ final class GameHostModel {
             }
             self.lastUpdate = Date()
             self.appendDebugLine("loadError \(error.localizedDescription)")
+        }
+    }
+
+    private func applyHostScene(_ payload: Any?) {
+        guard let map = payload as? [String: Any] else { return }
+
+        if let hudVisible = map["hudVisible"] as? Bool {
+            isInGame = hudVisible
+            return
+        }
+        if let inGame = map["inGame"] as? Bool {
+            isInGame = inGame
+            return
+        }
+        if let screen = map["screen"] as? String {
+            isInGame = (screen == "game")
         }
     }
 
