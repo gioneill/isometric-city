@@ -841,7 +841,7 @@ export function GameProvider({ children, startFresh = false }: { children: React
 
   const setTool = useCallback((tool: Tool) => {
     setState((prev) => {
-      const next = { ...prev, selectedTool: tool, activePanel: 'none' };
+      const next: GameState = { ...prev, selectedTool: tool, activePanel: 'none' };
       latestStateRef.current = next;
       return next;
     });

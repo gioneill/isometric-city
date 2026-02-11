@@ -27,7 +27,6 @@ struct RootGameHostView: View {
 
             if model.isInGame {
                 NativeHUDView(model: model, webViewStore: webViewStore)
-                    .ignoresSafeArea(edges: .all)
             }
 
             overlayView

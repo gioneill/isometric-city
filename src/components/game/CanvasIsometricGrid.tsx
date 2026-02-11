@@ -130,6 +130,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, gameVersion } = state;
   const nativeHostConfig = useNativeHostConfig();
   const nativeOwnsGestures = nativeHostConfig.host === 'ios' && nativeHostConfig.gestureMode === 'native';
+  const isIOSWebHost = nativeHostConfig.host === 'ios' && nativeHostConfig.gestureMode === 'web';
   
   // PERF: Use latestStateRef for real-time grid access in animation loops
   // This avoids waiting for React state sync which is throttled for performance
@@ -190,6 +191,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const initialPinchDistanceRef = useRef<number | null>(null);
   const initialZoomRef = useRef<number>(zoom);
   const lastTouchCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const iosTouchModeRef = useRef<'none' | 'pan' | 'place' | 'pinch'>('none');
+  const iosTouchPlacedAnyRef = useRef(false);
+  const iosTouchVisitedOriginsRef = useRef<Set<string>>(new Set());
+  const iosTouchDragRef = useRef({
+    startTile: null as { x: number; y: number } | null,
+    endTile: null as { x: number; y: number } | null,
+    roadDirection: null as 'h' | 'v' | null,
+  });
   
   // Airplane system refs
   const airplanesRef = useRef<Airplane[]>([]);
@@ -2200,6 +2209,121 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   // PERF: hoveredTile and selectedTile removed from deps - now rendered on separate hover canvas layer
   }, [grid, gridSize, offset, zoom, overlayMode, imagesLoaded, imageLoadVersion, canvasSize, dragStartTile, dragEndTile, state.services, currentSpritePack, waterBodies, getTileMetadata, showsDragGrid, isMobile]);
   
+  type BridgeTileStatus = 'valid' | 'invalid' | 'land';
+  type PathTile = { x: number; y: number; isWater: boolean; key: string };
+
+  const computeAxisLockedPathTiles = useCallback((startTile: { x: number; y: number }, endTile: { x: number; y: number }): PathTile[] => {
+    const tiles: PathTile[] = [];
+    const startX = startTile.x;
+    const startY = startTile.y;
+    const endX = endTile.x;
+    const endY = endTile.y;
+
+    // For safety, fall back to a bounding-box path if the drag isn't axis-locked.
+    const isAxisLocked = startX === endX || startY === endY;
+    if (!isAxisLocked) {
+      const minX = Math.min(startX, endX);
+      const maxX = Math.max(startX, endX);
+      const minY = Math.min(startY, endY);
+      const maxY = Math.max(startY, endY);
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) continue;
+          const isWater = grid[y]?.[x]?.building.type === 'water';
+          tiles.push({ x, y, isWater, key: `${x},${y}` });
+        }
+      }
+      return tiles;
+    }
+
+    if (startY === endY) {
+      const y = startY;
+      const minX = Math.min(startX, endX);
+      const maxX = Math.max(startX, endX);
+      for (let x = minX; x <= maxX; x++) {
+        if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) continue;
+        const isWater = grid[y]?.[x]?.building.type === 'water';
+        tiles.push({ x, y, isWater, key: `${x},${y}` });
+      }
+      return tiles;
+    }
+
+    const x = startX;
+    const minY = Math.min(startY, endY);
+    const maxY = Math.max(startY, endY);
+    for (let y = minY; y <= maxY; y++) {
+      if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) continue;
+      const isWater = grid[y]?.[x]?.building.type === 'water';
+      tiles.push({ x, y, isWater, key: `${x},${y}` });
+    }
+    return tiles;
+  }, [grid, gridSize]);
+
+  const analyzeAxisLockedPathForBridges = useCallback((startTile: { x: number; y: number }, endTile: { x: number; y: number }) => {
+    const pathTiles = computeAxisLockedPathTiles(startTile, endTile);
+    const statusByKey: Map<string, BridgeTileStatus> = new Map();
+
+    const isHorizontal = startTile.y === endTile.y && startTile.x !== endTile.x;
+    const sortedTiles = [...pathTiles].sort((a, b) => (isHorizontal ? a.x - b.x : a.y - b.y));
+
+    let hasInvalidWater = false;
+    let i = 0;
+    while (i < sortedTiles.length) {
+      const tile = sortedTiles[i];
+      if (!tile.isWater) {
+        statusByKey.set(tile.key, 'land');
+        i++;
+        continue;
+      }
+
+      const waterStart = i;
+      while (i < sortedTiles.length && sortedTiles[i].isWater) {
+        i++;
+      }
+      const waterEnd = i - 1;
+      const waterLength = waterEnd - waterStart + 1;
+
+      const hasLandBefore = waterStart > 0 && !sortedTiles[waterStart - 1].isWater;
+      const hasLandAfter = waterEnd < sortedTiles.length - 1 && !sortedTiles[waterEnd + 1].isWater;
+
+      let hasExistingLandBefore = false;
+      let hasExistingLandAfter = false;
+
+      if (waterStart === 0) {
+        const firstWater = sortedTiles[waterStart];
+        const checkX = isHorizontal ? firstWater.x - 1 : firstWater.x;
+        const checkY = isHorizontal ? firstWater.y : firstWater.y - 1;
+        if (checkX >= 0 && checkY >= 0 && checkX < gridSize && checkY < gridSize) {
+          hasExistingLandBefore = grid[checkY]?.[checkX]?.building.type !== 'water';
+        }
+      }
+
+      if (waterEnd === sortedTiles.length - 1) {
+        const lastWater = sortedTiles[waterEnd];
+        const checkX = isHorizontal ? lastWater.x + 1 : lastWater.x;
+        const checkY = isHorizontal ? lastWater.y : lastWater.y + 1;
+        if (checkX >= 0 && checkY >= 0 && checkX < gridSize && checkY < gridSize) {
+          hasExistingLandAfter = grid[checkY]?.[checkX]?.building.type !== 'water';
+        }
+      }
+
+      const isValidBridge = (hasLandBefore || hasExistingLandBefore) &&
+        (hasLandAfter || hasExistingLandAfter) &&
+        waterLength <= 10;
+
+      if (!isValidBridge) {
+        hasInvalidWater = true;
+      }
+
+      for (let j = waterStart; j <= waterEnd; j++) {
+        const waterTile = sortedTiles[j];
+        statusByKey.set(waterTile.key, isValidBridge ? 'valid' : 'invalid');
+      }
+    }
+
+    return { pathTiles: sortedTiles, statusByKey, hasInvalidWater };
+  }, [computeAxisLockedPathTiles, grid, gridSize]);
+
   // PERF: Lightweight hover/selection overlay - renders ONLY tile highlights
   // This runs frequently (on mouse move) but is extremely fast since it only draws simple shapes
   useEffect(() => {
@@ -2289,123 +2413,36 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       }
     }
     
-    // Draw road/rail drag preview with bridge validity indication
-    if (isDragging && (selectedTool === 'road' || selectedTool === 'rail') && dragStartTile && dragEndTile) {
-      const minX = Math.min(dragStartTile.x, dragEndTile.x);
-      const maxX = Math.max(dragStartTile.x, dragEndTile.x);
-      const minY = Math.min(dragStartTile.y, dragEndTile.y);
-      const maxY = Math.max(dragStartTile.y, dragEndTile.y);
-      
-      // Collect all tiles in the path
-      const pathTiles: { x: number; y: number; isWater: boolean }[] = [];
-      for (let x = minX; x <= maxX; x++) {
-        for (let y = minY; y <= maxY; y++) {
-          if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-            const tile = grid[y][x];
-            pathTiles.push({ x, y, isWater: tile.building.type === 'water' });
+    // Drag preview for road/rail (bridge validity) and iOS-host subway (deferred commit)
+    const shouldPreviewSubway = isIOSWebHost && selectedTool === 'subway';
+    if (isDragging && dragStartTile && dragEndTile && (selectedTool === 'road' || selectedTool === 'rail' || shouldPreviewSubway)) {
+      if (selectedTool === 'road' || selectedTool === 'rail') {
+        const { pathTiles, statusByKey } = analyzeAxisLockedPathForBridges(dragStartTile, dragEndTile);
+        const highlightLand = isIOSWebHost;
+
+        for (const tile of pathTiles) {
+          const { screenX, screenY } = gridToScreen(tile.x, tile.y, 0, 0);
+          const status = statusByKey.get(tile.key) ?? 'land';
+
+          if (status === 'valid') {
+            drawHighlight(screenX, screenY, 'rgba(59, 130, 246, 0.5)', '#3b82f6');
+          } else if (status === 'invalid') {
+            drawHighlight(screenX, screenY, 'rgba(239, 68, 68, 0.5)', '#ef4444');
+          } else if (highlightLand) {
+            drawHighlight(screenX, screenY, 'rgba(59, 130, 246, 0.22)', '#3b82f6');
           }
         }
-      }
-      
-      // Analyze the path for bridge validity
-      // A valid bridge: water tiles that are bounded by land/road on both ends
-      // An invalid partial crossing: water tiles that don't form a complete bridge
-      const analyzePathForBridges = () => {
-        const result: Map<string, 'valid' | 'invalid' | 'land'> = new Map();
-        
-        // Determine if this is a horizontal or vertical path
-        const isHorizontal = maxX - minX > maxY - minY;
-        
-        // Sort tiles by their position along the path
-        const sortedTiles = [...pathTiles].sort((a, b) => 
-          isHorizontal ? a.x - b.x : a.y - b.y
-        );
-        
-        // Find water segments and check if they're valid bridges
-        let i = 0;
-        while (i < sortedTiles.length) {
-          const tile = sortedTiles[i];
-          
-          if (!tile.isWater) {
-            // Land tile - always valid
-            result.set(`${tile.x},${tile.y}`, 'land');
-            i++;
-            continue;
-          }
-          
-          // Found water - find the extent of this water segment
-          const waterStart = i;
-          while (i < sortedTiles.length && sortedTiles[i].isWater) {
-            i++;
-          }
-          const waterEnd = i - 1;
-          const waterLength = waterEnd - waterStart + 1;
-          
-          // Check if this water segment is bounded by land on both sides
-          const hasLandBefore = waterStart > 0 && !sortedTiles[waterStart - 1].isWater;
-          const hasLandAfter = waterEnd < sortedTiles.length - 1 && !sortedTiles[waterEnd + 1].isWater;
-          
-          // Also check if there's existing land/road adjacent to the start/end of path
-          let hasExistingLandBefore = false;
-          let hasExistingLandAfter = false;
-          
-          if (waterStart === 0) {
-            // Check the tile before the path start
-            const firstWater = sortedTiles[waterStart];
-            const checkX = isHorizontal ? firstWater.x - 1 : firstWater.x;
-            const checkY = isHorizontal ? firstWater.y : firstWater.y - 1;
-            if (checkX >= 0 && checkY >= 0 && checkX < gridSize && checkY < gridSize) {
-              const prevTile = grid[checkY][checkX];
-              hasExistingLandBefore = prevTile.building.type !== 'water';
-            }
-          }
-          
-          if (waterEnd === sortedTiles.length - 1) {
-            // Check the tile after the path end
-            const lastWater = sortedTiles[waterEnd];
-            const checkX = isHorizontal ? lastWater.x + 1 : lastWater.x;
-            const checkY = isHorizontal ? lastWater.y : lastWater.y + 1;
-            if (checkX >= 0 && checkY >= 0 && checkX < gridSize && checkY < gridSize) {
-              const nextTile = grid[checkY][checkX];
-              hasExistingLandAfter = nextTile.building.type !== 'water';
-            }
-          }
-          
-          const isValidBridge = (hasLandBefore || hasExistingLandBefore) && 
-                                (hasLandAfter || hasExistingLandAfter) &&
-                                waterLength <= 10; // Max bridge span
-          
-          // Mark all water tiles in this segment
-          for (let j = waterStart; j <= waterEnd; j++) {
-            const waterTile = sortedTiles[j];
-            result.set(`${waterTile.x},${waterTile.y}`, isValidBridge ? 'valid' : 'invalid');
-          }
+      } else if (shouldPreviewSubway) {
+        const pathTiles = computeAxisLockedPathTiles(dragStartTile, dragEndTile);
+        for (const tile of pathTiles) {
+          const { screenX, screenY } = gridToScreen(tile.x, tile.y, 0, 0);
+          drawHighlight(screenX, screenY, 'rgba(168, 85, 247, 0.22)', '#a855f7');
         }
-        
-        return result;
-      };
-      
-      const bridgeAnalysis = analyzePathForBridges();
-      
-      // Draw preview for each tile in the path
-      for (const tile of pathTiles) {
-        const { screenX, screenY } = gridToScreen(tile.x, tile.y, 0, 0);
-        const key = `${tile.x},${tile.y}`;
-        const status = bridgeAnalysis.get(key) || 'land';
-        
-        if (status === 'valid') {
-          // Valid bridge - show blue/cyan placeholder
-          drawHighlight(screenX, screenY, 'rgba(59, 130, 246, 0.5)', '#3b82f6');
-        } else if (status === 'invalid') {
-          // Invalid water crossing - show red
-          drawHighlight(screenX, screenY, 'rgba(239, 68, 68, 0.5)', '#ef4444');
-        }
-        // Land tiles don't need special preview - they're already being placed
       }
     }
     
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-  }, [hoveredTile, selectedTile, selectedTool, offset, zoom, gridSize, grid, isDragging, dragStartTile, dragEndTile]);
+  }, [hoveredTile, selectedTile, selectedTool, offset, zoom, gridSize, grid, isDragging, dragStartTile, dragEndTile, analyzeAxisLockedPathForBridges, computeAxisLockedPathTiles, isIOSWebHost]);
   
   // Animate decorative car traffic AND emergency vehicles on top of the base canvas
   useEffect(() => {
@@ -3200,20 +3237,89 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     };
   }, []);
 
+  const resetTouchPlacementState = useCallback(() => {
+    iosTouchModeRef.current = 'none';
+    iosTouchPlacedAnyRef.current = false;
+    iosTouchVisitedOriginsRef.current.clear();
+    iosTouchDragRef.current = { startTile: null, endTile: null, roadDirection: null };
+    setIsDragging(false);
+    setDragStartTile(null);
+    setDragEndTile(null);
+    setRoadDrawDirection(null);
+    placedRoadTilesRef.current.clear();
+  }, []);
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (nativeOwnsGestures) {
       return;
     }
 
+    if (!isIOSWebHost) {
+      if (e.touches.length === 1) {
+        // Single touch - could be pan or tap
+        const touch = e.touches[0];
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+        setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
+        setIsPanning(true);
+        isPinchZoomingRef.current = false;
+      } else if (e.touches.length === 2) {
+        // Two finger touch - pinch to zoom
+        const distance = getTouchDistance(e.touches[0], e.touches[1]);
+        initialPinchDistanceRef.current = distance;
+        initialZoomRef.current = zoom;
+        lastTouchCenterRef.current = getTouchCenter(e.touches[0], e.touches[1]);
+        setIsPanning(false);
+        isPinchZoomingRef.current = true;
+      }
+      return;
+    }
+
+    // iOS host (gesture=web): mode-aware touch system
     if (e.touches.length === 1) {
-      // Single touch - could be pan or tap
       const touch = e.touches[0];
       touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
-      setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
-      setIsPanning(true);
+      iosTouchPlacedAnyRef.current = false;
+      iosTouchVisitedOriginsRef.current.clear();
+
+      const rect = containerRef.current?.getBoundingClientRect();
+      const hit = rect
+        ? hitTestAtScreen(touch.clientX - rect.left, touch.clientY - rect.top)
+        : null;
+      const inBounds = !!hit?.inBounds;
+
+      // No-tool mode (select) OR out-of-bounds: finger is for pan/zoom; tap selects/inspects.
+      if (selectedTool === 'select' || !inBounds) {
+        resetTouchPlacementState();
+        iosTouchModeRef.current = 'pan';
+        setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
+        setIsPanning(true);
+        isPinchZoomingRef.current = false;
+        initialPinchDistanceRef.current = null;
+        lastTouchCenterRef.current = null;
+        return;
+      }
+
+      // Place mode: 1 finger places, 2 fingers pan/zoom.
+      resetTouchPlacementState();
+      iosTouchModeRef.current = 'place';
+      iosTouchDragRef.current = {
+        startTile: { x: hit!.gridX, y: hit!.gridY },
+        endTile: { x: hit!.gridX, y: hit!.gridY },
+        roadDirection: null,
+      };
+      setIsPanning(false);
+      setDragStartTile({ x: hit!.gridX, y: hit!.gridY });
+      setDragEndTile({ x: hit!.gridX, y: hit!.gridY });
+      setIsDragging(true);
+      setRoadDrawDirection(null);
       isPinchZoomingRef.current = false;
+      initialPinchDistanceRef.current = null;
+      lastTouchCenterRef.current = null;
     } else if (e.touches.length === 2) {
-      // Two finger touch - pinch to zoom
+      // Two finger touch - pinch to zoom (always allowed, even in place mode)
+      resetTouchPlacementState();
+      touchStartRef.current = null;
+      iosTouchModeRef.current = 'pinch';
       const distance = getTouchDistance(e.touches[0], e.touches[1]);
       initialPinchDistanceRef.current = distance;
       initialZoomRef.current = zoom;
@@ -3221,7 +3327,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       setIsPanning(false);
       isPinchZoomingRef.current = true;
     }
-  }, [offset, zoom, getTouchDistance, getTouchCenter, nativeOwnsGestures]);
+  }, [nativeOwnsGestures, isIOSWebHost, selectedTool, offset.x, offset.y, zoom, getTouchDistance, getTouchCenter, hitTestAtScreen, resetTouchPlacementState]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (nativeOwnsGestures) {
@@ -3230,16 +3336,66 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
 
     e.preventDefault();
 
-    if (e.touches.length === 1 && isPanning && !initialPinchDistanceRef.current) {
-      // Single touch pan
+    if (!isIOSWebHost) {
+      if (e.touches.length === 1 && isPanning && !initialPinchDistanceRef.current) {
+        // Single touch pan
+        const touch = e.touches[0];
+        const newOffset = {
+          x: touch.clientX - dragStart.x,
+          y: touch.clientY - dragStart.y,
+        };
+        setOffset(clampOffset(newOffset, zoom));
+      } else if (e.touches.length === 2 && initialPinchDistanceRef.current !== null) {
+        // Pinch to zoom
+        const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        const scale = currentDistance / initialPinchDistanceRef.current;
+        const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, initialZoomRef.current * scale));
+
+        const currentCenter = getTouchCenter(e.touches[0], e.touches[1]);
+        const rect = containerRef.current?.getBoundingClientRect();
+        
+        if (rect && lastTouchCenterRef.current) {
+          // Calculate center position relative to canvas
+          const centerX = currentCenter.x - rect.left;
+          const centerY = currentCenter.y - rect.top;
+
+          // World position at pinch center
+          const worldX = (centerX - offset.x) / zoom;
+          const worldY = (centerY - offset.y) / zoom;
+
+          // Keep the same world position under the pinch center after zoom
+          const newOffsetX = centerX - worldX * newZoom;
+          const newOffsetY = centerY - worldY * newZoom;
+
+          // Also account for pan movement during pinch
+          const panDeltaX = currentCenter.x - lastTouchCenterRef.current.x;
+          const panDeltaY = currentCenter.y - lastTouchCenterRef.current.y;
+
+          const clampedOffset = clampOffset(
+            { x: newOffsetX + panDeltaX, y: newOffsetY + panDeltaY },
+            newZoom
+          );
+
+          setOffset(clampedOffset);
+          setZoom(newZoom);
+          lastTouchCenterRef.current = currentCenter;
+        }
+      }
+      return;
+    }
+
+    // iOS host (gesture=web)
+    if (e.touches.length === 1 && iosTouchModeRef.current === 'pan' && isPanning && !initialPinchDistanceRef.current) {
       const touch = e.touches[0];
       const newOffset = {
         x: touch.clientX - dragStart.x,
         y: touch.clientY - dragStart.y,
       };
       setOffset(clampOffset(newOffset, zoom));
-    } else if (e.touches.length === 2 && initialPinchDistanceRef.current !== null) {
-      // Pinch to zoom
+      return;
+    }
+
+    if (e.touches.length === 2 && initialPinchDistanceRef.current !== null) {
       const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
       const scale = currentDistance / initialPinchDistanceRef.current;
       const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, initialZoomRef.current * scale));
@@ -3273,8 +3429,78 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         setZoom(newZoom);
         lastTouchCenterRef.current = currentCenter;
       }
+      return;
     }
-  }, [isPanning, dragStart, zoom, offset, clampOffset, getTouchDistance, getTouchCenter, nativeOwnsGestures]);
+
+    if (e.touches.length !== 1) return;
+    if (iosTouchModeRef.current !== 'place') return;
+
+    const touch = e.touches[0];
+    const rect = containerRef.current?.getBoundingClientRect();
+    const hit = rect
+      ? hitTestAtScreen(touch.clientX - rect.left, touch.clientY - rect.top)
+      : null;
+    if (!hit?.inBounds) return;
+
+    const drag = iosTouchDragRef.current;
+    if (!drag.startTile) return;
+
+    // Always keep end tile in sync for UI/preview.
+    drag.endTile = { x: hit.gridX, y: hit.gridY };
+
+    if (showsDragGrid) {
+      setDragEndTile({ x: hit.gridX, y: hit.gridY });
+      return;
+    }
+
+    const isLineTool = selectedTool === 'road' || selectedTool === 'rail' || selectedTool === 'subway';
+    if (isLineTool) {
+      const dx = Math.abs(hit.gridX - drag.startTile.x);
+      const dy = Math.abs(hit.gridY - drag.startTile.y);
+
+      let direction = drag.roadDirection;
+      if (!direction && (dx > 0 || dy > 0)) {
+        direction = dx >= dy ? 'h' : 'v';
+        drag.roadDirection = direction;
+        setRoadDrawDirection(direction);
+      }
+
+      let targetX = hit.gridX;
+      let targetY = hit.gridY;
+      if (direction === 'h') {
+        targetY = drag.startTile.y;
+      } else if (direction === 'v') {
+        targetX = drag.startTile.x;
+      }
+
+      drag.endTile = { x: targetX, y: targetY };
+      setDragEndTile({ x: targetX, y: targetY });
+      return;
+    }
+
+    // For all other tools, drag-paint by stamping visited origin tiles.
+    const touchStart = touchStartRef.current;
+    const movedEnough = touchStart
+      ? (Math.abs(touch.clientX - touchStart.x) >= 10 || Math.abs(touch.clientY - touchStart.y) >= 10)
+      : true;
+    const tileChanged = hit.gridX !== drag.startTile.x || hit.gridY !== drag.startTile.y;
+    const shouldPaint = movedEnough || tileChanged;
+    if (!shouldPaint) return;
+
+    const stampOrigin = (x: number, y: number) => {
+      const key = `${x},${y}`;
+      if (iosTouchVisitedOriginsRef.current.has(key)) return;
+      iosTouchVisitedOriginsRef.current.add(key);
+      placeAtTile(x, y);
+      iosTouchPlacedAnyRef.current = true;
+    };
+
+    if (!iosTouchPlacedAnyRef.current) {
+      stampOrigin(drag.startTile.x, drag.startTile.y);
+    }
+    stampOrigin(hit.gridX, hit.gridY);
+    setDragEndTile({ x: hit.gridX, y: hit.gridY });
+  }, [nativeOwnsGestures, isIOSWebHost, isPanning, dragStart.x, dragStart.y, zoom, offset.x, offset.y, clampOffset, getTouchDistance, getTouchCenter, hitTestAtScreen, showsDragGrid, selectedTool, placeAtTile]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     if (nativeOwnsGestures) {
@@ -3283,47 +3509,141 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
 
     const touchStart = touchStartRef.current;
     
-    if (e.touches.length === 0) {
-      // All fingers lifted
-      if (touchStart && e.changedTouches.length === 1) {
-        const touch = e.changedTouches[0];
-        const deltaX = Math.abs(touch.clientX - touchStart.x);
-        const deltaY = Math.abs(touch.clientY - touchStart.y);
-        const deltaTime = Date.now() - touchStart.time;
+    if (!isIOSWebHost) {
+      if (e.touches.length === 0) {
+        // All fingers lifted
+        if (touchStart && e.changedTouches.length === 1) {
+          const touch = e.changedTouches[0];
+          const deltaX = Math.abs(touch.clientX - touchStart.x);
+          const deltaY = Math.abs(touch.clientY - touchStart.y);
+          const deltaTime = Date.now() - touchStart.time;
 
-        // Detect tap (short duration, minimal movement)
-        if (deltaTime < 300 && deltaX < 10 && deltaY < 10) {
-          const rect = containerRef.current?.getBoundingClientRect();
-          if (rect) {
-            const mouseX = (touch.clientX - rect.left) / zoom;
-            const mouseY = (touch.clientY - rect.top) / zoom;
-            const { gridX, gridY } = screenToGrid(mouseX, mouseY, offset.x / zoom, offset.y / zoom);
+          // Detect tap (short duration, minimal movement)
+          if (deltaTime < 300 && deltaX < 10 && deltaY < 10) {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (rect) {
+              const mouseX = (touch.clientX - rect.left) / zoom;
+              const mouseY = (touch.clientY - rect.top) / zoom;
+              const { gridX, gridY } = screenToGrid(mouseX, mouseY, offset.x / zoom, offset.y / zoom);
 
-            if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
-              if (selectedTool === 'select') {
-                const origin = findBuildingOrigin(gridX, gridY);
-                if (origin) {
-                  setSelectedTile({ x: origin.originX, y: origin.originY });
+              if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
+                if (selectedTool === 'select') {
+                  const origin = findBuildingOrigin(gridX, gridY);
+                  if (origin) {
+                    setSelectedTile({ x: origin.originX, y: origin.originY });
+                  } else {
+                    setSelectedTile({ x: gridX, y: gridY });
+                  }
                 } else {
-                  setSelectedTile({ x: gridX, y: gridY });
+                  placeAtTile(gridX, gridY);
                 }
-              } else {
-                placeAtTile(gridX, gridY);
               }
             }
           }
         }
+
+        // Reset all touch state
+        setIsPanning(false);
+        setIsDragging(false);
+        isPinchZoomingRef.current = false;
+        touchStartRef.current = null;
+        initialPinchDistanceRef.current = null;
+        lastTouchCenterRef.current = null;
+      } else if (e.touches.length === 1) {
+        // Went from 2 touches to 1 - reset to pan mode
+        const touch = e.touches[0];
+        setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
+        setIsPanning(true);
+        isPinchZoomingRef.current = false;
+        initialPinchDistanceRef.current = null;
+        lastTouchCenterRef.current = null;
+      }
+      return;
+    }
+
+    if (e.touches.length === 0) {
+      const isTap = touchStart && e.changedTouches.length === 1
+        ? (Math.abs(e.changedTouches[0].clientX - touchStart.x) < 10 && Math.abs(e.changedTouches[0].clientY - touchStart.y) < 10)
+        : false;
+
+      const changedTouch = e.changedTouches.length ? e.changedTouches[0] : null;
+      const rect = changedTouch ? containerRef.current?.getBoundingClientRect() : null;
+      const hit = (changedTouch && rect)
+        ? hitTestAtScreen(changedTouch.clientX - rect.left, changedTouch.clientY - rect.top)
+        : null;
+
+      if (iosTouchModeRef.current === 'pan') {
+        if (selectedTool === 'select' && isTap && hit?.inBounds) {
+          const origin = findBuildingOrigin(hit.gridX, hit.gridY);
+          if (origin) {
+            setSelectedTile({ x: origin.originX, y: origin.originY });
+          } else {
+            setSelectedTile({ x: hit.gridX, y: hit.gridY });
+          }
+        }
+      } else if (iosTouchModeRef.current === 'place') {
+        const drag = iosTouchDragRef.current;
+        const startTile = drag.startTile;
+        const endTile = drag.endTile;
+
+        if (isTap && hit?.inBounds) {
+          placeAtTile(hit.gridX, hit.gridY);
+        } else if (startTile && endTile) {
+          if (showsDragGrid) {
+            const minX = Math.min(startTile.x, endTile.x);
+            const maxX = Math.max(startTile.x, endTile.x);
+            const minY = Math.min(startTile.y, endTile.y);
+            const maxY = Math.max(startTile.y, endTile.y);
+
+            for (let x = minX; x <= maxX; x++) {
+              for (let y = minY; y <= maxY; y++) {
+                placeAtTile(x, y);
+              }
+            }
+          } else if (selectedTool === 'road' || selectedTool === 'rail') {
+            const analysis = analyzeAxisLockedPathForBridges(startTile, endTile);
+            if (analysis.hasInvalidWater) {
+              postToNative({ type: 'event.haptic', payload: { style: 'error' } });
+            } else {
+              for (const tile of analysis.pathTiles) {
+                if (!tile.isWater) {
+                  placeAtTile(tile.x, tile.y);
+                }
+              }
+
+              finishTrackDrag(
+                analysis.pathTiles.map(t => ({ x: t.x, y: t.y })),
+                selectedTool
+              );
+
+              setTimeout(() => {
+                checkAndDiscoverCities((discoveredCity) => {
+                  setCityConnectionDialog({ direction: discoveredCity.direction });
+                });
+              }, 50);
+            }
+          } else if (selectedTool === 'subway') {
+            const pathTiles = computeAxisLockedPathTiles(startTile, endTile);
+            for (const tile of pathTiles) {
+              placeAtTile(tile.x, tile.y);
+            }
+          } else {
+            // Non-line tools: drag-paint already stamped during move; nothing to do here.
+          }
+        }
       }
 
-      // Reset all touch state
+      // Reset all touch/drag state
       setIsPanning(false);
-      setIsDragging(false);
       isPinchZoomingRef.current = false;
       touchStartRef.current = null;
       initialPinchDistanceRef.current = null;
       lastTouchCenterRef.current = null;
+      resetTouchPlacementState();
     } else if (e.touches.length === 1) {
-      // Went from 2 touches to 1 - reset to pan mode
+      // Went from 2 touches to 1 - stay in pan mode until lift (no placing mid-gesture)
+      resetTouchPlacementState();
+      iosTouchModeRef.current = 'pan';
       const touch = e.touches[0];
       setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
       setIsPanning(true);
@@ -3331,7 +3651,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       initialPinchDistanceRef.current = null;
       lastTouchCenterRef.current = null;
     }
-  }, [zoom, offset, gridSize, selectedTool, placeAtTile, setSelectedTile, findBuildingOrigin, nativeOwnsGestures]);
+  }, [nativeOwnsGestures, isIOSWebHost, touchStartRef, zoom, offset.x, offset.y, gridSize, selectedTool, showsDragGrid, placeAtTile, setSelectedTile, findBuildingOrigin, hitTestAtScreen, analyzeAxisLockedPathForBridges, computeAxisLockedPathTiles, finishTrackDrag, checkAndDiscoverCities, resetTouchPlacementState]);
   
   return (
     <div

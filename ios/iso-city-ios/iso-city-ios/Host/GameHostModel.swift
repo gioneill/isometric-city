@@ -190,6 +190,7 @@ final class GameHostModel {
 
     private let selectionFeedback = UIImpactFeedbackGenerator(style: .light)
     private let toolFeedback = UIImpactFeedbackGenerator(style: .light)
+    private let notificationFeedback = UINotificationFeedbackGenerator()
     private var didLogFirstHostState = false
 
     func handleBridgeMessage(type: String, payload: Any?) {
@@ -220,6 +221,8 @@ final class GameHostModel {
             case "event.toolChanged":
                 self.toolFeedback.impactOccurred()
                 self.applyTool(payload)
+            case "event.haptic":
+                self.applyHaptic(payload)
             case "debug.console":
                 self.applyConsoleDebug(payload)
             default:
@@ -325,6 +328,19 @@ final class GameHostModel {
     private func applyTool(_ payload: Any?) {
         guard let map = payload as? [String: Any] else { return }
         selectedTool = stringValue(map["tool"], fallback: selectedTool)
+    }
+
+    private func applyHaptic(_ payload: Any?) {
+        guard let map = payload as? [String: Any] else { return }
+        let style = stringValue(map["style"], fallback: "error")
+        switch style {
+        case "success":
+            notificationFeedback.notificationOccurred(.success)
+        case "warning":
+            notificationFeedback.notificationOccurred(.warning)
+        default:
+            notificationFeedback.notificationOccurred(.error)
+        }
     }
 
     private func applyPanelData(_ payload: Any?) {
