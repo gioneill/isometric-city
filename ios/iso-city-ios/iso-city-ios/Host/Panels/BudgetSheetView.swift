@@ -28,7 +28,7 @@ struct BudgetSheetView: View {
             .onAppear {
                 syncFundingState()
             }
-            .onChange(of: data?.categories) { _ in
+            .onChange(of: data?.categories) {
                 syncFundingState()
             }
         }
