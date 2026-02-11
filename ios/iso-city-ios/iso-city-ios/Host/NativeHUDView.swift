@@ -299,10 +299,10 @@ private struct TapeDeckSpeedControl: View {
     let selectedSpeed: Int
     let onSelect: (Int) -> Void
 
-    private let segmentSize = CGSize(width: 34, height: 26)
+    private let segmentSize = CGSize(width: 52, height: 34)
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             ForEach(0..<4, id: \.self) { speed in
                 let isSelected = selectedSpeed == speed
 
@@ -311,31 +311,32 @@ private struct TapeDeckSpeedControl: View {
                 } label: {
                     TapeDeckSegmentIcon(speed: speed)
                         .foregroundStyle(.white)
-                        .frame(width: 16, height: 12)
+                        .frame(width: 20, height: 14)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                .frame(width: segmentSize.width, height: segmentSize.height)
-                .background(
-                    isSelected ? Color.white.opacity(0.22) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.white.opacity(isSelected ? 0.25 : 0.12), lineWidth: 1)
-                )
+                .buttonStyle(TapeDeckSegmentButtonStyle(isSelected: isSelected, size: segmentSize))
             }
         }
-        .padding(3)
-        .background(
-            Color.white.opacity(0.08),
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
+    }
+}
+
+private struct TapeDeckSegmentButtonStyle: ButtonStyle {
+    var isSelected: Bool
+    var size: CGSize
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .frame(width: size.width, height: size.height)
+            .background(
+                isSelected ? Color.white.opacity(0.22) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isSelected ? Color.white.opacity(0.25) : Color.clear, lineWidth: 1)
+            )
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
@@ -360,11 +361,11 @@ private struct TapeDeckPauseIcon: View {
     var body: some View {
         HStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 1)
-                .frame(width: 3, height: 12)
+                .frame(width: 3, height: 14)
             RoundedRectangle(cornerRadius: 1)
-                .frame(width: 3, height: 12)
+                .frame(width: 3, height: 14)
         }
-        .frame(width: 16, height: 12)
+        .frame(width: 20, height: 14)
     }
 }
 
@@ -375,10 +376,10 @@ private struct TapeDeckTriangleIcon: View {
         HStack(spacing: -3) {
             ForEach(0..<count, id: \.self) { _ in
                 TapeDeckTriangle()
-                    .frame(width: 6, height: 10)
+                    .frame(width: 7, height: 12)
             }
         }
-        .frame(width: CGFloat(6 + max(0, count - 1) * 3), height: 10)
+        .frame(width: CGFloat(7 + max(0, count - 1) * 3), height: 12)
     }
 }
 
