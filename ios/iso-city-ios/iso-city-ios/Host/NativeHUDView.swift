@@ -98,11 +98,9 @@ struct NativeHUDView: View {
             }
 
             if hudDensity != "minimal" {
-                HStack(spacing: 8) {
-                    speedButton(title: "Pause", value: 0)
-                    speedButton(title: "1x", value: 1)
-                    speedButton(title: "2x", value: 2)
-                    speedButton(title: "3x", value: 3)
+                HStack {
+                    TapeDeckSpeedControl(selectedSpeed: model.speed, onSelect: setSpeed)
+                    Spacer(minLength: 0)
                 }
             }
 
@@ -192,11 +190,11 @@ struct NativeHUDView: View {
         .buttonStyle(QuickToolButtonStyle(isSelected: model.selectedTool == tool))
     }
 
-    private func speedButton(title: String, value: Int) -> some View {
-        Button(title) {
-            webViewStore.dispatch(type: "speed.set", payload: ["speed": value])
+    private func setSpeed(_ value: Int) {
+        withAnimation(.easeInOut(duration: 0.12)) {
+            model.speed = value
         }
-        .buttonStyle(SpeedButtonStyle(isSelected: model.speed == value))
+        webViewStore.dispatch(type: "speed.set", payload: ["speed": value])
     }
 
     private func panelButton(title: String, panel: String) -> some View {
@@ -283,7 +281,7 @@ private struct CategoryButtonStyle: ButtonStyle {
     }
 }
 
-private struct QuickToolButtonStyle: ButtonStyle {
+    private struct QuickToolButtonStyle: ButtonStyle {
     var isSelected: Bool
 
     func makeBody(configuration: Configuration) -> some View {
@@ -297,17 +295,101 @@ private struct QuickToolButtonStyle: ButtonStyle {
     }
 }
 
-private struct SpeedButtonStyle: ButtonStyle {
-    var isSelected: Bool
+private struct TapeDeckSpeedControl: View {
+    let selectedSpeed: Int
+    let onSelect: (Int) -> Void
 
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.caption.weight(.semibold))
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(isSelected ? Color.white.opacity(0.22) : Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(isSelected ? 0.25 : 0.12)))
-            .opacity(configuration.isPressed ? 0.7 : 1)
+    private let segmentSize = CGSize(width: 34, height: 26)
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<4, id: \.self) { speed in
+                let isSelected = selectedSpeed == speed
+
+                Button {
+                    onSelect(speed)
+                } label: {
+                    TapeDeckSegmentIcon(speed: speed)
+                        .foregroundStyle(.white)
+                        .frame(width: 16, height: 12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .frame(width: segmentSize.width, height: segmentSize.height)
+                .background(
+                    isSelected ? Color.white.opacity(0.22) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(isSelected ? 0.25 : 0.12), lineWidth: 1)
+                )
+            }
+        }
+        .padding(3)
+        .background(
+            Color.white.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+    }
+}
+
+private struct TapeDeckSegmentIcon: View {
+    let speed: Int
+
+    var body: some View {
+        switch speed {
+        case 0:
+            TapeDeckPauseIcon()
+        case 1:
+            TapeDeckTriangleIcon(count: 1)
+        case 2:
+            TapeDeckTriangleIcon(count: 2)
+        default:
+            TapeDeckTriangleIcon(count: 3)
+        }
+    }
+}
+
+private struct TapeDeckPauseIcon: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 1)
+                .frame(width: 3, height: 12)
+            RoundedRectangle(cornerRadius: 1)
+                .frame(width: 3, height: 12)
+        }
+        .frame(width: 16, height: 12)
+    }
+}
+
+private struct TapeDeckTriangleIcon: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: -3) {
+            ForEach(0..<count, id: \.self) { _ in
+                TapeDeckTriangle()
+                    .frame(width: 6, height: 10)
+            }
+        }
+        .frame(width: CGFloat(6 + max(0, count - 1) * 3), height: 10)
+    }
+}
+
+private struct TapeDeckTriangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 
