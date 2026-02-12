@@ -109,14 +109,25 @@ struct NativeHUDView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            topHUD
-            Spacer()
-            bottomHUD
+        GeometryReader { proxy in
+            let topInset = proxy.safeAreaInsets.top
+            ZStack(alignment: .top) {
+                VStack(spacing: 12) {
+                    topHUD
+                    Spacer()
+                    bottomHUD
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, topInset + 10)
+                .padding(.bottom, 12)
+
+                topDemandStrip
+                    .padding(.horizontal, 12)
+                    .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 12)
+        .ignoresSafeArea(edges: .top)
         .sheet(isPresented: $showToolSheet) {
             NativeToolSheet(
                 selectedTool: model.selectedTool,
@@ -150,6 +161,25 @@ struct NativeHUDView: View {
                 AdvisorsSheetView(data: model.advisorsPanelData)
             }
         }
+    }
+
+    private var topDemandStrip: some View {
+        HStack(spacing: 8) {
+            DemandMiniBar(label: "R", demand: model.residentialDemand, color: .green)
+                .accessibilityIdentifier("hud.demand.residential")
+            DemandMiniBar(label: "C", demand: model.commercialDemand, color: .blue)
+                .accessibilityIdentifier("hud.demand.commercial")
+            DemandMiniBar(label: "I", demand: model.industrialDemand, color: .orange)
+                .accessibilityIdentifier("hud.demand.industrial")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 3)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(Color.white.opacity(0.14), lineWidth: 0.5)
+        }
+        .accessibilityIdentifier("hud.demand.strip")
     }
 
     private var topHUD: some View {
@@ -602,6 +632,43 @@ private struct TapeDeckSegmentIcon: View {
     }
 }
 
+private struct DemandMiniBar: View {
+    let label: String
+    let demand: Int
+    let color: Color
+
+    private var percentage: CGFloat {
+        CGFloat(min(100, abs(demand))) / 100
+    }
+
+    private var fillColor: Color {
+        demand >= 0 ? color : .red
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(color)
+                .frame(width: 8, alignment: .leading)
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.14))
+                    Capsule()
+                        .fill(fillColor)
+                        .frame(width: max(1, proxy.size.width * percentage))
+                }
+            }
+            .frame(height: 5)
+        }
+        .frame(maxWidth: .infinity, minHeight: 9)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label) demand \(demand)")
+    }
+}
+
 private struct NativeToolSheet: View {
     var selectedTool: String
     var pinnedTools: [String]
@@ -721,6 +788,9 @@ private struct OverlayPickerSheet: View {
     model.money = 2_450_000
     model.income = 325_000
     model.expenses = 214_000
+    model.residentialDemand = 56
+    model.commercialDemand = 42
+    model.industrialDemand = -14
     model.speed = 2
     model.selectedTool = "road"
     model.overlayMode = "power"
@@ -745,6 +815,9 @@ private struct OverlayPickerSheet: View {
     model.money = 18_750_000
     model.income = 1_420_000
     model.expenses = 1_610_000
+    model.residentialDemand = 74
+    model.commercialDemand = 51
+    model.industrialDemand = 33
     model.speed = 3
     model.selectedTool = "zone_residential"
     model.overlayMode = "water"
@@ -768,6 +841,9 @@ private struct OverlayPickerSheet: View {
     model.money = 2_450_000
     model.income = 325_000
     model.expenses = 214_000
+    model.residentialDemand = 56
+    model.commercialDemand = 42
+    model.industrialDemand = -14
     model.speed = 2
     model.selectedTool = "road"
     model.overlayMode = "power"
@@ -792,6 +868,9 @@ private struct OverlayPickerSheet: View {
     model.money = 18_750_000
     model.income = 1_420_000
     model.expenses = 1_610_000
+    model.residentialDemand = 74
+    model.commercialDemand = 51
+    model.industrialDemand = 33
     model.speed = 3
     model.selectedTool = "zone_residential"
     model.overlayMode = "water"

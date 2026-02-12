@@ -23,15 +23,21 @@ final class GameHostModel {
     var loadErrorMessage: String?
     var hasReceivedHostState = false
     var debugLines: [String] = []
+    var perfFPS: Int?
 
     var cityName = "IsoCity"
     var year = 1900
     var month = 1
+    var day = 1
+    var tick = 0
     var population = 0
     var money = 0
     var income = 0
     var expenses = 0
     var jobs = 0
+    var residentialDemand = 0
+    var commercialDemand = 0
+    var industrialDemand = 0
     var speed = 1
     var selectedTool = "select"
     var activePanel = "none"
@@ -225,6 +231,8 @@ final class GameHostModel {
                 self.applyHaptic(payload)
             case "debug.console":
                 self.applyConsoleDebug(payload)
+            case "perf.fps":
+                self.applyPerfFPS(payload)
             default:
                 self.appendDebugLine("bridge \(type)")
                 break
@@ -284,6 +292,8 @@ final class GameHostModel {
         cityName = stringValue(map["cityName"], fallback: cityName)
         year = intValue(map["year"], fallback: year)
         month = intValue(map["month"], fallback: month)
+        day = intValue(map["day"], fallback: day)
+        tick = intValue(map["tick"], fallback: tick)
         speed = intValue(map["speed"], fallback: speed)
         selectedTool = stringValue(map["selectedTool"], fallback: selectedTool)
         activePanel = stringValue(map["activePanel"], fallback: activePanel)
@@ -295,6 +305,11 @@ final class GameHostModel {
             income = intValue(stats["income"], fallback: income)
             expenses = intValue(stats["expenses"], fallback: expenses)
             jobs = intValue(stats["jobs"], fallback: jobs)
+            if let demand = stats["demand"] as? [String: Any] {
+                residentialDemand = intValue(demand["residential"], fallback: residentialDemand)
+                commercialDemand = intValue(demand["commercial"], fallback: commercialDemand)
+                industrialDemand = intValue(demand["industrial"], fallback: industrialDemand)
+            }
         }
 
         if let tile = map["selectedTile"] as? [String: Any] {
@@ -373,6 +388,17 @@ final class GameHostModel {
             return String(describing: value)
         }.joined(separator: " ")
         appendDebugLine("console.\(level) \(message)")
+    }
+
+    private func applyPerfFPS(_ payload: Any?) {
+        guard let map = payload as? [String: Any] else { return }
+        if let fps = map["fps"] as? Int {
+            perfFPS = fps
+            return
+        }
+        if let fps = map["fps"] as? Double {
+            perfFPS = Int(fps.rounded())
+        }
     }
 
     private func appendDebugLine(_ line: String) {
