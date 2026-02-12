@@ -1,5 +1,60 @@
 # IsoCity & IsoCoaster
 
+This repo experiments with running the web-based IsoCity game inside a native iOS app using a SwiftUI shell and `WKWebView`. The goal is to see how blending native iOS elements with the web game affects feel and usability, without rewriting core game logic.
+
+Key observations: Native gestures improved camera movement and made touch interactions more enjoyable than in the browser. The app felt native early on, but maintaining a SwiftUI shell in sync with a changing web app proved challenging. Performance was limited by `WKWebView`—steady 60 FPS was hard to hit—while a prototype native board was much smoother, hinting at the benefits of a native rewrite.
+
+---
+
+## iOS Host App
+
+The native iOS app is a SwiftUI shell around a `WKWebView` that loads a bundled static export of the Next.js web app.
+
+**High-Level Design**
+- The app is a native SwiftUI shell around a `WKWebView`.
+- A lightweight in-process localhost server serves the exported web bundle.
+- The web app loads from a stable origin: `http://127.0.0.1:54873`.
+- JS/Swift communication uses a WebKit script message bridge (`bridge`).
+
+### iOS Build & Run
+
+**Prereqs**
+- Node.js + npm (to generate the bundled web export)
+- Xcode (to build/run the iOS app)
+
+**Build the bundled web export** (from repo root):
+```sh
+npm ci
+npm run ios:web:bundle
+```
+This generates a static export and copies it into `ios/iso-city-ios/iso-city-ios/web.bundle/` (generated; gitignored).
+
+**Build for simulator** (no signing):
+```sh
+xcodebuild \
+  -project ios/iso-city-ios/iso-city-ios.xcodeproj \
+  -scheme iso-city-ios \
+  -configuration Debug \
+  -sdk iphonesimulator \
+  -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+If `generic/platform=iOS Simulator` is not accepted, list destinations and pick a simulator by name:
+```sh
+xcodebuild -showdestinations -scheme iso-city-ios -project ios/iso-city-ios/iso-city-ios.xcodeproj
+```
+Then rerun the build with `-destination 'platform=iOS Simulator,name=<Your Simulator Name>'`.
+
+**Run in Xcode:** Open `ios/iso-city-ios/iso-city-ios.xcodeproj`, select an iOS Simulator, Build/Run.
+
+**Physical device:** Building/running on a device requires selecting your own Team in Xcode Signing settings.
+
+
+---
+
+## Web Version
+
 Open-source isometric simulation games built with **Next.js**, **TypeScript**, and **HTML5 Canvas**.
 
 <table>
@@ -19,7 +74,7 @@ Open-source isometric simulation games built with **Next.js**, **TypeScript**, a
 
 Made with [Cursor](https://cursor.com)
 
-## Features
+### Features
 
 -   **Isometric Rendering Engine**: Custom-built rendering system using HTML5 Canvas (`CanvasIsometricGrid`) capable of handling complex depth sorting, layer management, and both image and drawn sprites.
 -   **Dynamic Simulation**:
@@ -30,21 +85,21 @@ Made with [Cursor](https://cursor.com)
 -   **State Management**: Save/Load functionality for multiple cities.
 -   **Responsive Design**: Mobile-friendly interface with specialized touch controls and toolbars.
 
-## Tech Stack
+### Tech Stack
 
 -   **Framework**: [Next.js 16](https://nextjs.org/)
 -   **Language**: [TypeScript](https://www.typescriptlang.org/)
 -   **Graphics**: HTML5 Canvas API (No external game engine libraries; pure native implementation).
 -   **Icons**: Lucide React.
 
-## Getting Started
+### Getting Started
 
-### Prerequisites
+#### Prerequisites
 
 -   Node.js (v18 or higher)
 -   npm or yarn
 
-### Installation
+#### Installation
 
 1.  **Clone the repository:**
     ```bash
@@ -65,21 +120,13 @@ Made with [Cursor](https://cursor.com)
 4.  **Open the game:**
     Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Contributing
+### Contributing
 
 Contributions are welcome! Whether it's reporting a bug, proposing a new feature, or submitting a pull request, your input is valued.
 
 Please ensure your code follows the existing style and conventions.
 
-## iOS Notes
-
-This iOS experiment was mainly about testing whether native controls on top of a mostly static web game could improve feel without rewriting the full project.
-
-- Native gestures made camera movement feel smoother and more natural than the browser version, and interacting with the board by touch was more fun overall.
-- The app felt surprisingly native early, even before polishing visual details like liquid glass styling.
-- Maintainability became the biggest downside: keeping a native shell aligned with a fast-moving web upstream is expensive and brittle.
-- In practice, `WKWebView` looked fundamentally constrained on frame pacing here, often running below a steady 60 FPS.
-- A partially rewritten native board prototype ran much smoother, which validates the performance path, but a full game rewrite is currently out of scope.
+---
 
 ## License
 
