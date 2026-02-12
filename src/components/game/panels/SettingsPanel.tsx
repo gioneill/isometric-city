@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { SpriteTestPanel } from './SpriteTestPanel';
 import { SavedCityMeta } from '@/types/game';
 import { LocaleSelector } from 'gt-next';
+import { useMobileUiSettings } from '@/lib/mobileUiSettings';
 
 // Translatable UI labels
 const UI_LABELS = {
@@ -72,6 +73,17 @@ const UI_LABELS = {
   day: msg('Day'),
   night: msg('Night'),
   cannotShrink: msg('Cannot shrink city further - minimum size reached.'),
+  mobileUi: msg('Mobile UI'),
+  mobileUiDesc: msg('Customize compact layouts for phones and tablets'),
+  mobileToolLayout: msg('Toolbar Layout'),
+  toolbarLayoutCategory: msg('Category First'),
+  toolbarLayoutQuick: msg('Quick Tools'),
+  mobileHudDensity: msg('HUD Density'),
+  hudMinimal: msg('Minimal'),
+  hudCompact: msg('Compact'),
+  hudFull: msg('Full'),
+  mobileMinimap: msg('Show Minimap on Mobile'),
+  mobileMinimapDesc: msg('Default is off. Turn on to access a compact minimap overlay.'),
 };
 
 // Format a date for display
@@ -144,6 +156,7 @@ export function SettingsPanel() {
   const [importError, setImportError] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
   const [savedCityInfo, setSavedCityInfo] = useState(getSavedCityInfo());
+  const { settings: mobileUiSettings, updateSettings: updateMobileUiSettings } = useMobileUiSettings();
   
   // Refresh saved city info when panel opens
   React.useEffect(() => {
@@ -273,6 +286,71 @@ export function SettingsPanel() {
               <Label>{m(UI_LABELS.language)}</Label>
               <p className="text-muted-foreground text-xs mb-2">{m(UI_LABELS.languageDesc)}</p>
               <LocaleSelector />
+            </div>
+
+            <div className="py-2 space-y-3">
+              <div>
+                <Label>{m(UI_LABELS.mobileUi)}</Label>
+                <p className="text-muted-foreground text-xs">{m(UI_LABELS.mobileUiDesc)}</p>
+              </div>
+
+              <div>
+                <div className="text-xs font-medium mb-1">{m(UI_LABELS.mobileToolLayout)}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={mobileUiSettings.toolLayout === 'category' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateMobileUiSettings({ toolLayout: 'category' })}
+                  >
+                    {m(UI_LABELS.toolbarLayoutCategory)}
+                  </Button>
+                  <Button
+                    variant={mobileUiSettings.toolLayout === 'quick' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateMobileUiSettings({ toolLayout: 'quick' })}
+                  >
+                    {m(UI_LABELS.toolbarLayoutQuick)}
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-medium mb-1">{m(UI_LABELS.mobileHudDensity)}</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    variant={mobileUiSettings.hudDensity === 'minimal' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateMobileUiSettings({ hudDensity: 'minimal' })}
+                  >
+                    {m(UI_LABELS.hudMinimal)}
+                  </Button>
+                  <Button
+                    variant={mobileUiSettings.hudDensity === 'compact' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateMobileUiSettings({ hudDensity: 'compact' })}
+                  >
+                    {m(UI_LABELS.hudCompact)}
+                  </Button>
+                  <Button
+                    variant={mobileUiSettings.hudDensity === 'full' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => updateMobileUiSettings({ hudDensity: 'full' })}
+                  >
+                    {m(UI_LABELS.hudFull)}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between py-2 gap-4">
+                <div className="flex-1 min-w-0">
+                  <Label>{m(UI_LABELS.mobileMinimap)}</Label>
+                  <p className="text-muted-foreground text-xs">{m(UI_LABELS.mobileMinimapDesc)}</p>
+                </div>
+                <Switch
+                  checked={mobileUiSettings.showMinimap}
+                  onCheckedChange={(checked) => updateMobileUiSettings({ showMinimap: checked })}
+                />
+              </div>
             </div>
           </div>
 

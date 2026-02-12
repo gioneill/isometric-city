@@ -24,6 +24,7 @@ import {
   EducationIcon,
   SafetyIcon,
 } from '@/components/ui/Icons';
+import { MobileToolLayout } from '@/lib/mobileUiSettings';
 
 // Tool category icons
 const CategoryIcons: Record<string, React.ReactNode> = {
@@ -245,9 +246,10 @@ interface MobileToolbarProps {
   onOpenPanel: (panel: 'budget' | 'statistics' | 'advisors' | 'settings') => void;
   overlayMode?: OverlayMode;
   setOverlayMode?: (mode: OverlayMode) => void;
+  toolLayout?: MobileToolLayout;
 }
 
-export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMode }: MobileToolbarProps) {
+export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMode, toolLayout = 'category' }: MobileToolbarProps) {
   const { state, setTool, expandCity, shrinkCity } = useGame();
   const { selectedTool, stats } = state;
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -276,6 +278,11 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
     }
   };
 
+  const openCategoryMenu = (category: string) => {
+    setExpandedCategory(category);
+    setShowMenu(true);
+  };
+
   return (
     <>
       {/* Bottom Toolbar */}
@@ -296,70 +303,127 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
           )}
 
           <div className="flex items-center justify-around px-2 py-2 gap-1">
-            {/* Quick access tools */}
-            <Button
-              variant={selectedTool === 'select' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-11 w-11"
-              onClick={() => handleToolSelect('select')}
-            >
-              {QuickToolIcons.select}
-            </Button>
+            {toolLayout === 'quick' ? (
+              <>
+                <Button
+                  variant={selectedTool === 'select' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => handleToolSelect('select')}
+                >
+                  {QuickToolIcons.select}
+                </Button>
 
-            <Button
-              variant={selectedTool === 'bulldoze' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-11 w-11 text-red-400"
-              onClick={() => handleToolSelect('bulldoze')}
-            >
-              {QuickToolIcons.bulldoze}
-            </Button>
+                <Button
+                  variant={selectedTool === 'bulldoze' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11 text-red-400"
+                  onClick={() => handleToolSelect('bulldoze')}
+                >
+                  {QuickToolIcons.bulldoze}
+                </Button>
 
-            <Button
-              variant={selectedTool === 'road' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-11 w-11"
-              onClick={() => handleToolSelect('road')}
-            >
-              {QuickToolIcons.road}
-            </Button>
+                <Button
+                  variant={selectedTool === 'road' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => handleToolSelect('road')}
+                >
+                  {QuickToolIcons.road}
+                </Button>
 
-            <Button
-              variant={selectedTool === 'rail' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-11 w-11"
-              onClick={() => handleToolSelect('rail')}
-            >
-              {QuickToolIcons.rail}
-            </Button>
+                <Button
+                  variant={selectedTool === 'rail' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => handleToolSelect('rail')}
+                >
+                  {QuickToolIcons.rail}
+                </Button>
 
-            {/* Zone buttons */}
-            <Button
-              variant={selectedTool === 'zone_residential' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-11 w-11"
-              onClick={() => handleToolSelect('zone_residential')}
-            >
-              {QuickToolIcons.zone_residential}
-            </Button>
+                <Button
+                  variant={selectedTool === 'zone_residential' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => handleToolSelect('zone_residential')}
+                >
+                  {QuickToolIcons.zone_residential}
+                </Button>
 
-            <Button
-              variant={selectedTool === 'zone_commercial' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-11 w-11"
-              onClick={() => handleToolSelect('zone_commercial')}
-            >
-              {QuickToolIcons.zone_commercial}
-            </Button>
+                <Button
+                  variant={selectedTool === 'zone_commercial' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => handleToolSelect('zone_commercial')}
+                >
+                  {QuickToolIcons.zone_commercial}
+                </Button>
 
-            <Button
-              variant={selectedTool === 'zone_industrial' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-11 w-11"
-              onClick={() => handleToolSelect('zone_industrial')}
-            >
-              {QuickToolIcons.zone_industrial}
-            </Button>
+                <Button
+                  variant={selectedTool === 'zone_industrial' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => handleToolSelect('zone_industrial')}
+                >
+                  {QuickToolIcons.zone_industrial}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant={selectedTool === 'select' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => handleToolSelect('select')}
+                >
+                  {QuickToolIcons.select}
+                </Button>
+                <Button
+                  variant={selectedTool === 'bulldoze' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-11 w-11 text-red-400"
+                  onClick={() => handleToolSelect('bulldoze')}
+                >
+                  {QuickToolIcons.bulldoze}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => openCategoryMenu('TOOLS')}
+                  title={String(m((CATEGORY_LABELS.TOOLS) as Parameters<typeof m>[0]))}
+                >
+                  {CategoryIcons.TOOLS}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => openCategoryMenu('ZONES')}
+                  title={String(m((CATEGORY_LABELS.ZONES) as Parameters<typeof m>[0]))}
+                >
+                  {CategoryIcons.ZONES}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => openCategoryMenu('SERVICES')}
+                  title={String(m((CATEGORY_LABELS.SERVICES) as Parameters<typeof m>[0]))}
+                >
+                  {CategoryIcons.SERVICES}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11"
+                  onClick={() => openCategoryMenu('SPECIAL')}
+                  title={String(m((CATEGORY_LABELS.SPECIAL) as Parameters<typeof m>[0]))}
+                >
+                  {CategoryIcons.SPECIAL}
+                </Button>
+              </>
+            )}
 
             {/* More tools menu button */}
             <Button

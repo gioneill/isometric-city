@@ -30,13 +30,14 @@ interface MiniMapProps {
     zoom: number; 
     canvasSize: { width: number; height: number } 
   } | null;
+  compact?: boolean;
 }
 
 // Canvas-based Minimap - Memoized with throttled grid rendering
 // Translatable label
 const MINIMAP_LABEL = msg('Minimap');
 
-export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: MiniMapProps) {
+export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport, compact = false }: MiniMapProps) {
   const { state } = useGame();
   const { grid, gridSize, tick } = state;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -48,6 +49,7 @@ export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: Min
   // Pre-compute color map for faster lookups
   const serviceBuildings = useMemo(() => SERVICE_BUILDINGS, []);
   const parkBuildings = useMemo(() => PARK_BUILDINGS, []);
+  const mapSize = compact ? 100 : 140;
   
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,7 +58,7 @@ export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: Min
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    const size = 140;
+    const size = mapSize;
     const scale = size / gridSize;
     
     // Track if grid reference changed (indicates building placement or other grid modification)
@@ -136,7 +138,7 @@ export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: Min
       ctx.closePath();
       ctx.stroke();
     }
-  }, [grid, gridSize, viewport, tick, serviceBuildings, parkBuildings]);
+  }, [grid, gridSize, viewport, tick, serviceBuildings, parkBuildings, mapSize]);
 
   const [isDragging, setIsDragging] = useState(false);
   
@@ -150,7 +152,7 @@ export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: Min
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
     
-    const size = 140;
+    const size = mapSize;
     const scale = size / gridSize;
     
     const gridX = Math.floor(clickX / scale);
@@ -161,7 +163,7 @@ export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: Min
     const clampedY = Math.max(0, Math.min(gridSize - 1, gridY));
     
     onNavigate(clampedX, clampedY);
-  }, [onNavigate, gridSize]);
+  }, [onNavigate, gridSize, mapSize]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDragging(true);
@@ -192,38 +194,42 @@ export const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: Min
   }, [isDragging]);
   
   return (
-    <Card className="fixed bottom-6 right-8 p-3 shadow-lg bg-card/90 border-border/70 z-50">
-      <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground font-semibold mb-2">
-        {m(MINIMAP_LABEL)}
-      </div>
+    <Card className={`fixed shadow-lg bg-card/90 border-border/70 z-50 ${compact ? 'bottom-[calc(92px+env(safe-area-inset-bottom))] right-3 p-2' : 'bottom-6 right-8 p-3'}`}>
+      {!compact && (
+        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground font-semibold mb-2">
+          {m(MINIMAP_LABEL)}
+        </div>
+      )}
       <canvas
         ref={canvasRef}
-        width={140}
-        height={140}
+        width={mapSize}
+        height={mapSize}
         className="block rounded-md border border-border/60 cursor-pointer select-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       />
-      <div className="mt-2 grid grid-cols-4 gap-1 text-[8px]">
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-green-500 rounded-sm" />
-          <span className="text-muted-foreground">R</span>
+      {!compact && (
+        <div className="mt-2 grid grid-cols-4 gap-1 text-[8px]">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-green-500 rounded-sm" />
+            <span className="text-muted-foreground">R</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-blue-500 rounded-sm" />
+            <span className="text-muted-foreground">C</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-amber-500 rounded-sm" />
+            <span className="text-muted-foreground">I</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-pink-500 rounded-sm" />
+            <span className="text-muted-foreground">S</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-blue-500 rounded-sm" />
-          <span className="text-muted-foreground">C</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-amber-500 rounded-sm" />
-          <span className="text-muted-foreground">I</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-pink-500 rounded-sm" />
-          <span className="text-muted-foreground">S</span>
-        </div>
-      </div>
+      )}
     </Card>
   );
 });

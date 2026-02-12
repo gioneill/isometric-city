@@ -110,6 +110,7 @@ import {
 } from '@/components/game/trainSystem';
 import { Train } from '@/components/game/types';
 import { useLightingSystem } from '@/components/game/lightingSystem';
+import { buildCameraUpdate, postToNative, useNativeHostConfig } from '@/lib/nativeBridge';
 
 // Props interface for CanvasIsometricGrid
 export interface CanvasIsometricGridProps {
@@ -127,6 +128,8 @@ export interface CanvasIsometricGridProps {
 export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMobile = false, navigationTarget, onNavigationComplete, onViewportChange, onBargeDelivery }: CanvasIsometricGridProps) {
   const { state, latestStateRef, placeAtTile, finishTrackDrag, connectToCity, checkAndDiscoverCities, currentSpritePack, visualHour } = useGame();
   const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, gameVersion } = state;
+  const nativeHostConfig = useNativeHostConfig();
+  const nativeOwnsGestures = nativeHostConfig.host === 'ios' && nativeHostConfig.gestureMode === 'native';
   
   // PERF: Use latestStateRef for real-time grid access in animation loops
   // This avoids waiting for React state sync which is throttled for performance
@@ -162,6 +165,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     screenY: number;
   } | null>(null);
   const [zoom, setZoom] = useState(isMobile ? 0.6 : 1);
+  const nativeCameraSnapshotRef = useRef({ offsetX: isMobile ? 200 : 620, offsetY: isMobile ? 100 : 160, zoom: isMobile ? 0.6 : 1 });
   const carsRef = useRef<Car[]>([]);
   const carIdRef = useRef(0);
   const carSpawnTimerRef = useRef(0);
@@ -590,19 +594,37 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   useEffect(() => {
     isPanningRef.current = isPanning;
   }, [isPanning]);
-  
+
   // Sync zoom state to ref for animation loop access
   useEffect(() => {
     zoomRef.current = zoom;
   }, [zoom]);
 
+  useEffect(() => {
+    nativeCameraSnapshotRef.current = { offsetX: offset.x, offsetY: offset.y, zoom };
+  }, [offset.x, offset.y, zoom]);
+
   // Notify parent of viewport changes for minimap
   useEffect(() => {
     onViewportChange?.({ offset, zoom, canvasSize });
+    postToNative({
+      type: 'camera.changed',
+      payload: {
+        offsetX: offset.x,
+        offsetY: offset.y,
+        zoom,
+        canvasWidth: canvasSize.width,
+        canvasHeight: canvasSize.height,
+      },
+    });
   }, [offset, zoom, canvasSize, onViewportChange]);
 
   // Keyboard panning (WASD / arrow keys)
   useEffect(() => {
+    if (nativeOwnsGestures) {
+      return;
+    }
+
     const pressed = keysPressedRef.current;
     const isTypingTarget = (target: EventTarget | null) => {
       const el = target as HTMLElement | null;
@@ -669,7 +691,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       cancelAnimationFrame(animationFrameId);
       pressed.clear();
     };
-  }, []);
+  }, [nativeOwnsGestures]);
 
   // Find marinas and piers (uses imported utility)
   const findMarinasAndPiersCallback = useCallback(() => {
@@ -2534,6 +2556,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   });
   
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (nativeOwnsGestures) {
+      return;
+    }
+
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true);
       setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
@@ -2598,7 +2624,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         }
       }
     }
-  }, [offset, gridSize, selectedTool, placeAtTile, zoom, showsDragGrid, supportsDragPlace, setSelectedTile, findBuildingOrigin, grid]);
+  }, [offset, gridSize, selectedTool, placeAtTile, zoom, showsDragGrid, supportsDragPlace, setSelectedTile, findBuildingOrigin, grid, nativeOwnsGestures]);
   
   // Calculate camera bounds based on grid size
   const getMapBounds = useCallback((currentZoom: number, canvasW: number, canvasH: number) => {
@@ -2628,6 +2654,129 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     };
   }, [getMapBounds, canvasSize.width, canvasSize.height]);
 
+  const hitTestAtScreen = useCallback((screenX: number, screenY: number) => {
+    const safeX = Number.isFinite(screenX) ? screenX : 0;
+    const safeY = Number.isFinite(screenY) ? screenY : 0;
+    const worldX = safeX / zoom;
+    const worldY = safeY / zoom;
+    const { gridX, gridY } = screenToGrid(worldX, worldY, offset.x / zoom, offset.y / zoom);
+    const inBounds = gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize;
+    const tile = inBounds ? grid[gridY]?.[gridX] : undefined;
+    const origin = inBounds ? findBuildingOrigin(gridX, gridY) : null;
+
+    return {
+      screenX: safeX,
+      screenY: safeY,
+      gridX,
+      gridY,
+      inBounds,
+      buildingType: tile?.building.type,
+      originX: origin?.originX,
+      originY: origin?.originY,
+    };
+  }, [zoom, offset.x, offset.y, gridSize, grid, findBuildingOrigin]);
+
+  const handleTapAtScreen = useCallback((screenX: number, screenY: number) => {
+    const hit = hitTestAtScreen(screenX, screenY);
+    if (!hit.inBounds) {
+      return null;
+    }
+
+    if (selectedTool === 'select') {
+      const origin = findBuildingOrigin(hit.gridX, hit.gridY);
+      if (origin) {
+        setSelectedTile({ x: origin.originX, y: origin.originY });
+      } else {
+        setSelectedTile({ x: hit.gridX, y: hit.gridY });
+      }
+    } else {
+      placeAtTile(hit.gridX, hit.gridY);
+    }
+
+    return hit;
+  }, [hitTestAtScreen, selectedTool, findBuildingOrigin, setSelectedTile, placeAtTile]);
+
+  const applyNativeCamera = useCallback((rawCamera: unknown) => {
+    const update = buildCameraUpdate(
+      rawCamera && typeof rawCamera === 'object' ? (rawCamera as Record<string, unknown>) : null
+    );
+    if (!update) {
+      return;
+    }
+
+    const nextZoom = Math.max(
+      ZOOM_MIN,
+      Math.min(
+        ZOOM_MAX,
+        update.zoom ?? update.scale ?? zoom
+      )
+    );
+
+    let targetOffset = { x: offset.x, y: offset.y };
+
+    if (typeof update.offsetX === 'number' || typeof update.offsetY === 'number') {
+      targetOffset = {
+        x: update.offsetX ?? offset.x,
+        y: update.offsetY ?? offset.y,
+      };
+    } else if (typeof update.x === 'number' && typeof update.y === 'number') {
+      targetOffset = {
+        x: canvasSize.width / 2 - update.x * nextZoom,
+        y: canvasSize.height / 2 - update.y * nextZoom,
+      };
+    }
+
+    const clampedOffset = clampOffset(targetOffset, nextZoom);
+
+    if (nextZoom !== zoom) {
+      setZoom(nextZoom);
+    }
+    if (clampedOffset.x !== offset.x || clampedOffset.y !== offset.y) {
+      setOffset(clampedOffset);
+    }
+  }, [zoom, offset.x, offset.y, canvasSize.width, canvasSize.height, clampOffset]);
+
+  const hitTestFromNativeRef = useRef(hitTestAtScreen);
+  const applyNativeCameraRef = useRef(applyNativeCamera);
+  const tapFromNativeRef = useRef(handleTapAtScreen);
+
+  useEffect(() => {
+    hitTestFromNativeRef.current = hitTestAtScreen;
+  }, [hitTestAtScreen]);
+
+  useEffect(() => {
+    applyNativeCameraRef.current = applyNativeCamera;
+  }, [applyNativeCamera]);
+
+  useEffect(() => {
+    tapFromNativeRef.current = handleTapAtScreen;
+  }, [handleTapAtScreen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const existingNativeApi = window.__native ?? {};
+    window.__native = {
+      ...existingNativeApi,
+      setCamera: (camera) => {
+        applyNativeCameraRef.current(camera);
+      },
+      getCamera: () => nativeCameraSnapshotRef.current,
+      hitTest: (screenX, screenY) => hitTestFromNativeRef.current(screenX, screenY),
+      tap: (screenX, screenY) => tapFromNativeRef.current(screenX, screenY),
+    };
+
+    return () => {
+      if (!window.__native) return;
+      delete window.__native.setCamera;
+      delete window.__native.getCamera;
+      delete window.__native.hitTest;
+      delete window.__native.tap;
+    };
+  }, []);
+
   // Handle minimap navigation - center the view on the target tile
   useEffect(() => {
     if (!navigationTarget) return;
@@ -2656,6 +2805,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   }, [navigationTarget, zoom, canvasSize.width, canvasSize.height, getMapBounds, onNavigationComplete]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (nativeOwnsGestures) {
+      return;
+    }
+
     if (!isPanning && panCandidateRef.current) {
       const { startX, startY } = panCandidateRef.current;
       const dx = e.clientX - startX;
@@ -2779,9 +2932,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         }
       }
     }
-  }, [isPanning, dragStart, offset, zoom, gridSize, isDragging, showsDragGrid, dragStartTile, selectedTool, roadDrawDirection, supportsDragPlace, placeAtTile, clampOffset, grid]);
+  }, [isPanning, dragStart, offset, zoom, gridSize, isDragging, showsDragGrid, dragStartTile, selectedTool, roadDrawDirection, supportsDragPlace, placeAtTile, clampOffset, grid, nativeOwnsGestures]);
   
   const handleMouseUp = useCallback(() => {
+    if (nativeOwnsGestures) {
+      return;
+    }
+
     if (panCandidateRef.current && !isPanning && selectedTool === 'select') {
       const { gridX, gridY } = panCandidateRef.current;
       panCandidateRef.current = null;
@@ -2847,9 +3004,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     if (!containerRef.current) {
       setHoveredTile(null);
     }
-  }, [isDragging, showsDragGrid, dragStartTile, placeAtTile, finishTrackDrag, selectedTool, dragEndTile, checkAndDiscoverCities, findBuildingOrigin, setSelectedTile, isPanning]);
+  }, [isDragging, showsDragGrid, dragStartTile, placeAtTile, finishTrackDrag, selectedTool, dragEndTile, checkAndDiscoverCities, findBuildingOrigin, setSelectedTile, isPanning, nativeOwnsGestures]);
   
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (nativeOwnsGestures) {
+      return;
+    }
+
     e.preventDefault();
     
     const rect = containerRef.current?.getBoundingClientRect();
@@ -2896,7 +3057,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     
     setOffset(clampedOffset);
     setZoom(newZoom);
-  }, [zoom, offset, clampOffset]);
+  }, [zoom, offset, clampOffset, nativeOwnsGestures]);
 
   // Touch handlers for mobile
   const getTouchDistance = useCallback((touch1: React.Touch, touch2: React.Touch) => {
@@ -2913,6 +3074,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   }, []);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (nativeOwnsGestures) {
+      return;
+    }
+
     if (e.touches.length === 1) {
       // Single touch - could be pan or tap
       const touch = e.touches[0];
@@ -2929,9 +3094,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       setIsPanning(false);
       isPinchZoomingRef.current = true;
     }
-  }, [offset, zoom, getTouchDistance, getTouchCenter]);
+  }, [offset, zoom, getTouchDistance, getTouchCenter, nativeOwnsGestures]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (nativeOwnsGestures) {
+      return;
+    }
+
     e.preventDefault();
 
     if (e.touches.length === 1 && isPanning && !initialPinchDistanceRef.current) {
@@ -2978,9 +3147,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         lastTouchCenterRef.current = currentCenter;
       }
     }
-  }, [isPanning, dragStart, zoom, offset, clampOffset, getTouchDistance, getTouchCenter]);
+  }, [isPanning, dragStart, zoom, offset, clampOffset, getTouchDistance, getTouchCenter, nativeOwnsGestures]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (nativeOwnsGestures) {
+      return;
+    }
+
     const touchStart = touchStartRef.current;
     
     if (e.touches.length === 0) {
@@ -3031,14 +3204,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       initialPinchDistanceRef.current = null;
       lastTouchCenterRef.current = null;
     }
-  }, [zoom, offset, gridSize, selectedTool, placeAtTile, setSelectedTile, findBuildingOrigin]);
+  }, [zoom, offset, gridSize, selectedTool, placeAtTile, setSelectedTile, findBuildingOrigin, nativeOwnsGestures]);
   
   return (
     <div
       ref={containerRef}
       className="overflow-hidden relative w-full h-full touch-none"
       style={{ 
-        cursor: isPanning ? 'grabbing' : isDragging ? 'crosshair' : 'default',
+        cursor: nativeOwnsGestures ? 'default' : isPanning ? 'grabbing' : isDragging ? 'crosshair' : 'default',
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

@@ -8,6 +8,8 @@
     "build": "npm run compress-images && next build",
     "start": "next start",
     "lint": "eslint .",
+    "ios:web:export": "node scripts/ios-web-export.mjs",
+    "ios:web:bundle": "npm run ios:web:export && node scripts/ios-bundle-web.mjs",
     "crop-screenshots": "bash scripts/crop-screenshots.sh",
     "compress-images": "node scripts/compress-images.mjs"
   },
