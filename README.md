@@ -71,6 +71,16 @@ Contributions are welcome! Whether it's reporting a bug, proposing a new feature
 
 Please ensure your code follows the existing style and conventions.
 
+## iOS Notes
+
+This iOS experiment was mainly about testing whether native controls on top of a mostly static web game could improve feel without rewriting the full project.
+
+- Native gestures made camera movement feel smoother and more natural than the browser version, and interacting with the board by touch was more fun overall.
+- The app felt surprisingly native early, even before polishing visual details like liquid glass styling.
+- Maintainability became the biggest downside: keeping a native shell aligned with a fast-moving web upstream is expensive and brittle.
+- In practice, `WKWebView` looked fundamentally constrained on frame pacing here, often running below a steady 60 FPS.
+- A partially rewritten native board prototype ran much smoother, which validates the performance path, but a full game rewrite is currently out of scope.
+
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
