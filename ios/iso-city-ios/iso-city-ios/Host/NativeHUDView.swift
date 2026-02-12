@@ -109,25 +109,14 @@ struct NativeHUDView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let topInset = proxy.safeAreaInsets.top
-            ZStack(alignment: .top) {
-                VStack(spacing: 12) {
-                    topHUD
-                    Spacer()
-                    bottomHUD
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, topInset + 10)
-                .padding(.bottom, 12)
-
-                topDemandStrip
-                    .padding(.horizontal, 12)
-                    .padding(.top, 2)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        VStack(spacing: 12) {
+            topHUD
+            Spacer()
+            bottomHUD
         }
-        .ignoresSafeArea(edges: .top)
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
         .sheet(isPresented: $showToolSheet) {
             NativeToolSheet(
                 selectedTool: model.selectedTool,
@@ -172,13 +161,7 @@ struct NativeHUDView: View {
             DemandMiniBar(label: "I", demand: model.industrialDemand, color: .orange)
                 .accessibilityIdentifier("hud.demand.industrial")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 3)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay {
-            Capsule()
-                .stroke(Color.white.opacity(0.14), lineWidth: 0.5)
-        }
+        .padding(.horizontal, 8)
         .accessibilityIdentifier("hud.demand.strip")
     }
 
@@ -263,6 +246,10 @@ struct NativeHUDView: View {
         }
         .padding(12)
         .glassEffect(.regular.tint(Color.black.opacity(0.04)), in: .rect(cornerRadius: 20))
+        .overlay(alignment: .top) {
+            topDemandStrip
+                .offset(y: -10)
+        }
     }
 
     private var bottomHUD: some View {
@@ -370,6 +357,7 @@ struct NativeHUDView: View {
     }
 
     private func setTool(_ tool: String) {
+        model.selectedTool = tool
         webViewStore.dispatch(type: "tool.set", payload: ["tool": tool])
     }
 
@@ -552,6 +540,12 @@ private struct QuickToolButtonStyle: ButtonStyle {
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
             .hudGlass(role: role, isInteractive: true, isSelected: isSelected, cornerRadius: 14)
+            .overlay {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.black.opacity(0.9), lineWidth: 2)
+                }
+            }
 
         return Group {
             if isSelected {
@@ -658,7 +652,7 @@ private struct DemandMiniBar: View {
                         .fill(Color.white.opacity(0.14))
                     Capsule()
                         .fill(fillColor)
-                        .frame(width: max(1, proxy.size.width * percentage))
+                        .frame(width: proxy.size.width * percentage)
                 }
             }
             .frame(height: 5)
@@ -713,6 +707,8 @@ private struct NativeToolSheet: View {
                                                 .foregroundStyle(.green)
                                         }
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("toolSheet.tool.\(tool)")
