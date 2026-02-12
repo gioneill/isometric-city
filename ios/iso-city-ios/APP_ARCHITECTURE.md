@@ -81,7 +81,9 @@
 - Only basic `GET`/`HEAD` static serving is supported.
 
 ## Operational Notes
+- Build/run instructions live in:
+  - `ios/iso-city-ios/README.md`
 - Build verification command:
-  - `xcodebuild -project ios/iso-city-ios/iso-city-ios.xcodeproj -scheme iso-city-ios -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.2' CODE_SIGNING_ALLOWED=NO build`
+  - `xcodebuild -project ios/iso-city-ios/iso-city-ios.xcodeproj -scheme iso-city-ios -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`
 - If app shows missing bundle overlay, rerun:
   - `npm run ios:web:bundle`

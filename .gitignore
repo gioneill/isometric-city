@@ -16,6 +16,12 @@
 /ios/iso-city-ios/iso-city-ios/web/
 /ios/iso-city-ios/iso-city-ios/web.bundle/
 
+# Xcode user state (never commit)
+**/xcuserdata/
+**/*.xcuserstate
+**/xcdebugger/
+**/*.xccheckout
+
 # production
 /build
 
