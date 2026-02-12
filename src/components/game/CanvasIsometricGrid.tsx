@@ -111,6 +111,7 @@ import {
 import { Train } from '@/components/game/types';
 import { useLightingSystem } from '@/components/game/lightingSystem';
 import { buildCameraUpdate, postToNative, useNativeHostConfig } from '@/lib/nativeBridge';
+import { usePerfMode } from '@/lib/perfSettings';
 
 // Props interface for CanvasIsometricGrid
 export interface CanvasIsometricGridProps {
@@ -129,6 +130,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const { state, latestStateRef, placeAtTile, finishTrackDrag, connectToCity, checkAndDiscoverCities, currentSpritePack, visualHour } = useGame();
   const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, gameVersion } = state;
   const nativeHostConfig = useNativeHostConfig();
+  const [perfModeEnabled] = usePerfMode();
+  const perfModeActive = perfModeEnabled && nativeHostConfig.host === 'ios';
   const nativeOwnsGestures = nativeHostConfig.host === 'ios' && nativeHostConfig.gestureMode === 'native';
   const isIOSWebHost = nativeHostConfig.host === 'ios' && nativeHostConfig.gestureMode === 'web';
   
@@ -149,9 +152,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const [isDragging, setIsDragging] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [isWheelZooming, setIsWheelZooming] = useState(false); // State to trigger re-render when wheel zooming stops
+  const [isPinchZooming, setIsPinchZooming] = useState(false);
   const isPanningRef = useRef(false); // Ref for animation loop to check panning state
   const isPinchZoomingRef = useRef(false); // Ref for animation loop to check pinch zoom state
   const isWheelZoomingRef = useRef(false); // Ref for animation loop to check desktop wheel zoom state
+  const renderScaleRef = useRef(1);
+  const renderScaleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [renderScale, setRenderScale] = useState(1);
   const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Timeout to detect end of wheel zoom
   const zoomRef = useRef(isMobile ? 0.6 : 1); // Ref for animation loop to check zoom level
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -612,6 +619,55 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     isPanningRef.current = isPanning;
   }, [isPanning]);
 
+  const setRenderScaleNow = useCallback((nextValue: number) => {
+    if (renderScaleRef.current === nextValue) return;
+    renderScaleRef.current = nextValue;
+    setRenderScale(nextValue);
+  }, []);
+
+  const scheduleRenderScaleReset = useCallback(() => {
+    if (renderScaleTimeoutRef.current) {
+      clearTimeout(renderScaleTimeoutRef.current);
+    }
+    renderScaleTimeoutRef.current = setTimeout(() => {
+      setRenderScaleNow(1);
+    }, 140);
+  }, [setRenderScaleNow]);
+
+  useEffect(() => {
+    return () => {
+      if (renderScaleTimeoutRef.current) {
+        clearTimeout(renderScaleTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const isGestureActive = isPanning || isWheelZooming || isPinchZooming;
+
+  useEffect(() => {
+    let rafId = 0;
+    const setRenderScaleNextFrame = (nextValue: number) => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        setRenderScaleNow(nextValue);
+      });
+    };
+
+    if (!perfModeActive) {
+      setRenderScaleNextFrame(1);
+      return () => cancelAnimationFrame(rafId);
+    }
+    if (isGestureActive) {
+      if (renderScaleTimeoutRef.current) {
+        clearTimeout(renderScaleTimeoutRef.current);
+      }
+      setRenderScaleNextFrame(0.75);
+      return () => cancelAnimationFrame(rafId);
+    }
+    scheduleRenderScaleReset();
+    return () => cancelAnimationFrame(rafId);
+  }, [isGestureActive, perfModeActive, scheduleRenderScaleReset, setRenderScaleNow]);
+
   // Sync zoom state to ref for animation loop access
   useEffect(() => {
     zoomRef.current = zoom;
@@ -734,11 +790,21 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     return generateTourWaypoints(currentGrid, currentGridSize, startTileX, startTileY);
   }, []);
 
+  const getEffectiveDpr = useCallback(() => {
+    const base = window.devicePixelRatio || 1;
+    if (!perfModeActive) return base;
+    return Math.min(base, 2);
+  }, [perfModeActive]);
+
+  const getInternalDpr = useCallback(() => {
+    return getEffectiveDpr() * renderScaleRef.current;
+  }, [getEffectiveDpr]);
+
   // Draw airplanes with contrails (uses extracted utility)
   const drawAirplanes = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     const canvas = ctx.canvas;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getInternalDpr();
     
     // Early exit if no airplanes
     if (!currentGrid || currentGridSize <= 0 || airplanesRef.current.length === 0) {
@@ -762,13 +828,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     drawAirplanesUtil(ctx, airplanesRef.current, viewBounds, visualHour, navLightFlashTimerRef.current, isMobile);
     
     ctx.restore();
-  }, [visualHour, isMobile]);
+  }, [getInternalDpr, visualHour, isMobile]);
 
   // Draw helicopters with rotor wash (uses extracted utility)
   const drawHelicopters = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     const canvas = ctx.canvas;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getInternalDpr();
     
     // Early exit if no helicopters
     if (!currentGrid || currentGridSize <= 0 || helicoptersRef.current.length === 0) {
@@ -792,13 +858,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     drawHelicoptersUtil(ctx, helicoptersRef.current, viewBounds, visualHour, navLightFlashTimerRef.current, isMobile, currentZoom);
     
     ctx.restore();
-  }, [visualHour, isMobile]);
+  }, [getInternalDpr, visualHour, isMobile]);
 
   // Draw seaplanes with wakes and contrails (uses extracted utility)
   const drawSeaplanes = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     const canvas = ctx.canvas;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getInternalDpr();
 
     // Early exit if no seaplanes
     if (!currentGrid || currentGridSize <= 0 || seaplanesRef.current.length === 0) {
@@ -822,7 +888,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     drawSeaplanesUtil(ctx, seaplanesRef.current, viewBounds, visualHour, navLightFlashTimerRef.current, isMobile);
 
     ctx.restore();
-  }, [visualHour, isMobile]);
+  }, [getInternalDpr, visualHour, isMobile]);
 
   // Boats are now handled by useBoatSystem hook (see above)
 
@@ -965,7 +1031,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current && canvasRef.current) {
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = getInternalDpr();
         const rect = containerRef.current.getBoundingClientRect();
         
         // Set display size
@@ -1002,7 +1068,32 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     updateSize();
     window.addEventListener('resize', updateSize);
     return () => window.removeEventListener('resize', updateSize);
-  }, []);
+  }, [getInternalDpr, renderScale]);
+
+  useEffect(() => {
+    if (nativeHostConfig.host !== 'ios') return;
+    let frameCount = 0;
+    let lastReport = performance.now();
+    let rafId = 0;
+
+    const tick = (time: number) => {
+      frameCount += 1;
+      const elapsed = time - lastReport;
+      if (elapsed >= 1000) {
+        const fps = Math.round((frameCount * 1000) / elapsed);
+        postToNative({
+          type: 'perf.fps',
+          payload: { fps },
+        });
+        frameCount = 0;
+        lastReport = time;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [nativeHostConfig.host]);
   
   // Main render function - PERF: Uses requestAnimationFrame throttling to batch multiple state updates
   useEffect(() => {
@@ -1033,7 +1124,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       }
       lastMainRenderTimeRef.current = now;
       
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = getInternalDpr();
     
       // Disable image smoothing for crisp pixel art
       ctx.imageSmoothingEnabled = false;
@@ -2207,7 +2298,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       }
     };
   // PERF: hoveredTile and selectedTile removed from deps - now rendered on separate hover canvas layer
-  }, [grid, gridSize, offset, zoom, overlayMode, imagesLoaded, imageLoadVersion, canvasSize, dragStartTile, dragEndTile, state.services, currentSpritePack, waterBodies, getTileMetadata, showsDragGrid, isMobile]);
+  }, [grid, gridSize, offset, zoom, overlayMode, imagesLoaded, imageLoadVersion, canvasSize, dragStartTile, dragEndTile, state.services, currentSpritePack, waterBodies, getTileMetadata, showsDragGrid, isMobile, getInternalDpr]);
   
   type BridgeTileStatus = 'valid' | 'invalid' | 'land';
   type PathTile = { x: number; y: number; isWater: boolean; key: string };
@@ -2333,7 +2424,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getInternalDpr();
     
     // Clear the hover canvas
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -2442,7 +2533,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     }
     
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-  }, [hoveredTile, selectedTile, selectedTool, offset, zoom, gridSize, grid, isDragging, dragStartTile, dragEndTile, analyzeAxisLockedPathForBridges, computeAxisLockedPathTiles, isIOSWebHost]);
+  }, [hoveredTile, selectedTile, selectedTool, offset, zoom, gridSize, grid, isDragging, dragStartTile, dragEndTile, analyzeAxisLockedPathForBridges, computeAxisLockedPathTiles, isIOSWebHost, getInternalDpr]);
   
   // Animate decorative car traffic AND emergency vehicles on top of the base canvas
   useEffect(() => {
@@ -3262,6 +3353,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
         setIsPanning(true);
         isPinchZoomingRef.current = false;
+        setIsPinchZooming(false);
       } else if (e.touches.length === 2) {
         // Two finger touch - pinch to zoom
         const distance = getTouchDistance(e.touches[0], e.touches[1]);
@@ -3270,6 +3362,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         lastTouchCenterRef.current = getTouchCenter(e.touches[0], e.touches[1]);
         setIsPanning(false);
         isPinchZoomingRef.current = true;
+        setIsPinchZooming(true);
       }
       return;
     }
@@ -3294,6 +3387,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
         setIsPanning(true);
         isPinchZoomingRef.current = false;
+        setIsPinchZooming(false);
         initialPinchDistanceRef.current = null;
         lastTouchCenterRef.current = null;
         return;
@@ -3313,6 +3407,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       setIsDragging(true);
       setRoadDrawDirection(null);
       isPinchZoomingRef.current = false;
+      setIsPinchZooming(false);
       initialPinchDistanceRef.current = null;
       lastTouchCenterRef.current = null;
     } else if (e.touches.length === 2) {
@@ -3326,6 +3421,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       lastTouchCenterRef.current = getTouchCenter(e.touches[0], e.touches[1]);
       setIsPanning(false);
       isPinchZoomingRef.current = true;
+      setIsPinchZooming(true);
     }
   }, [nativeOwnsGestures, isIOSWebHost, selectedTool, offset.x, offset.y, zoom, getTouchDistance, getTouchCenter, hitTestAtScreen, resetTouchPlacementState]);
 
@@ -3546,6 +3642,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         setIsPanning(false);
         setIsDragging(false);
         isPinchZoomingRef.current = false;
+        setIsPinchZooming(false);
         touchStartRef.current = null;
         initialPinchDistanceRef.current = null;
         lastTouchCenterRef.current = null;
@@ -3555,6 +3652,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
         setIsPanning(true);
         isPinchZoomingRef.current = false;
+        setIsPinchZooming(false);
         initialPinchDistanceRef.current = null;
         lastTouchCenterRef.current = null;
       }
@@ -3636,6 +3734,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       // Reset all touch/drag state
       setIsPanning(false);
       isPinchZoomingRef.current = false;
+      setIsPinchZooming(false);
       touchStartRef.current = null;
       initialPinchDistanceRef.current = null;
       lastTouchCenterRef.current = null;
@@ -3648,6 +3747,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
       setIsPanning(true);
       isPinchZoomingRef.current = false;
+      setIsPinchZooming(false);
       initialPinchDistanceRef.current = null;
       lastTouchCenterRef.current = null;
     }

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct RootGameHostView: View {
+    private static let landscapeHUDHideLongestSideThreshold: CGFloat = 600
+
     @State private var model = GameHostModel()
     @State private var webViewStore = WebViewStore()
     @StateObject private var server: LocalWebServer
@@ -11,6 +13,7 @@ struct RootGameHostView: View {
     @State private var debugButtonPosition: CGPoint?
     @State private var debugButtonDragStartPosition: CGPoint?
     @State private var debugButtonSize: CGSize = .zero
+    @State private var selectModeBadgeSize: CGSize = .zero
     private let uiTestingEnabled = ProcessInfo.processInfo.arguments.contains("-uiTesting")
 
     init() {
@@ -18,30 +21,38 @@ struct RootGameHostView: View {
     }
 
     var body: some View {
-        ZStack {
-            if let configuration = currentConfiguration {
-                GameWebView(
-                    model: model,
-                    webViewStore: webViewStore,
-                    configuration: configuration
-                )
-                .id(reloadID)
-                .ignoresSafeArea()
-            } else {
-                Color.black.ignoresSafeArea()
-            }
+        GeometryReader { proxy in
+            let isLandscape = proxy.size.width > proxy.size.height
+            let longestSide = max(proxy.size.width, proxy.size.height)
+            let shouldHideHUD = isLandscape && longestSide <= Self.landscapeHUDHideLongestSideThreshold
 
-            if model.isInGame {
-                NativeHUDView(model: model, webViewStore: webViewStore)
-            }
+            ZStack {
+                if let configuration = currentConfiguration {
+                    GameWebView(
+                        model: model,
+                        webViewStore: webViewStore,
+                        configuration: configuration
+                    )
+                    .id(reloadID)
+                    .ignoresSafeArea()
+                } else {
+                    Color.black.ignoresSafeArea()
+                }
 
-            overlayView
+                if model.isInGame && !shouldHideHUD {
+                    NativeHUDView(model: model, webViewStore: webViewStore)
+                }
 
-            performanceSettingsButton
-            debugToggle
-            if showDebugConsole {
-                debugConsole
+                overlayView
+
+                performanceSettingsButton
+                debugToggle
+                selectModeBadge
+                if showDebugConsole {
+                    debugConsole
+                }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .background(Color.black)
         .onAppear {
@@ -206,6 +217,37 @@ struct RootGameHostView: View {
                         debugButtonDragStartPosition = nil
                     }
             )
+        }
+        .ignoresSafeArea()
+    }
+
+    private var selectModeBadge: some View {
+        GeometryReader { proxy in
+            if model.isInGame && model.selectedTool == "select" {
+                Text("Select Mode: ON")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .background {
+                        GeometryReader { badgeProxy in
+                            Color.clear
+                                .onAppear {
+                                    selectModeBadgeSize = badgeProxy.size
+                                }
+                                .onChange(of: badgeProxy.size) { _, newSize in
+                                    selectModeBadgeSize = newSize
+                                }
+                        }
+                    }
+                    .position(
+                        CGPoint(
+                            x: (selectModeBadgeSize.width / 2) + 12,
+                            y: resolvedDebugButtonPosition(in: proxy.size).y
+                        )
+                    )
+                    .allowsHitTesting(false)
+            }
         }
         .ignoresSafeArea()
     }

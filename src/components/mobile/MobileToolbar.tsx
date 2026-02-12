@@ -286,7 +286,12 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
   return (
     <>
       {/* Bottom Toolbar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 safe-area-bottom">
+      <div
+        className="fixed bottom-0 left-0 right-0 z-[70] safe-area-bottom pointer-events-auto touch-manipulation"
+        onPointerDownCapture={(e) => e.stopPropagation()}
+        onTouchStartCapture={(e) => e.stopPropagation()}
+        onTouchMoveCapture={(e) => e.stopPropagation()}
+      >
         <Card className="rounded-none border-x-0 border-b-0 bg-card/95 backdrop-blur-sm">
           {/* Selected tool info - now above the toolbar */}
           {selectedTool && TOOL_INFO[selectedTool] && (
@@ -302,13 +307,13 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
             </div>
           )}
 
-          <div className="flex items-center justify-around px-2 py-2 gap-1">
+          <div className="grid grid-flow-col auto-cols-fr items-center px-2 py-2 gap-1 [&_button]:touch-manipulation [&_button]:select-none">
             {toolLayout === 'quick' ? (
               <>
                 <Button
                   variant={selectedTool === 'select' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => handleToolSelect('select')}
                 >
                   {QuickToolIcons.select}
@@ -317,7 +322,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant={selectedTool === 'bulldoze' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11 text-red-400"
+                  className="h-11 w-full text-red-400"
                   onClick={() => handleToolSelect('bulldoze')}
                 >
                   {QuickToolIcons.bulldoze}
@@ -326,7 +331,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant={selectedTool === 'road' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => handleToolSelect('road')}
                 >
                   {QuickToolIcons.road}
@@ -335,7 +340,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant={selectedTool === 'rail' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => handleToolSelect('rail')}
                 >
                   {QuickToolIcons.rail}
@@ -344,7 +349,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant={selectedTool === 'zone_residential' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => handleToolSelect('zone_residential')}
                 >
                   {QuickToolIcons.zone_residential}
@@ -353,7 +358,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant={selectedTool === 'zone_commercial' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => handleToolSelect('zone_commercial')}
                 >
                   {QuickToolIcons.zone_commercial}
@@ -362,7 +367,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant={selectedTool === 'zone_industrial' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => handleToolSelect('zone_industrial')}
                 >
                   {QuickToolIcons.zone_industrial}
@@ -373,7 +378,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant={selectedTool === 'select' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => handleToolSelect('select')}
                 >
                   {QuickToolIcons.select}
@@ -381,7 +386,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant={selectedTool === 'bulldoze' ? 'default' : 'ghost'}
                   size="icon"
-                  className="h-11 w-11 text-red-400"
+                  className="h-11 w-full text-red-400"
                   onClick={() => handleToolSelect('bulldoze')}
                 >
                   {QuickToolIcons.bulldoze}
@@ -389,7 +394,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => openCategoryMenu('TOOLS')}
                   title={String(m((CATEGORY_LABELS.TOOLS) as Parameters<typeof m>[0]))}
                 >
@@ -398,7 +403,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => openCategoryMenu('ZONES')}
                   title={String(m((CATEGORY_LABELS.ZONES) as Parameters<typeof m>[0]))}
                 >
@@ -407,7 +412,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => openCategoryMenu('SERVICES')}
                   title={String(m((CATEGORY_LABELS.SERVICES) as Parameters<typeof m>[0]))}
                 >
@@ -416,7 +421,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-11 w-11"
+                  className="h-11 w-full"
                   onClick={() => openCategoryMenu('SPECIAL')}
                   title={String(m((CATEGORY_LABELS.SPECIAL) as Parameters<typeof m>[0]))}
                 >
@@ -429,7 +434,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
             <Button
               variant={showMenu ? 'default' : 'secondary'}
               size="icon"
-              className="h-11 w-11"
+              className="h-11 w-full"
               onClick={() => setShowMenu(!showMenu)}
             >
               {showMenu ? (

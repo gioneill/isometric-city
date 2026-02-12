@@ -258,7 +258,7 @@ function CoasterTrackToolsPanel({ onClose }: CoasterTrackToolsProps) {
   if (!buildingCoasterType) return null;
   
   return (
-    <Card className="absolute bottom-20 left-2 right-2 rounded-xl overflow-hidden z-50">
+    <Card className="absolute bottom-20 left-2 right-2 rounded-xl overflow-hidden z-[70] touch-manipulation pointer-events-auto">
       {/* Header with coaster type */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-primary/10">
         <div className="flex items-center gap-2">
@@ -303,7 +303,7 @@ function CoasterTrackToolsPanel({ onClose }: CoasterTrackToolsProps) {
               onClick={() => setTool(tool)}
               disabled={!canAfford && info.cost > 0}
               variant={isSelected ? 'default' : 'ghost'}
-              className={`h-auto py-2 px-1 flex flex-col items-center gap-0.5 text-[10px] ${
+              className={`min-h-11 h-auto py-2 px-1 flex flex-col items-center gap-0.5 text-[10px] touch-manipulation ${
                 isSelected ? 'bg-primary text-primary-foreground' : ''
               }`}
               title={info.description}
@@ -369,7 +369,12 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
       )}
       
       {/* Bottom Toolbar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 safe-area-bottom">
+      <div
+        className="fixed bottom-0 left-0 right-0 z-[70] safe-area-bottom pointer-events-auto touch-manipulation"
+        onPointerDownCapture={(e) => e.stopPropagation()}
+        onTouchStartCapture={(e) => e.stopPropagation()}
+        onTouchMoveCapture={(e) => e.stopPropagation()}
+      >
         <Card className="rounded-none border-x-0 border-b-0 bg-card/95 backdrop-blur-sm">
           {/* Selected tool info - now above the toolbar */}
           {selectedTool && TOOL_INFO[selectedTool] && !buildingCoasterType && (
@@ -385,12 +390,12 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
             </div>
           )}
 
-          <div className="flex items-center justify-around px-2 py-2 gap-1">
+          <div className="grid grid-flow-col auto-cols-fr items-center px-2 py-2 gap-1 [&_button]:touch-manipulation [&_button]:select-none">
             {/* Quick access tools */}
             <Button
               variant={selectedTool === 'select' ? 'default' : 'ghost'}
               size="icon"
-              className="h-11 w-11"
+              className="h-11 w-full"
               onClick={() => handleToolSelect('select')}
             >
               {QuickToolIcons.select}
@@ -399,7 +404,7 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
             <Button
               variant={selectedTool === 'bulldoze' ? 'default' : 'ghost'}
               size="icon"
-              className="h-11 w-11 text-red-400"
+              className="h-11 w-full text-red-400"
               onClick={() => handleToolSelect('bulldoze')}
             >
               {QuickToolIcons.bulldoze}
@@ -408,7 +413,7 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
             <Button
               variant={selectedTool === 'path' ? 'default' : 'ghost'}
               size="icon"
-              className="h-11 w-11"
+              className="h-11 w-full"
               onClick={() => handleToolSelect('path')}
             >
               {QuickToolIcons.path}
@@ -417,7 +422,7 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
             <Button
               variant={selectedTool === 'queue' ? 'default' : 'ghost'}
               size="icon"
-              className="h-11 w-11"
+              className="h-11 w-full"
               onClick={() => handleToolSelect('queue')}
             >
               {QuickToolIcons.queue}
@@ -427,7 +432,7 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
             <Button
               variant={buildingCoasterType ? 'default' : 'ghost'}
               size="icon"
-              className="h-11 w-11"
+              className="h-11 w-full"
               onClick={() => {
                 if (!buildingCoasterType) {
                   // Open menu to coasters section
@@ -443,7 +448,7 @@ export function CoasterMobileToolbar({ onOpenPanel }: CoasterMobileToolbarProps)
             <Button
               variant={showMenu ? 'default' : 'secondary'}
               size="icon"
-              className="h-11 w-11"
+              className="h-11 w-full"
               onClick={() => setShowMenu(!showMenu)}
             >
               {showMenu ? (

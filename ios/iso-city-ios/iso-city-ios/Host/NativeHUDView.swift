@@ -94,11 +94,16 @@ private enum PanelSheet: String, Identifiable {
 struct NativeHUDView: View {
     @Bindable var model: GameHostModel
     @Bindable var webViewStore: WebViewStore
+    private static let demandStripWidth: CGFloat = UIScreen.main.bounds.width / 3
+    private static let iPadHUDMaxWidth: CGFloat = 340
+    private static let iPadWideSingleRowMinWidth: CGFloat = 550
+    private static let iPadWideDemandStripWidth: CGFloat = iPadHUDMaxWidth / 2
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var showToolSheet = false
     @State private var showOverlaySheet = false
     @State private var activePanelSheet: PanelSheet?
-    @Namespace private var hudGlassNamespace
 
     @AppStorage("isocity.host.toolbarMode") private var toolbarMode: String = "category"
     @AppStorage("isocity.host.hudDensity") private var hudDensity: String = "compact"
@@ -108,15 +113,50 @@ struct NativeHUDView: View {
         decodePinnedTools(pinnedToolsStorage)
     }
 
+    private var isPadLayout: Bool {
+        horizontalSizeClass == .regular && UIDevice.current.userInterfaceIdiom != .phone
+    }
+
     var body: some View {
-        VStack(spacing: 12) {
-            topHUD
-            Spacer()
-            bottomHUD
+        Group {
+            if isPadLayout {
+                GeometryReader { proxy in
+                    let isWideSingleRowMode = proxy.size.width > Self.iPadWideSingleRowMinWidth
+                    let iPadSectionWidth = isWideSingleRowMode
+                        ? max(proxy.size.width - 24, 0)
+                        : Self.iPadHUDMaxWidth
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            topHUD(isWideSingleRowMode: isWideSingleRowMode)
+                            topDemandStrip(isWideSingleRowMode: isWideSingleRowMode)
+                        }
+                        .frame(width: iPadSectionWidth, alignment: .leading)
+                        .padding(.leading, 12)
+
+                        Spacer(minLength: 12)
+
+                        bottomHUD(isWideSingleRowMode: isWideSingleRowMode)
+                            .frame(width: iPadSectionWidth, alignment: .leading)
+                            .padding(.leading, 12)
+                            .padding(.bottom, 12)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+            } else {
+                VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        topHUD(isWideSingleRowMode: false)
+                        topDemandStrip(isWideSingleRowMode: false)
+                    }
+                    Spacer()
+                    bottomHUD(isWideSingleRowMode: false)
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 0)
+                .padding(.bottom, 12)
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 12)
         .sheet(isPresented: $showToolSheet) {
             NativeToolSheet(
                 selectedTool: model.selectedTool,
@@ -152,8 +192,8 @@ struct NativeHUDView: View {
         }
     }
 
-    private var topDemandStrip: some View {
-        HStack(spacing: 8) {
+    private func topDemandStrip(isWideSingleRowMode: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             DemandMiniBar(label: "R", demand: model.residentialDemand, color: .green)
                 .accessibilityIdentifier("hud.demand.residential")
             DemandMiniBar(label: "C", demand: model.commercialDemand, color: .blue)
@@ -161,66 +201,31 @@ struct NativeHUDView: View {
             DemandMiniBar(label: "I", demand: model.industrialDemand, color: .orange)
                 .accessibilityIdentifier("hud.demand.industrial")
         }
-        .padding(.horizontal, 8)
+        .frame(width: demandStripWidth(isWideSingleRowMode: isWideSingleRowMode), alignment: .leading)
+        .padding(.horizontal, 6)
         .accessibilityIdentifier("hud.demand.strip")
     }
 
-    private var topHUD: some View {
+    private func topHUD(isWideSingleRowMode: Bool) -> some View {
         VStack(spacing: hudDensity == "minimal" ? 6 : 10) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(model.isReady ? Color.green : Color.orange)
-                            .frame(width: 7, height: 7)
-                        Text(model.cityName)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
+            if isWideSingleRowMode {
+                HStack(spacing: 10) {
+                    cityStatus
+                    if hudDensity != "minimal" {
+                        speedControlInline
                     }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(dateString)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.white.opacity(0.85))
-                                .frame(width: 6, height: 6)
-                                .scaleEffect(1 + CGFloat(dayProgress) * 0.35)
-                                .animation(.easeInOut(duration: 0.15), value: dayProgress)
-                            Text("Day \(currentDay) • \(timeOfDayString)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                            Spacer(minLength: 0)
-                        }
-                    }
-                    .layoutPriority(0)
+                    Spacer(minLength: 8)
+                    statsRow
+                }
+            } else {
+                HStack(spacing: 10) {
+                    cityStatus
+                    Spacer(minLength: 8)
+                    statsRow
                 }
 
-                Spacer(minLength: 8)
-
-                GlassEffectContainer(spacing: 10) {
-                    HStack(spacing: 10) {
-                        statPill(title: "Pop", value: formatCompact(model.population))
-                        statPill(title: "Funds", value: "$\(formatCompact(model.money))")
-                        statPill(title: "Net", value: netValue, tint: (model.income - model.expenses) >= 0 ? .green : .red)
-                    }
-                }
-                .layoutPriority(1)
-            }
-
-            if hudDensity != "minimal" {
-                GlassEffectContainer(spacing: 8) {
-                    HStack {
-                        TapeDeckSpeedControl(
-                            selectedSpeed: model.speed,
-                            onSelect: setSpeed
-                        )
-                        Spacer(minLength: 0)
-                    }
+                if hudDensity != "minimal" {
+                    speedControlStacked
                 }
             }
 
@@ -246,64 +251,93 @@ struct NativeHUDView: View {
         }
         .padding(12)
         .glassEffect(.regular.tint(Color.black.opacity(0.04)), in: .rect(cornerRadius: 20))
-        .overlay(alignment: .top) {
-            topDemandStrip
-                .offset(y: -10)
+    }
+
+    private var cityStatus: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(model.isReady ? Color.green : Color.orange)
+                    .frame(width: 7, height: 7)
+                Text(model.cityName)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(dateString)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.white.opacity(0.85))
+                        .frame(width: 6, height: 6)
+                        .scaleEffect(1 + CGFloat(dayProgress) * 0.35)
+                        .animation(.easeInOut(duration: 0.15), value: dayProgress)
+                    Text("Day \(currentDay) • \(timeOfDayString)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                }
+            }
+            .layoutPriority(0)
         }
     }
 
-    private var bottomHUD: some View {
-        VStack(spacing: 8) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    if toolbarMode == "quick" {
-                        quickToolButton("bulldoze", title: "Bulldoze")
-                        quickToolButton("road", title: "Road")
-                        quickToolButton("rail", title: "Rail")
-                        quickToolButton("zone_residential", title: "R")
-                        quickToolButton("zone_commercial", title: "C")
-                        quickToolButton("zone_industrial", title: "I")
-                    } else {
-                        ForEach(pinnedTools, id: \.self) { tool in
-                            pinnedToolButton(tool)
-                        }
-                        Spacer(minLength: 0)
-                    }
-
-                    Button {
-                        showToolSheet = true
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 18, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(CategoryButtonStyle(role: .tool))
-                    .frame(width: 56)
-                    .accessibilityIdentifier("hud.more")
-                }
+    private var statsRow: some View {
+        GlassEffectContainer(spacing: 10) {
+            HStack(spacing: 10) {
+                statPill(title: "Pop", value: formatCompact(model.population))
+                statPill(title: "Funds", value: "$\(formatCompact(model.money))")
+                statPill(title: "Net", value: netValue, tint: (model.income - model.expenses) >= 0 ? .green : .red)
             }
+        }
+        .layoutPriority(1)
+    }
 
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    Button("Overlay") {
-                        showOverlaySheet = true
+    private var speedControlStacked: some View {
+        GlassEffectContainer(spacing: 8) {
+            HStack {
+                TapeDeckSpeedControl(
+                    selectedSpeed: model.speed,
+                    onSelect: setSpeed
+                )
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var speedControlInline: some View {
+        GlassEffectContainer(spacing: 8) {
+            TapeDeckSpeedControl(
+                selectedSpeed: model.speed,
+                onSelect: setSpeed
+            )
+        }
+    }
+
+    private func bottomHUD(isWideSingleRowMode: Bool) -> some View {
+        VStack(spacing: 8) {
+            if isWideSingleRowMode {
+                GlassEffectContainer(spacing: 10) {
+                    HStack(alignment: .center, spacing: 10) {
+                        toolControlsRow
+                        panelControlsRow
                     }
-                    .buttonStyle(CategoryButtonStyle(role: .overlay))
+                }
+            } else {
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 8) {
+                        toolControlsRow
+                    }
+                }
 
-                    Button("Budget") { requestPanelData(for: .budget) }
-                        .buttonStyle(CategoryButtonStyle(role: .panel))
-
-                    Button("Stats") { requestPanelData(for: .statistics) }
-                        .buttonStyle(CategoryButtonStyle(role: .panel))
-
-                    Button("Advisors") { requestPanelData(for: .advisors) }
-                        .buttonStyle(CategoryButtonStyle(role: .panel))
-
-                    if let selectedTile = model.selectedTile {
-                        Text("Tile (\(selectedTile.x), \(selectedTile.y))")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity)
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 8) {
+                        panelControlsRow
                     }
                 }
             }
@@ -313,9 +347,71 @@ struct NativeHUDView: View {
                 .accessibilityLabel(model.selectedTool)
                 .accessibilityIdentifier("hud.selectedTool")
         }
-        .animation(.smooth, value: model.selectedTool)
         .padding(10)
         .glassEffect(.regular.tint(Color.black.opacity(0.06)), in: .rect(cornerRadius: 20))
+    }
+
+    private var toolControlsRow: some View {
+        HStack(spacing: 8) {
+            if toolbarMode == "quick" {
+                quickToolButton("bulldoze", title: "Bulldoze")
+                quickToolButton("road", title: "Road")
+                quickToolButton("rail", title: "Rail")
+                quickToolButton("zone_residential", title: "R")
+                quickToolButton("zone_commercial", title: "C")
+                quickToolButton("zone_industrial", title: "I")
+            } else {
+                ForEach(pinnedTools, id: \.self) { tool in
+                    pinnedToolButton(tool)
+                }
+                Spacer(minLength: 0)
+            }
+
+            Button {
+                showToolSheet = true
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(CategoryButtonStyle(role: .tool))
+            .frame(width: 56)
+            .accessibilityIdentifier("hud.more")
+        }
+    }
+
+    private var panelControlsRow: some View {
+        HStack(spacing: 8) {
+            Button("Overlay") {
+                showOverlaySheet = true
+            }
+            .buttonStyle(CategoryButtonStyle(role: .overlay))
+
+            Button("Budget") { requestPanelData(for: .budget) }
+                .buttonStyle(CategoryButtonStyle(role: .panel))
+
+            Button("Stats") { requestPanelData(for: .statistics) }
+                .buttonStyle(CategoryButtonStyle(role: .panel))
+
+            Button("Advisors") { requestPanelData(for: .advisors) }
+                .buttonStyle(CategoryButtonStyle(role: .panel))
+
+            if let selectedTile = model.selectedTile {
+                Text("Tile (\(selectedTile.x), \(selectedTile.y))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func demandStripWidth(isWideSingleRowMode: Bool) -> CGFloat {
+        if isPadLayout {
+            return isWideSingleRowMode ? Self.iPadWideDemandStripWidth : Self.iPadHUDMaxWidth
+        }
+        return Self.demandStripWidth
     }
 
     private func quickToolButton(_ tool: String, title: String) -> some View {
@@ -325,8 +421,7 @@ struct NativeHUDView: View {
         .buttonStyle(
             QuickToolButtonStyle(
                 role: roleForTool(tool),
-                isSelected: model.selectedTool == tool,
-                namespace: hudGlassNamespace
+                isSelected: model.selectedTool == tool
             )
         )
         .accessibilityIdentifier("hud.tool.\(tool)")
@@ -398,10 +493,12 @@ struct NativeHUDView: View {
         webViewStore.dispatch(type: "budget.setFunding", payload: ["key": key, "funding": funding])
     }
 
+    private static let monthSymbols = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
     private var dateString: String {
-        let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         let monthIndex = max(1, min(12, model.month)) - 1
-        return "\(months[monthIndex]) \(currentDay), \(model.year)"
+        let month = Self.monthSymbols[monthIndex]
+        return "\(month) \(currentDay), \(model.year)"
     }
 
     private var currentDay: Int {
@@ -502,20 +599,6 @@ private func roleForTool(_ tool: String) -> HUDRole {
     }
 }
 
-private extension View {
-    @ViewBuilder
-    func hudGlass(role: HUDRole, isInteractive: Bool, isSelected: Bool, cornerRadius: CGFloat) -> some View {
-        if isInteractive {
-            self.glassEffect(
-                .regular.tint(roleTint(role, isSelected: isSelected)).interactive(),
-                in: .rect(cornerRadius: cornerRadius)
-            )
-        } else {
-            self.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
-        }
-    }
-}
-
 private struct CategoryButtonStyle: ButtonStyle {
     let role: HUDRole
 
@@ -524,7 +607,16 @@ private struct CategoryButtonStyle: ButtonStyle {
             .font(.caption.weight(.semibold))
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
-            .hudGlass(role: role, isInteractive: true, isSelected: false, cornerRadius: 14)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(roleTint(role, isSelected: false))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            }
             .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
@@ -532,29 +624,26 @@ private struct CategoryButtonStyle: ButtonStyle {
 private struct QuickToolButtonStyle: ButtonStyle {
     let role: HUDRole
     var isSelected: Bool
-    let namespace: Namespace.ID
 
     func makeBody(configuration: Configuration) -> some View {
-        let base = configuration.label
+        configuration.label
             .font(.caption.weight(.semibold))
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
-            .hudGlass(role: role, isInteractive: true, isSelected: isSelected, cornerRadius: 14)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? roleTint(role, isSelected: true) : Color.white.opacity(0.14))
+            }
             .overlay {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.black.opacity(0.9), lineWidth: 2)
-                }
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(
+                        isSelected ? roleTint(role, isSelected: false).opacity(0.95) : Color.white.opacity(0.2),
+                        lineWidth: isSelected ? 2 : 1
+                    )
             }
-
-        return Group {
-            if isSelected {
-                base.glassEffectID("selectedTool", in: namespace)
-            } else {
-                base
-            }
-        }
-        .opacity(configuration.isPressed ? 0.85 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
 
@@ -824,6 +913,33 @@ private struct OverlayPickerSheet: View {
 
     return NativeHUDView(model: model, webViewStore: store)
         .frame(width: 390, height: 844)
+        .background(Color(.systemBackground))
+}
+
+#Preview("HUD - iPad") {
+    let model = GameHostModel()
+    model.isReady = true
+    model.cityName = "North Harbor"
+    model.year = 2099
+    model.month = 11
+    model.population = 1_240_000
+    model.money = 12_750_000
+    model.income = 820_000
+    model.expenses = 690_000
+    model.residentialDemand = 61
+    model.commercialDemand = 38
+    model.industrialDemand = 12
+    model.speed = 1
+    model.selectedTool = "rail"
+    model.overlayMode = "traffic"
+    model.selectedTile = GameHostModel.TileSelection(x: 21, y: 14)
+
+    let store = WebViewStore()
+    UserDefaults.standard.set("category", forKey: "isocity.host.toolbarMode")
+    UserDefaults.standard.set("compact", forKey: "isocity.host.hudDensity")
+
+    return NativeHUDView(model: model, webViewStore: store)
+        .frame(width: 834, height: 1194)
         .background(Color(.systemBackground))
 }
 

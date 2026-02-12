@@ -35,5 +35,10 @@ final class WebViewStore {
     func evaluate(_ script: String) {
         webView?.evaluateJavaScript(script, completionHandler: nil)
     }
-}
 
+    func evaluate(_ script: String, completion: @escaping (Any?) -> Void) {
+        webView?.evaluateJavaScript(script) { result, _ in
+            completion(result)
+        }
+    }
+}
